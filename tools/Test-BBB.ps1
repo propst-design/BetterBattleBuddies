@@ -1,7 +1,7 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','squad','tactic','coverfire','flank','search','heldguns','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','squad','tactic','coverfire','flank','search','heldguns','vanillanodes','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
@@ -104,6 +104,8 @@ $flags.search = '-bbbStage4Test 1 -bbbStage4Case search -bbbPerf 1'
 $timeouts.search = 230
 $flags.heldguns = '-bbbHeldGunsTest 1 -bbbStaticQuiet 5 -bbbPerf 1'
 $timeouts.heldguns = 160
+$flags.vanillanodes = '-bbbVanillaNodesTest 1'
+$timeouts.vanillanodes = 150
 $world = '{AC230926A00100E0}Worlds/BBB_TestArland.ent'
 if ($Preset -eq 'compile') { $world = '{77C41EA429B6AC35}worlds/GameMaster/GM_Arland.ent' }
 $argsLine = '-server "' + $world + '" -addonsDir "' + (Split-Path $AddonRoot -Parent) + '" -addons BBB0261015000001 -profile "' + $profile + '" -maxFPS 60 -noBackend ' + $flags[$Preset] + ' ' + $ExtraArgs
