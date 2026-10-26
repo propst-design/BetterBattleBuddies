@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.6 — unreleased
+## 0.1.7 — unreleased
+
+## 0.1.6 — released
 
 Squads that fight as a team: they share what they see over the radio, commit to a plan, flank and search, and pull back properly when they break. Player and Game Master orders still come first.
 
