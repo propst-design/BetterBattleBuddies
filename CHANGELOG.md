@@ -2,6 +2,8 @@
 
 ## 0.1.7 — unreleased
 
+- Base-game AI fix: no more script error when a squad spots an enemy that has no faction (a NULL pointer to `targetFaction` while marking it on the map). That enemy just isn't marked on the map.
+
 ## 0.1.6 — released
 
 Squads that fight as a team: they share what they see over the radio, commit to a plan, flank and search, and pull back properly when they break. Player and Game Master orders still come first.
