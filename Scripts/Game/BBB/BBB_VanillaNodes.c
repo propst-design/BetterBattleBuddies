@@ -47,3 +47,17 @@ modded class SCR_AIProcessFailedMovementResult
   return super.EOnTaskSimulate(owner, dt);
  }
 }
+
+// Marking a spotted enemy on the map reads the target's faction without checking it
+// (SCR_AIEnemyMarkingSystem.MarkTarget -> GetIdentitySymbol(notnull Faction)). A target identified
+// with no faction threw a "NULL pointer to instance. Variable 'targetFaction'" VM exception
+// (AC: Actual night soak on Kolguyev, 26 Oct, once in 2 h). Without a faction there is no symbol
+// to draw: the target just isn't marked.
+modded class SCR_AIEnemyMarkingSystem
+{
+ override void MarkTarget(notnull SCR_AITargetInfo targetInfo, notnull SCR_AIGroup spottingGroup)
+ {
+  if (!targetInfo.m_Faction) return;
+  super.MarkTarget(targetInfo, spottingGroup);
+ }
+}
