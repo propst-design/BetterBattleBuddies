@@ -2,6 +2,7 @@
 
 ## 0.1.7 — unreleased
 
+- Squads routed on foot round a bay or lake keep a little inland instead of hugging the waterline, and no leg of the route ends on a beach. Before, a leg could end right at the water's edge, where the game's pathfinding sometimes fails every move and the squad stood there for good (-bbbShoreRoutes 0).
 - Base-game AI fix: no more script error when a squad spots an enemy that has no faction (a NULL pointer to `targetFaction` while marking it on the map). That enemy just isn't marked on the map.
 
 ## 0.1.6 — released

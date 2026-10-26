@@ -10,6 +10,28 @@ class BBB_Terrain
  static const float CELL = 50;
  static const float MARGIN = 1500;        // search area around the two ends
  static const int MAX_CELLS = 60000;
+ // Land below this is shore: routes round water keep off it where they can, and
+ // no leg ends on it (a leg ending on a beach at 0.9 m stranded a squad for 20 min
+ // on Everon: the engine failed every move from there). -bbbShoreRoutes 0 = old routes.
+ static const float SHORE_LEVEL = 2.5;
+ static const float SHORE_COST = 4;
+ protected static bool s_bShoreRead;
+ static bool s_bShore;   // tests compare both ways after ShoreRoutes() has read the switch
+
+ static bool ShoreRoutes()
+ {
+  if (s_bShoreRead) return s_bShore;
+  s_bShoreRead = true;
+  string value;
+  s_bShore = !(System.GetCLIParam("bbbShoreRoutes", value) && value == "0");
+  PrintFormat("[BBB] SHORE ROUTES enabled=%1", s_bShore);
+  return s_bShore;
+ }
+
+ static bool IsShore(vector p)
+ {
+  return GetGame().GetWorld().GetSurfaceY(p[0], p[2]) < SHORE_LEVEL;
+ }
 
  // The nearest point on a road within maxDistance (false if none). The game's AI
  // drivers can't reach many off-road spots: the move fails and the crew gets
@@ -99,7 +121,8 @@ class BBB_Terrain
   int count = w * h;
   array<float> cost = {};
   array<int> parent = {};
-  array<int> state = {};   // 0 unknown, 1 land, 2 water, +10 closed
+  array<int> state = {};   // 0 unknown, 1 land, 2 water, 3 shore, +10 closed
+  bool shore = ShoreRoutes();
   cost.Resize(count);
   parent.Resize(count);
   state.Resize(count);
@@ -138,11 +161,14 @@ class BBB_Terrain
     if (state[next] == 0)
     {
      state[next] = 1;
-     if (next != goal && IsWater(minX + (nx + 0.5) * cell, minZ + (nz + 0.5) * cell)) state[next] = 2;
+     float surface = GetGame().GetWorld().GetSurfaceY(minX + (nx + 0.5) * cell, minZ + (nz + 0.5) * cell);
+     if (next != goal && surface < SEA_LEVEL) state[next] = 2;
+     else if (shore && next != goal && surface < SHORE_LEVEL) state[next] = 3;
     }
     if (state[next] == 2) continue;
     float step = cell;
     if (n >= 4) step = cell * 1.4142;
+    if (state[next] == 3) step = step * SHORE_COST;
     float tentative = cost[current] + step;
     if (tentative >= cost[next]) continue;
     cost[next] = tentative;
@@ -165,13 +191,16 @@ class BBB_Terrain
   }
   chain[0] = a;
   chain[chain.Count() - 1] = b;
-  // Keep only the corners: from each point, jump to the farthest one still reachable over dry ground.
+  // Keep only the corners: from each point, jump to the farthest one still reachable
+  // over dry ground, skipping shore points as corners (b itself may be on the shore).
+  int last = chain.Count() - 1;
   int at = 0;
-  while (at < chain.Count() - 1)
+  while (at < last)
   {
    int reach = at + 1;
-   for (int j = chain.Count() - 1; j > at + 1; j--)
+   for (int j = last; j > at + 1; j--)
    {
+    if (shore && j != last && IsShore(chain[j])) continue;
     if (WaterAlong(chain[at], chain[j]) <= WET_ALLOWED / 2) { reach = j; break; }
    }
    route.Insert(BBB.Ground(chain[reach]));
