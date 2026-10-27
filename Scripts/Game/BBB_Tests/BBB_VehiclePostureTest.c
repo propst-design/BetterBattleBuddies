@@ -21,6 +21,10 @@ class BBB_VehiclePostureTest : BBB_AimTest
  protected int m_iFailures;
  protected bool m_bObservedOut;
  protected bool m_bObservedIn;
+ protected bool m_bOrderIn;
+ protected float m_fShift;
+ protected int m_iInBefore;
+ protected ref BBB_OrderIntentTestHold m_Hold;
  protected vector m_Original;
  protected vector m_Nose;
  protected float m_fOffTravel;
@@ -232,22 +236,51 @@ class BBB_VehiclePostureTest : BBB_AimTest
    {
     Check("on-observed-native-turnout", m_bObservedOut);
     Check("door-helper-preserves-open-hatch", m_GunSeat.GetManager().IsDoorOpen(m_GunSeat.GetTurnOutDoorIndex()));
+    // A player-level order arrives while BBB has him out: BBB turns him back in first (#7).
+    m_Hold = new BBB_OrderIntentTestHold(BBB_VehiclePosture.Utility(m_Gunner), null);
+    BBB_VehiclePosture.Utility(m_Gunner).AddAction(m_Hold);
+    m_iPhase = 10;
+   }
+  }
+  if (m_iPhase == 10)
+  {
+   if (!m_GunSeat.IsOccupantTurnedOut()) m_bOrderIn = true;
+   if (elapsed >= 56000)
+   {
+    Check("player-order-buttons-up", m_bOrderIn && !m_GunSeat.IsOccupantTurnedOut());
+    Check("player-order-hatch-closed", !m_GunSeat.GetManager().IsDoorOpen(m_GunSeat.GetTurnOutDoorIndex()));
+    m_Hold.Fail();
+    m_Hold = null;
+    QuietCrew();
+    m_bObservedOut = false;
+    m_iPhase = 11;
+   }
+  }
+  if (m_iPhase == 11)
+  {
+   if (m_GunSeat.IsOccupantTurnedOut())
+   {
+    // Turned out again once the order ended and it stayed quiet: the hit phase starts from here.
+    Check("turnout-resumes-after-order", elapsed >= 86000);
+    m_fShift = elapsed - 48000;
+    m_iInBefore = BBB_CrewTurnout.s_iRequestsIn;
     BBB_Transport.OnVehicleHit(m_Vehicle);
     m_iPhase = 2;
    }
+   else if (elapsed >= 115000) { Check("turnout-resumes-after-order", false); FinishPosture(); return; }
   }
   if (m_iPhase == 2)
   {
    if (!m_GunSeat.IsOccupantTurnedOut()) m_bObservedIn = true;
-   if (elapsed >= 56000)
+   if (elapsed >= 56000 + m_fShift)
    {
-    Check("hit-buttons-up", m_bObservedIn && BBB_CrewTurnout.s_iRequestsIn > 0);
+    Check("hit-buttons-up", m_bObservedIn && BBB_CrewTurnout.s_iRequestsIn > m_iInBefore);
     Check("hit-hatch-closed", !m_GunSeat.GetManager().IsDoorOpen(m_GunSeat.GetTurnOutDoorIndex()));
     m_iPhase = 3;
    }
   }
   if (m_iPhase == 3 && m_GunSeat.IsOccupantTurnedOut()) { Check("danger-no-hatch-cycling", false); FinishPosture(); return; }
-  if (elapsed >= 70000)
+  if (m_iPhase == 3 && elapsed >= 70000 + m_fShift)
   {
    Check("no-early-reopening", !m_GunSeat.IsOccupantTurnedOut());
    SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(m_Gunner);

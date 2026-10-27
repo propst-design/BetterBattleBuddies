@@ -79,8 +79,12 @@ class BBB_CrewStays
  // Called where vanilla would add its get-out. True = he keeps his seat (no get-out added).
  static bool Keep(SCR_AIUtilityComponent utility, SCR_AIActionBase action)
  {
-  if (!On() || !utility || !action || action.EvaluatePriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
+  if (!On() || !utility || !action) return false;
   IEntity soldier = utility.m_OwnerEntity;
+  // A player's or Game Master's order is left alone; a host's own order at that level is not.
+  float level = action.EvaluatePriorityLevel();
+  if (level >= SCR_AIActionBase.PRIORITY_LEVEL_GAMEMASTER) return false;
+  if (level >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER && !BBB.s_Hooks.HostOrder(BBB_Medic.GroupOf(soldier))) return false;
   IEntity vehicle = CrewedBy(soldier);
   if (!vehicle) return false;
   string seat = typename.EnumToString(ECompartmentType, BBB_Transport.SeatOf(soldier));

@@ -59,6 +59,10 @@ class BBB_Hooks : Managed
  // Binding host orders always outrank tactical deviations. Existing driving hosts
  // remain conservative until they explicitly override this policy.
  bool IsBinding(SCR_AIGroup group) { return ManagesVehicleDriving(group); }
+ // The group's current player-level order is the host's own (its AI commander running it at
+ // the player's level to push through), not a player's or Game Master's. BBB still keeps an
+ // armed vehicle's crew in their seats for vanilla's gate and heal get-outs under it.
+ bool HostOrder(SCR_AIGroup group) { return false; }
  // Something dropped on the ground that the host may clean up later.
  void OnLitter(IEntity item) {}
 }
