@@ -11,6 +11,12 @@
 // Not covered: the heal activity re-picking an on-foot medic (no group heal activity here),
 // the vanilla group tree sending the gate message by itself, and the gate swing under a
 // moving vehicle.
+// The host says the group's player-level order is its own (an AI commander's Fast move).
+class BBB_CrewStaysTestHooks : BBB_Hooks
+{
+ override bool HostOrder(SCR_AIGroup group) { return true; }
+}
+
 class BBB_CrewStaysLane
 {
  SCR_AIGroup m_Group;
@@ -26,7 +32,7 @@ class BBB_CrewStaysTest : BBB_AimTest
  static ref BBB_CrewStaysTest s_CrewTest;
  static const ResourceName LAV = "{0FBF8F010F81A4E5}Prefabs/Vehicles/Wheeled/LAV25/LAV25.et";
  static const ResourceName WP_MOVE = "{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et";
- static const int EXPECTED = 14;
+ static const int EXPECTED = 16;
  protected int m_iChecks;
  protected int m_iFailures;
  protected ref BBB_CrewStaysLane m_A = new BBB_CrewStaysLane();
@@ -196,6 +202,17 @@ class BBB_CrewStaysTest : BBB_AimTest
   int keptBefore = BBB_CrewStays.s_iHealsKept;
   bool playerKept = BBB_CrewStays.Keep(ordered, playerHeal);
   Check("on-player-heal-not-kept", !playerKept && BBB_CrewStays.s_iHealsKept == keptBefore, string.Format("kept=%1", playerKept));
+  // At the player's level but the host's own order (ACA #57): kept like an ordinary one. A Game
+  // Master's order never is.
+  BBB_Hooks savedHooks = BBB.s_Hooks;
+  BBB.s_Hooks = new BBB_CrewStaysTestHooks();
+  SCR_AIMedicHealBehavior hostHeal = new SCR_AIMedicHealBehavior(ordered, null, m_B.m_OnFoot, false, priorityLevel: SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
+  bool hostKept = BBB_CrewStays.Keep(ordered, hostHeal);
+  SCR_AIMedicHealBehavior gmHeal = new SCR_AIMedicHealBehavior(ordered, null, m_B.m_OnFoot, false, priorityLevel: SCR_AIActionBase.PRIORITY_LEVEL_GAMEMASTER);
+  bool gmKept = BBB_CrewStays.Keep(ordered, gmHeal);
+  BBB.s_Hooks = savedHooks;
+  Check("on-host-order-heal-kept", hostKept && BBB_CrewStays.s_iHealsKept == keptBefore + 1, string.Format("kept=%1", hostKept));
+  Check("on-gm-heal-not-kept", !gmKept, string.Format("kept=%1", gmKept));
   m_bShutBefore = shutBefore;
   GetGame().GetCallqueue().CallLater(Sample, 500, true);
  }
