@@ -2,6 +2,8 @@
 
 ## 0.1.7 — unreleased
 
+- Soldiers fighting from a building stay in it. Before, the game's combat movement sent a soldier who'd stood still for a few seconds to cover 10-30 m towards the enemy, and its reaction to being shot at sent him sprinting in a random direction: both meant out of the door into the open, so garrisons emptied within seconds of the first shot. Now a soldier inside keeps his window while he can see the enemy, moves to another window in the same building when he can't, ducks behind the walls when shot at instead of running out, and stands back up to see over the sill instead of lying blind on the floor. Defenders hold even when they lose sight of the enemy; others go after him as before if the building gives them no view. An enemy inside the same building is still fought room to room (-bbbIndoorHold 0).
+- Soldiers no longer throw frag grenades from inside buildings or into a wall or overhang just in front of them. The old check only looked 3 m straight ahead, but a grenade is lobbed, so it could hit the ceiling or the wall above a window and land at the thrower's feet.
 - Squads routed on foot round a bay or lake keep a little inland instead of hugging the waterline, and no leg of the route ends on a beach. Before, a leg could end right at the water's edge, where the game's pathfinding sometimes fails every move and the squad stood there for good (-bbbShoreRoutes 0).
 - Base-game AI fix: no more script error when a squad spots an enemy that has no faction (a NULL pointer to `targetFaction` while marking it on the map). That enemy just isn't marked on the map.
 

@@ -44,6 +44,7 @@ class BBB_Grenades
 	static int s_iGrenadesThrown;
 	static int s_iSafetyVetoes;
 	static int s_iCorridorVetoes;
+	static int s_iArcVetoes;
 
 	// ---------------------------------------------------------------- configuration
 
@@ -231,6 +232,40 @@ class BBB_Grenades
 		return fraction >= 0.95;
 	}
 
+	protected static bool IgnoreCharacters(notnull IEntity entity)
+	{
+		return !ChimeraCharacter.Cast(entity);
+	}
+
+	// A frag is lobbed, not thrown flat. Under a roof, or with a wall or ceiling across the
+	// rising half of the arc, it hits that and drops at the thrower's feet (seen in play: a
+	// soldier killed himself throwing at a window). No frags from under a building's roof;
+	// outdoors, the first 6 m of a ~45 degree lob must be clear: what it hits there lands
+	// beside him. Trees or a fence further out only shorten the throw.
+	static bool IsArcClear(IEntity thrower, vector landingPos)
+	{
+		if (BBB_Buildings.RoofAt(thrower.GetOrigin())) return false;
+		vector hand = thrower.GetOrigin() + Vector(0, 1.6, 0);
+		float range = vector.DistanceXZ(hand, landingPos);
+		if (range < 1) return false;
+		float apex = Math.Clamp(range * 0.25, 2, 10);
+		float reach = Math.Min(6 / range, 0.5);
+		vector previous = hand;
+		for (int i = 1; i <= 6; i++)
+		{
+			float t = reach * i / 6.0;
+			vector point = hand + (landingPos - hand) * t;
+			point[1] = hand[1] + (landingPos[1] - hand[1]) * t + 4 * apex * t * (1 - t);
+			TraceParam trace = new TraceParam();
+			trace.Start = previous;
+			trace.End = point;
+			trace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+			if (GetGame().GetWorld().TraceMove(trace, IgnoreCharacters) < 1) return false;
+			previous = point;
+		}
+		return true;
+	}
+
 	// ---------------------------------------------------------------- query callback
 
 	protected static bool CollectNearbyEntity(IEntity entity)
@@ -277,6 +312,7 @@ class BBB_Grenades
 				toTarget[1] = 0;
 				toTarget.Normalize();
 				if (!IsImmediateTrajectoryClear(character, toTarget)) continue;
+				if (!IsArcClear(character, targetPos)) { s_iArcVetoes++; continue; }
 				if (!IsThrowCorridorClear(character.GetOrigin(), targetPos, group, character)) continue;
 
 				bestDist = d;
@@ -331,7 +367,7 @@ class BBB_Grenades
 		landingPos[1] = GetGame().GetWorld().GetSurfaceY(landingPos[0], landingPos[2]) + 0.1;
 
 		// Issue throw action via native behavior
-		SCR_AIThrowGrenadeToBehavior behavior = new SCR_AIThrowGrenadeToBehavior(
+		BBB_AIThrowFrag behavior = new BBB_AIThrowFrag(
 			throwerUtil, null, landingPos, EWeaponType.WT_FRAGGRENADE, 0.1, SCR_AIActionBase.PRIORITY_BEHAVIOR_THROW_GRENADE
 		);
 		throwerUtil.AddAction(behavior);
@@ -429,5 +465,21 @@ class BBB_Grenades
 				s_mGroupCooldown.RemoveElement(c);
 			}
 		}
+	}
+}
+
+// The thrower may have moved (indoors, behind a wall) between being picked and the throw:
+// the arc is checked again whenever the native utility evaluates the throw.
+class BBB_AIThrowFrag : SCR_AIThrowGrenadeToBehavior
+{
+	override float CustomEvaluate()
+	{
+		float priority = super.CustomEvaluate();
+		// Never cancel a throw already under way: only before the animation starts.
+		if (priority <= 0 || !m_Utility || !m_Utility.m_OwnerEntity || GetActionState() == EAIActionState.RUNNING) return priority;
+		if (BBB_Grenades.IsArcClear(m_Utility.m_OwnerEntity, m_vTargetPosition.m_Value)) return priority;
+		BBB_Grenades.s_iArcVetoes++;
+		Fail();
+		return 0;
 	}
 }
