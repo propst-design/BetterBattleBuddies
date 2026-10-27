@@ -3,11 +3,15 @@
 // rifle ammo is used against unarmoured vehicles, and an armoured Humvee counts as one
 // (only wheeled APCs are "medium"), 7.62 machine guns are used against APCs too. So AI
 // riflemen pour magazines into armour their rounds can't get through.
-// BBB learns it the way soldiers do: every kinetic hit on a vehicle is checked against the
-// struck part's armour (the game's own effective-damage sum: multipliers, flat reduction,
-// threshold); a hit that wounds someone inside counts as getting through. Once a kind of
-// round has hit a kind of vehicle MIN_HITS times and fewer than 1 in 10 did anything, AI
-// soldiers know that round is useless against it (like training: shared by everyone).
+// BBB learns it the way soldiers do, per round fired: a round's first hit on a vehicle opens
+// a short window, and every hit from the same shooter in it (its spall, fragments and blast,
+// whatever their prefabs are called) belongs to that round. The round got through if the
+// vehicle lost health anywhere in its hierarchy (wheels, engine, gearbox, not only the part
+// struck) or someone inside was wounded. Once a kind of round has hit a kind of vehicle
+// MIN_HITS times and fewer than 1 in 10 did anything, AI soldiers know that round is useless
+// against it (like training: shared by everyone). Before (BBB #5) each hit was judged on the
+// struck part alone, so one M72's ~70 spall hits decided it was useless against a BTR-70 it
+// wrecked, and the hull soaked the 25 mm's hits while the wheels behind it were destroyed.
 // When such a pair is a soldier's pick he holds that fire and his target picker turns to
 // targets he can hurt (see the modded combat component below). Works with any mod's
 // vehicles and ammo; no tables.
@@ -15,13 +19,27 @@
 // Humvees and trucks are not: their hulls soak single rifle hits, but their crews (an
 // exposed PKM or M2 gunner above all) can be shot, and holding fire at them left
 // riflemen watching a UAZ gunner kill them (20 Oct live, ACA Everon).
-// Host options: -bbbArmour 0 (off), -bbbArmourHits <n> (hits before a verdict, default 12),
+// Host options: -bbbArmour 0 (off), -bbbArmourHits <n> (rounds before a verdict, default 12),
 //               -bbbArmourScatter 0 / -bbbAntiArmor 0 turns off non-AT men going low near armour (on by default).
 class BBB_ArmourStat : Managed
 {
- int m_iHits;
+ int m_iHits; // rounds that hit
  int m_iThrough;
  bool m_bUseless;
+}
+
+// One round fired at a vehicle, from its first hit until its window closes.
+class BBB_ArmourRound : Managed
+{
+ IEntity m_Vehicle;
+ IEntity m_Shooter;
+ string m_sKind;
+ string m_sAmmo;
+ string m_sFirst;      // prefab of the first hit: the projectile fired
+ float m_fFirstAt;     // world time of that prefab's latest hit
+ float m_fHealth;      // the vehicle's hit-zone health in its hierarchy before the round
+ bool m_bWounded;
+ bool m_bClosed;
 }
 
 class BBB_AntiArmorJob : Managed
@@ -42,7 +60,11 @@ class BBB_Armour
  static bool s_bScatter = true; // forced crouch/prone near armour: on by default (20 Oct), no behaviour A/B yet
  static int s_iMinHits = 12;
  static const float THROUGH_SHARE = 0.1;
- static const float HIT_EFFECTIVE = 1.0; // effective damage that counts as getting through
+ static const float HIT_EFFECTIVE = 1.0; // health lost that counts as getting through
+ static const int ROUND_MS = 250;        // a round's hits (spall, fragments, blast) land within this
+ static const float SAME_ROUND_MS = 20;  // the fired prefab again after this is the next round
+ static ref array<ref BBB_ArmourRound> s_aRounds = {};
+ static ref array<HitZone> s_aZones = {};
  static const float AA_THREAT_RANGE_M = 450.0;
  static const float AA_CLOSE_RANGE_M = 120.0;
  static const float AA_DURATION_MIN_S = 8.0;
@@ -187,38 +209,113 @@ class BBB_Armour
   s_mWatchDamage.Set(key, s_mWatchDamage.Get(key) + effective);
  }
 
- // A kinetic hit on a vehicle part (vehicle damage managers).
+ // A round's own damage: its penetrator, spall and fragments (kinetic) and its warhead (explosive).
+ static bool Counts(EDamageType type)
+ {
+  return type == EDamageType.KINETIC || type == EDamageType.EXPLOSIVE;
+ }
+
+ // The vehicle's health summed over every hit zone in its hierarchy (hull, wheels, engine, turret...).
+ static float Health(IEntity vehicle)
+ {
+  if (!vehicle) return 0;
+  HitZoneContainerComponent zones = HitZoneContainerComponent.Cast(vehicle.FindComponent(HitZoneContainerComponent));
+  if (!zones) return 0;
+  zones.GetAllHitZonesInHierarchy(s_aZones);
+  float health;
+  foreach (HitZone zone : s_aZones)
+   if (zone) health += zone.GetHealth();
+  s_aZones.Clear();
+  return health;
+ }
+
+ static IEntity Shooter(BaseDamageContext context)
+ {
+  if (!context.instigator) return null;
+  return context.instigator.GetInstigatorEntity();
+ }
+
+ // The open round this hit belongs to: same vehicle, same shooter (a hit with no known shooter
+ // goes to the latest round on the vehicle).
+ protected static BBB_ArmourRound OpenRound(IEntity vehicle, IEntity shooter)
+ {
+  for (int i = s_aRounds.Count() - 1; i >= 0; i--)
+  {
+   BBB_ArmourRound round = s_aRounds[i];
+   if (round.m_Vehicle == vehicle && (round.m_Shooter == shooter || !shooter || !round.m_Shooter)) return round;
+  }
+  return null;
+ }
+
+ protected static BBB_ArmourRound BeginRound(IEntity vehicle, IEntity shooter, string first, float now)
+ {
+  string kind = PrefabKey(vehicle);
+  string ammo = Round(first);
+  if (ammo == "" || kind == "") return null;
+  BBB_ArmourRound round = new BBB_ArmourRound();
+  round.m_Vehicle = vehicle;
+  round.m_Shooter = shooter;
+  round.m_sKind = kind;
+  round.m_sAmmo = ammo;
+  round.m_sFirst = first;
+  round.m_fFirstAt = now;
+  round.m_fHealth = Health(vehicle); // called before this hit's damage is applied
+  s_aRounds.Insert(round);
+  GetGame().GetCallqueue().CallLater(CloseRound, ROUND_MS, false, round);
+  return round;
+ }
+
+ // Judge a round: it got through if the vehicle lost health anywhere or someone inside was hurt.
+ // Damage another shooter does inside the window counts for it too (errs towards "can hurt").
+ static void CloseRound(BBB_ArmourRound round)
+ {
+  if (!round || round.m_bClosed) return;
+  round.m_bClosed = true;
+  s_aRounds.RemoveItem(round);
+  float lost = round.m_fHealth;
+  if (round.m_Vehicle) lost = round.m_fHealth - Health(round.m_Vehicle); // a deleted vehicle lost it all
+  BBB_ArmourStat stat = Stat(round.m_sKind, round.m_sAmmo);
+  stat.m_iHits++;
+  if (round.m_bWounded || lost >= HIT_EFFECTIVE) stat.m_iThrough++;
+  Judge(stat, round.m_sKind, round.m_sAmmo);
+ }
+
+ // A hit on a vehicle or one of its parts (wheels, turret: their own damage managers).
  static void OnVehicleHit(IEntity vehicle, notnull BaseDamageContext context)
  {
-  if (!s_bLearn || context.damageType != EDamageType.KINETIC || !context.damageSource || Aircraft(vehicle) || !Armoured(vehicle)) return;
+  if (!s_bLearn || !Counts(context.damageType) || !context.damageSource || Aircraft(vehicle) || !Armoured(vehicle)) return;
   int t = System.GetTickCount();
-  string ammo = Round(PrefabKey(context.damageSource));
-  string kind = PrefabKey(vehicle);
-  if (ammo != "" && kind != "")
+  string first = PrefabKey(context.damageSource);
+  if (first != "")
   {
-   float effective = 0;
-   if (context.struckHitZone) effective = context.struckHitZone.ComputeEffectiveDamage(context, false);
-   BBB_ArmourStat stat = Stat(kind, ammo);
-   stat.m_iHits++;
-   if (effective >= HIT_EFFECTIVE) stat.m_iThrough++;
-   Judge(stat, kind, ammo);
-   if (s_bDiag && stat.m_bUseless) Diag(context);
+   float now = GetGame().GetWorld().GetWorldTime();
+   IEntity shooter = Shooter(context);
+   BBB_ArmourRound round = OpenRound(vehicle, shooter);
+   // The fired prefab hitting again a frame or more later is his next round: judge this one
+   // now, before the new hit's damage is applied.
+   if (round && first == round.m_sFirst && now - round.m_fFirstAt > SAME_ROUND_MS) { CloseRound(round); round = null; }
+   if (round && first == round.m_sFirst) round.m_fFirstAt = now;
+   if (!round) round = BeginRound(vehicle, shooter, first, now);
+   if (s_bDiag && round)
+   {
+    BBB_ArmourStat stat = s_Stats.Get(round.m_sKind + "|" + round.m_sAmmo);
+    if (stat && stat.m_bUseless) Diag(context);
+   }
   }
   BBB_Perf.Add("ev.armour", System.GetTickCount() - t);
  }
 
- // A kinetic hit on someone sitting in a vehicle, from outside it: it got through.
+ // A hit on someone sitting in a vehicle: the round that did it got through.
  static void OnOccupantHit(IEntity occupant, notnull BaseDamageContext context)
  {
-  if (!s_bLearn || context.damageType != EDamageType.KINETIC || !context.damageSource) return;
+  if (!s_bLearn || !Counts(context.damageType) || !context.damageSource) return;
   IEntity vehicle = VehicleOf(occupant);
   if (!vehicle || Aircraft(vehicle) || !Armoured(vehicle)) return;
-  string ammo = Round(PrefabKey(context.damageSource));
-  string kind = PrefabKey(vehicle);
-  if (ammo == "" || kind == "") return;
-  BBB_ArmourStat stat = Stat(kind, ammo);
-  stat.m_iThrough++;
-  Judge(stat, kind, ammo);
+  IEntity shooter = Shooter(context);
+  if (shooter == occupant || VehicleOf(shooter) == vehicle) return; // from inside it
+  BBB_ArmourRound round = OpenRound(vehicle, shooter);
+  if (!round) round = BeginRound(vehicle, shooter, PrefabKey(context.damageSource), GetGame().GetWorld().GetWorldTime());
+  if (round) round.m_bWounded = true;
  }
 
  protected static void Judge(BBB_ArmourStat stat, string kind, string ammo)
@@ -228,7 +325,7 @@ class BBB_Armour
   bool useless = stat.m_iHits >= s_iMinHits && through < share;
   if (useless == stat.m_bUseless) return;
   stat.m_bUseless = useless;
-  if (useless) PrintFormat("[BBB] ARMOUR learned: %1 shrugs off %2 (%3 of %4 hits got through)", Short(kind), Short(ammo), stat.m_iThrough, stat.m_iHits);
+  if (useless) PrintFormat("[BBB] ARMOUR learned: %1 shrugs off %2 (%3 of %4 rounds got through)", Short(kind), Short(ammo), stat.m_iThrough, stat.m_iHits);
   else PrintFormat("[BBB] ARMOUR relearned: %1 can be hurt by %2 (%3 of %4)", Short(kind), Short(ammo), stat.m_iThrough, stat.m_iHits);
  }
 
@@ -298,7 +395,7 @@ class BBB_Armour
  static void Dump()
  {
   foreach (string key, BBB_ArmourStat stat : s_Stats)
-   PrintFormat("[BBB] ARMOUR stat %1: %2 hits, %3 through, useless %4", key, stat.m_iHits, stat.m_iThrough, stat.m_bUseless);
+   PrintFormat("[BBB] ARMOUR stat %1: %2 rounds, %3 through, useless %4", key, stat.m_iHits, stat.m_iThrough, stat.m_bUseless);
   foreach (string what, int n : s_mDiag)
    PrintFormat("[BBB] ARMOUR wasted rounds after learning, shooter busy with %1: %2", what, n);
  }
@@ -564,6 +661,12 @@ modded class SCR_DamageManagerComponent
    BBB_ArmorReaction.Hit(GetOwner(), damageContext);
    if (damageContext.damageType == EDamageType.KINETIC && damageContext.damageSource)
     BBB_Transport.OnVehicleHit(GetOwner());
+  }
+  else if (!hijacked && GetOwner() && !ChimeraCharacter.Cast(GetOwner()))
+  {
+   // A part with its own damage manager (a wheel, a turret): the round hit its vehicle.
+   IEntity root = GetOwner().GetRootParent();
+   if (root != GetOwner() && Vehicle.Cast(root)) BBB_Armour.OnVehicleHit(root, damageContext);
   }
   return hijacked;
  }
