@@ -181,14 +181,15 @@ class BBB_CrewTurnout
   CompartmentAccessComponent access = body.GetCompartmentAccessComponent();
   if (!BBB_VehiclePosture.Controlled(body) || !access || access.GetCompartment() != seat)
   { state.m_bOpened = false; state.m_fQuietSince = now; return; }
-  if (BBB.s_Hooks.LeaveAlone(state.m_Vehicle))
-  { state.m_bOpened = false; state.m_fQuietSince = now; return; }
   if (BBB_VehiclePosture.Transition(access)) return;
   SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(body);
-  // Hand ownership back without issuing actions through explicit commands.
-  if (!utility || BBB_OrderIntent.Blocks(utility)) { state.m_bOpened = false; state.m_fQuietSince = now; return; }
+  // An explicit order or a host claim on the vehicle ends BBB's turn-out, but only after BBB
+  // undoes its own: the man it turned out goes back in and the hatch closes, then the hatch is
+  // theirs. Letting go with him still out left him out under fire for good (BBB #7).
+  bool release = !utility || BBB_OrderIntent.Blocks(utility) || BBB.s_Hooks.LeaveAlone(state.m_Vehicle);
+  if (release) { state.m_fQuietSince = now; if (!state.m_bOpened) return; }
   if (!quiet) state.m_fQuietSince = now;
-  bool wantOut = s_bOn && quiet && now - state.m_fQuietSince >= QUIET_MS;
+  bool wantOut = !release && s_bOn && quiet && now - state.m_fQuietSince >= QUIET_MS;
   if (now < state.m_fNextAction) return;
   BaseCompartmentManagerComponent manager = seat.GetManager();
   if (!manager) return;

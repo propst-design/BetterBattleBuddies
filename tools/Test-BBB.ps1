@@ -70,7 +70,7 @@ $sourceFiles = @('Scripts','Configs/BBB','Prefabs/BBB','Prefabs/BBB_Tests') | Fo
 }) | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $sourceSnapshot -Encoding UTF8
 $flags.crewturnout = '-bbbVehiclePostureTest 1 -bbbVehiclePostureCase turnout -bbbPerf 1'
 $flags.driveralign = '-bbbVehiclePostureTest 1 -bbbVehiclePostureCase alignment -bbbPerf 1'
-$timeouts.crewturnout = 120
+$timeouts.crewturnout = 190
 $timeouts.driveralign = 110
 $flags.driveraligncomplete = '-bbbVehiclePostureTest 1 -bbbVehiclePostureCase alignmentcomplete -bbbPerf 1'
 $timeouts.driveraligncomplete = 110
