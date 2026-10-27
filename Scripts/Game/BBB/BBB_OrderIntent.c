@@ -126,6 +126,10 @@ class BBB_OrderLeash
  {
   if (!group || BBB.s_Hooks.IsBinding(group)) return false;
   if (expected && (!SameOrder(group, expected) || Lease(group) != expected)) return false;
+  // The host's leash, when it sets one, is the area (BBB_Hooks.HostLeash).
+  vector centre;
+  float radius;
+  if (s_bOn && BBB.s_Hooks.HostLeash(group, centre, radius)) return vector.DistanceXZ(point, centre) <= radius;
   if (!group.GetCurrentWaypoint()) return true;
   // FireManeuver retains its own pre-leash waypoint filter in the off case.
   if (!s_bOn) return legacyMove;

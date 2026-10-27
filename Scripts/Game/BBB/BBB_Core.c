@@ -50,6 +50,10 @@ class BBB_Hooks : Managed
  bool AllowContactRelay(SCR_AIGroup group) { return true; }
  // A committed squad tactic (BBB_Tactic) may run this group: HOLD keeps it from advancing.
  bool AllowSquadTactic(SCR_AIGroup group) { return true; }
+ // The host's own leash for this group: a circle its men may manoeuvre in (an objective's ring,
+ // a post's radius). While it returns true it replaces the order leash (BBB_OrderLeash.Allows)
+ // and lets fire and manoeuvre run under a Defend waypoint; false: the order leash as before.
+ bool HostLeash(SCR_AIGroup group, out vector centre, out float radius) { return false; }
  // Host mod manages its own vehicle stall/unstick and tactical cargo dismount for this group.
  bool ManagesVehicleDriving(SCR_AIGroup group) { return false; }
  // Binding host orders always outrank tactical deviations. Existing driving hosts

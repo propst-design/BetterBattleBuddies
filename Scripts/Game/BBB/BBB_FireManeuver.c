@@ -162,13 +162,17 @@ class BBB_FireManeuver
   SCR_AIGroupUtilityComponent groupUtility = group.GetGroupUtilityComponent();
   if (groupUtility.GetCombatModeExternal() != EAIGroupCombatMode.FIRE_AT_WILL) return false;
   SCR_AIWaypoint waypoint = SCR_AIWaypoint.Cast(group.GetCurrentWaypoint());
+  // A host leash (BBB_Hooks.HostLeash) lets defenders bound inside their post.
+  vector leashCentre;
+  float leashRadius;
+  bool hostLeash = BBB_OrderLeash.s_bOn && BBB.s_Hooks.HostLeash(group, leashCentre, leashRadius);
   if (waypoint)
   {
    if (waypoint.GetPriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
    if (waypoint.GetPrefabData())
    {
     string path = waypoint.GetPrefabData().GetPrefabName();
-    if (path.Contains("Defend") || path.Contains("Garrison") || path.Contains("Suppress") || path.Contains("GetIn") || path.Contains("GetOut") || (path.Contains("Patrol") && !BBB_OrderLeash.s_bOn) || path.Contains("Follow") || path.Contains("Artillery")) return false;
+    if ((path.Contains("Defend") && !hostLeash) || path.Contains("Garrison") || path.Contains("Suppress") || path.Contains("GetIn") || path.Contains("GetOut") || (path.Contains("Patrol") && !BBB_OrderLeash.s_bOn) || path.Contains("Follow") || path.Contains("Artillery")) return false;
    }
   }
   array<AIAgent> agents = {};
