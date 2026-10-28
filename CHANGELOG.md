@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.7 — unreleased
+## 0.1.8 — unreleased
+
+## 0.1.7 — released
 
 - A **Battle Buddies** tab in the game's Settings menu, so you can set up how BBB's AI fights without touching launch parameters. Every option has a switch or slider with a short description, grouped by feature. Save setups as presets, then duplicate, rename, delete and share them: Export copies a preset to the clipboard and tells you where its file is. Two built-in presets to start from: BBB default (what the mod ships) and Vanilla (every BBB feature off). A preset applies when a mission starts, in singleplayer and in games you host; on someone else's server, that server's settings apply. Server hosts drop the file into the server's profile folder under BBB/Presets and start the server with -bbbPreset <name>. Launch parameters still win over a preset, so existing server setups keep working unchanged.
 - New options for values that used to be fixed: how long squads assault, hold and reorganise; how far a squad without a radio can call out a contact, and how fresh a sighting must be to pass on; the grenade throwing lane; smoke and illumination cooldowns; the morale breaking point and how far a broken squad falls back. Also two of the game's own AI values, skill and spotting speed, set when a soldier spawns; anything a host mod, Game Master or mission sets later still wins. Every new option defaults to today's behaviour.
