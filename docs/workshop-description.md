@@ -10,7 +10,7 @@ FIGHT AS A SQUAD
 - Fix a dug-in enemy and flank him; search where contact was lost. Warn nearby squads by radio: reports are last-seen positions, never targets.
 - Alternate covering fire and movement toward reported contacts. Covering soldiers can keep firing on a recent enemy position after the enemy ducks.
 - Use carried grenades against nearby enemies in cover, with friendly-clearance and throwing-route checks.
-- Seek indoor cover near detected enemies and investigate reachable positions when contacts are inside. Stalled routes are abandoned.
+- Fight from buildings: keep the window while the enemy is in view, move to another window when not, duck behind walls when shot at instead of running out. Seek indoor cover near detected enemies.
 - Walk to and crew nearby loaded friendly static weapons during contact, then give them up for orders or when no longer useful.
 - Screen advances, casualty drags and withdrawals with smoke. At night, use carried flares to illuminate recently sighted enemy sectors.
 - Broken squads fall back in two halves that cover each other, through the open side. Cornered out-of-ammo survivors can surrender.
@@ -26,26 +26,26 @@ LOOK AFTER EACH OTHER
 KEEP THE VEHICLE WORKING
 
 - Replace a lost turret gunner with an eligible AI squadmate. Commander seats count as crew.
-- Passengers dismount under fire while crews stay aboard: drivers no longer get out to open gates, nor crews to treat the wounded. Stuck drivers back out.
+- Passengers dismount under fire while crews stay aboard: drivers no longer get out to open gates, nor crews to treat the wounded.
 - Supported armoured crew positions turn out when quiet and button up when danger returns.
 - Idle wheeled-vehicle drivers can make a small guarded adjustment for a gunner's visible target outside a limited turret arc.
 - Supported vehicles use fitted smoke weapons against launcher fire; slow wheeled vehicles can also make a short guarded reverse.
 
-Scanning, quiet marching, weapon readiness, spent-launcher handling and personal bios are included.
+Also: scanning, quiet marching, weapon readiness and personal bios.
 
 YOUR ORDERS COME FIRST
 
 Autonomous features respect player control, explicit player/GM orders and host-mod policy. BBB does not recruit soldiers, create a squad or replace your battle plan. AC: Actual supplies map-level command and logistics; the optional AiO Command Menu gives orders to your linked squad. BBB needs neither.
 
-Buildings and vehicle movement still depend on Reforger's navigation, equipment and current orders. Indoor movement does not guarantee every room is cleared. Grenades, smoke and flares use equipment the soldiers carry; vehicle smoke needs a supported fitted weapon. Host scenarios can restrict features.
+Buildings and vehicle movement still depend on Reforger's navigation, equipment and current orders. Grenades, smoke and flares use equipment the soldiers carry; vehicle smoke needs a supported fitted weapon. Host scenarios can restrict features.
 
 GET STARTED AND TUNE IT
 
 Enable BBB and start a scenario with AI, such as Conflict or Game Master. Multiplayer requires it on the server and joining clients. No other mod is required; ACE-specific features need ACE. Mission makers can add BBB as a dependency; standalone integration starts automatically.
 
-Combat, medical and vehicle features are enabled by default; each has its own server off switch (e.g. -bbbTactic 0, -bbbContactRelay 0, -bbbFireManeuver 0, -bbbMedic 0, -bbbMorale 0); the changelog lists them all.
+New in 0.1.7: a Battle Buddies tab in Settings. Every feature has a switch or slider with a short description. Save, share and export presets; BBB default and Vanilla (all off) are built in. Presets apply in singleplayer and games you host. Servers use -bbbPreset <name>; -bbb... launch parameters still win.
 
-The optional Think panel stays off: hosts can use -bbbThink 1 and look at a soldier to see BBB's decisions and reasons for holding back. -bbbThink 2 also logs them.
+Hosts can use -bbbThink 1 and look at a soldier to see BBB's decisions (-bbbThink 2 also logs them).
 
 GUIDE, FEEDBACK AND CREDITS
 
