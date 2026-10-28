@@ -368,7 +368,9 @@ class BBB_SettingsSubMenu : SCR_SubMenuBase
   m_bDirty = true;
   SaveIfDirty();
   BBB_Settings.SetActiveName(text);
-  Load(text);
+  // Later: we are inside the name box's own change event, and Load writes the box again
+  // (ScriptInvoker: Recursive call of Invoke, Jacob's 27 Oct log).
+  GetGame().GetCallqueue().CallLater(Load, 0, false, text);
  }
 
  protected void OnButton(SCR_ButtonBaseComponent button)
