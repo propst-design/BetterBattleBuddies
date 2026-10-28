@@ -28,7 +28,7 @@ class BBB_Claims
  static const int RESCUE = 60;
  static const float TTL_MS = 3000;
  static bool s_bOn = true;
- protected static bool s_bRead;
+ protected static int s_iRead;
  protected static ref map<IEntity, ref BBB_Claim> s_Claims = new map<IEntity, ref BBB_Claim>();
  static ref array<IEntity> s_aVanilla = {}; // test only: soldiers who keep the old arbitration
  static int s_iTaken;     // tests read these
@@ -37,10 +37,9 @@ class BBB_Claims
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbClaims", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbClaims", value) && value == "0");
   PrintFormat("[BBB] ROLE CLAIMS enabled=%1 ttl=%2s", s_bOn, TTL_MS / 1000);
  }
 

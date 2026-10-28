@@ -2,7 +2,7 @@
 // native combat, investigation and specialist tasks keep their own posture.
 class BBB_RelaxedMarch
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 	static const float QUIET_MS = 15000;
 	protected static ref BBB_VanillaHooks s_WorldGroups = new BBB_VanillaHooks();
@@ -10,10 +10,9 @@ class BBB_RelaxedMarch
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 		string value;
-		if (System.GetCLIParam("bbbRelaxedMarch", value) && value == "0") s_bOn = false;
+		s_bOn = !(BBB_Settings.Get("bbbRelaxedMarch", value) && value == "0");
 	}
 
 	static bool Travel(SCR_AIBehaviorBase action)

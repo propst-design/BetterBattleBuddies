@@ -45,17 +45,16 @@ class BBB_Squad
  static const float FLANK_DEG = 90.0;
  static const float FLANK_SHARE = 0.25;
  static bool s_bOn = true;
- protected static bool s_bRead;
+ protected static int s_iRead;
  protected static ref map<SCR_AIGroup, ref BBB_SquadPicture> s_Pictures = new map<SCR_AIGroup, ref BBB_SquadPicture>();
  static ref array<SCR_AIGroup> s_aVanilla = {}; // test only: squads that keep the old functions
  static int s_iBuilt; // tests and perf read this
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbSquadPicture", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbSquadPicture", value) && value == "0");
   PrintFormat("[BBB] SQUAD PICTURE enabled=%1 refresh=%2s", s_bOn, REFRESH_S);
  }
 

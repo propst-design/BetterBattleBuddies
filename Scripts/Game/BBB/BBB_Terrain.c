@@ -15,15 +15,14 @@ class BBB_Terrain
  // on Everon: the engine failed every move from there). -bbbShoreRoutes 0 = old routes.
  static const float SHORE_LEVEL = 2.5;
  static const float SHORE_COST = 4;
- protected static bool s_bShoreRead;
+ protected static int s_iShoreRead;
  static bool s_bShore;   // tests compare both ways after ShoreRoutes() has read the switch
 
  static bool ShoreRoutes()
  {
-  if (s_bShoreRead) return s_bShore;
-  s_bShoreRead = true;
+  if (!BBB_Settings.Due(s_iShoreRead)) return s_bShore;
   string value;
-  s_bShore = !(System.GetCLIParam("bbbShoreRoutes", value) && value == "0");
+  s_bShore = !(BBB_Settings.Get("bbbShoreRoutes", value) && value == "0");
   PrintFormat("[BBB] SHORE ROUTES enabled=%1", s_bShore);
   return s_bShore;
  }

@@ -13,18 +13,17 @@
 class BBB_CrewStays
 {
  static bool s_bOn = true;
- protected static bool s_bRead;
+ protected static int s_iRead;
  static int s_iGatesKept;
  static int s_iHealsKept;
  protected static ref map<IEntity, float> s_mLogged = new map<IEntity, float>();
 
  static bool On()
  {
-  if (!s_bRead)
+  if (BBB_Settings.Due(s_iRead))
   {
-   s_bRead = true;
    string val;
-   if (System.GetCLIParam("bbbCrewStays", val) && val == "0") s_bOn = false;
+   s_bOn = !(BBB_Settings.Get("bbbCrewStays", val) && val == "0");
   }
   return s_bOn;
  }

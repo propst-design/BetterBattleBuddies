@@ -18,7 +18,7 @@ class BBB_Transport
 
  // -bbbCommanderCrew 0: count turret-linked cargo seats as passenger seats again.
  static bool s_bCommanderCrew = true;
- protected static bool s_bCommanderRead;
+ protected static int s_iCommanderRead;
 
  // A cargo seat linked to a turret (AutoConnectToTurret), like the LAV-25 commander's.
  static bool CommanderSeat(BaseCompartmentSlot slot)
@@ -33,11 +33,10 @@ class BBB_Transport
   if (!character || !character.GetCompartmentAccessComponent()) return ECompartmentType.CARGO;
   BaseCompartmentSlot slot = character.GetCompartmentAccessComponent().GetCompartment();
   if (!slot) return ECompartmentType.CARGO;
-  if (!s_bCommanderRead)
+  if (BBB_Settings.Due(s_iCommanderRead))
   {
-   s_bCommanderRead = true;
    string val;
-   if (System.GetCLIParam("bbbCommanderCrew", val) && val == "0") s_bCommanderCrew = false;
+   s_bCommanderCrew = !(BBB_Settings.Get("bbbCommanderCrew", val) && val == "0");
   }
   if (s_bCommanderCrew && CommanderSeat(slot)) return ECompartmentType.TURRET;
   return slot.GetType();

@@ -40,7 +40,7 @@ class BBB_IndoorSpot : Managed
 
 class BBB_Buildings
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn;
  static bool s_bHold = true;
  static int s_iHolds;
@@ -78,11 +78,10 @@ class BBB_Buildings
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbBuildings", value) && value == "0");
-  s_bHold = !(System.GetCLIParam("bbbIndoorHold", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbBuildings", value) && value == "0");
+  s_bHold = !(BBB_Settings.Get("bbbIndoorHold", value) && value == "0");
   PrintFormat("[BBB] BUILDINGS enabled=%1 indoorHold=%2", s_bOn, s_bHold);
  }
 

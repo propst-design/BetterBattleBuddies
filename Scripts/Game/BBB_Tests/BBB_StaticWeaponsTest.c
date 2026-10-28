@@ -36,7 +36,7 @@ class BBB_StaticWeaponsTest : BBB_AimTest
 		BBB_StaticWeapons.Read();
 
 		// Check 1: Feature flags read and defaults
-		Check("flag-read", BBB_StaticWeapons.s_bRead);
+		Check("flag-read", BBB_StaticWeapons.s_iRead > 0);
 		Check("defaults-valid", BBB_StaticWeapons.s_fSearchRadiusM > 0 && BBB_StaticWeapons.s_fMaxArcDeg > 0 && BBB_StaticWeapons.s_fQuietTimeoutS > 0);
 
 		// Check 2: Disabled baseline

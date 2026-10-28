@@ -4,7 +4,7 @@
 // catching flank threats and maintaining realistic situational awareness.
 class BBB_HorizonScan
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 	protected static ref BBB_VanillaHooks s_WorldGroups = new BBB_VanillaHooks();
 	protected static ref array<SCR_AIGroup> s_aHostGroups = {};
@@ -17,10 +17,9 @@ class BBB_HorizonScan
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 		string value;
-		if (System.GetCLIParam("bbbHorizonScan", value) && value == "0") s_bOn = false;
+		s_bOn = !(BBB_Settings.Get("bbbHorizonScan", value) && value == "0");
 	}
 
 	static bool Eligible(AIAgent agent, SCR_AIUtilityComponent utility)

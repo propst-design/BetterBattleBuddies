@@ -34,7 +34,7 @@ class BBB_GrenadeTest : BBB_AimTest
 		BBB_Grenades.Read();
 
 		// Check 1: Feature flags read and parameters
-		Check("flag-read", BBB_Grenades.s_bRead);
+		Check("flag-read", BBB_Grenades.s_iRead > 0);
 		Check("defaults-valid", BBB_Grenades.s_fMinThrowDistM > 0 && BBB_Grenades.s_fMaxThrowDistM > BBB_Grenades.s_fMinThrowDistM && BBB_Grenades.s_fFriendlySafetyDistM > 0);
 
 		// Check 2: Disabled baseline

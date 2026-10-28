@@ -7,7 +7,7 @@
 // fire or its waypoint keeps it in place. A report is never an identified target, so it gives
 // no aim point and no suppression; relayed reports are not relayed again.
 // Range: the sender's best working radio (personal 1300 m, manpack 2000 m in vanilla); both
-// groups need a conscious soldier with a radio, otherwise only voice range (VOICE_M).
+// groups need a conscious soldier with a radio, otherwise only voice range (s_fVoiceM).
 //  -bbbContactRelay 0   off
 class BBB_RelayReport : Managed
 {
@@ -23,9 +23,9 @@ class BBB_RelayReport : Managed
 class BBB_ContactRelay
 {
  static bool s_bOn = true;
- protected static bool s_bRead;
- static const float FRESH_S = 8;          // only sightings this recent are passed on
- static const float VOICE_M = 60;         // without radios: shouting distance
+ protected static int s_iRead;
+ static float s_fFreshS = 8;          // only sightings this recent are passed on
+ static float s_fVoiceM = 60;         // without radios: shouting distance
  static const int STAGGER = 4;            // each group sends every 4th tick
  static const float DELAY_MIN_MS = 2000;
  static const float DELAY_MAX_MS = 6000;
@@ -42,11 +42,12 @@ class BBB_ContactRelay
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbContactRelay", value) && value == "0");
-  PrintFormat("[BBB] CONTACT RELAY enabled=%1 fresh=%2s voice=%3m delay=%4-%5s", s_bOn, FRESH_S, VOICE_M, DELAY_MIN_MS / 1000, DELAY_MAX_MS / 1000);
+  s_bOn = !(BBB_Settings.Get("bbbContactRelay", value) && value == "0");
+  if (BBB_Settings.Get("bbbRelayFresh", value)) s_fFreshS = Math.Clamp(value.ToFloat(), 2, 30);
+  if (BBB_Settings.Get("bbbRelayVoice", value)) s_fVoiceM = Math.Clamp(value.ToFloat(), 0, 150);
+  PrintFormat("[BBB] CONTACT RELAY enabled=%1 fresh=%2s voice=%3m delay=%4-%5s", s_bOn, s_fFreshS, s_fVoiceM, DELAY_MIN_MS / 1000, DELAY_MAX_MS / 1000);
  }
 
  static void Stop()
@@ -134,7 +135,7 @@ class BBB_ContactRelay
   foreach (SCR_AITargetInfo target : utility.m_Perception.m_aTargets)
   {
    if (!target || !target.m_Entity || target.m_eCategory != EAITargetInfoCategory.IDENTIFIED) continue;
-   if (perceptionNow - target.m_fTimestamp > FRESH_S) continue;
+   if (perceptionNow - target.m_fTimestamp > s_fFreshS) continue;
    if (target.m_Perceivable && target.m_Perceivable.GetUnitType() == EAIUnitType.UnitType_Aircraft) continue;
    fresh.Insert(target);
   }
@@ -149,8 +150,8 @@ class BBB_ContactRelay
    IEntity there = BBB.s_Hooks.AnchorOf(receiver);
    if (!there) continue;
    float distance = vector.DistanceXZ(anchor.GetOrigin(), there.GetOrigin());
-   if (distance > Math.Max(VOICE_M, senderRange)) continue;
-   if (distance > VOICE_M && GroupRadioRange(receiver, now) <= 0) continue;
+   if (distance > Math.Max(s_fVoiceM, senderRange)) continue;
+   if (distance > s_fVoiceM && GroupRadioRange(receiver, now) <= 0) continue;
    if (!Accepts(receiver)) continue;
    foreach (SCR_AITargetInfo seen : fresh) Queue(receiver, seen, BBB.s_Hooks.NameOf(sender), now);
   }

@@ -27,7 +27,7 @@ class BBB_SmokeCloud : Managed
 
 class BBB_Smoke
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 	static bool s_bDrag = true;
 	static bool s_bManeuver = true;
@@ -59,41 +59,42 @@ class BBB_Smoke
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 
 		string value;
-		if (System.GetCLIParam("bbbSmoke", value))
+		if (BBB_Settings.Get("bbbSmoke", value))
 		{
 			s_bOn = value == "1";
 		}
 
-		if (System.GetCLIParam("bbbSmokeDrag", value))
+		if (BBB_Settings.Get("bbbSmokeDrag", value))
 		{
 			s_bDrag = value != "0";
 		}
 
-		if (System.GetCLIParam("bbbSmokeManeuver", value))
+		if (BBB_Settings.Get("bbbSmokeManeuver", value))
 		{
 			s_bManeuver = value != "0";
 		}
 
-		if (System.GetCLIParam("bbbSmokeMorale", value))
+		if (BBB_Settings.Get("bbbSmokeMorale", value))
 		{
 			s_bMorale = value != "0";
 		}
 
-		if (System.GetCLIParam("bbbSmokeCooldown", value))
+		if (BBB_Settings.Get("bbbSmokeCooldown", value))
 		{
 			float cd = value.ToFloat();
 			if (cd >= 5.0 && cd <= 180.0) s_fCooldownSquadS = cd;
 		}
 
-		if (System.GetCLIParam("bbbSmokeDist", value))
+		if (BBB_Settings.Get("bbbSmokeDist", value))
 		{
 			float dist = value.ToFloat();
 			if (dist >= 8.0 && dist <= 35.0) s_fThrowDistanceM = dist;
 		}
+
+		if (BBB_Settings.Get("bbbSmokeTargetCooldown", value)) s_fCooldownTargetS = Math.Clamp(value.ToFloat(), 10.0, 180.0);
 
 		PrintFormat("[BBB] SMOKE enabled=%1 drag=%2 maneuver=%3 morale=%4 cooldown=%5s",
 			s_bOn, s_bDrag, s_bManeuver, s_bMorale, s_fCooldownSquadS);

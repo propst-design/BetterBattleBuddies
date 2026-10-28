@@ -43,7 +43,7 @@ class BBB_AIDragMove : SCR_AIMoveIndividuallyBehavior
 
 class BBB_Drag
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn = true;
  static int s_iAce = -1;
 
@@ -92,10 +92,9 @@ class BBB_Drag
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbDrag", value) && value == "0") s_bOn = false;
+  s_bOn = !(BBB_Settings.Get("bbbDrag", value) && value == "0");
   PrintFormat("[BBB] DRAG on=%1 ace=%2", s_bOn, AceLoaded());
  }
 

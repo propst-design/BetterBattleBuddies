@@ -49,10 +49,10 @@ class BBB_VehicleHelpers : Managed
   s_iGunnerReplacements = 0;
   s_bSeatTrace = System.IsCLIParam("bbbTurretTrace");
   string val;
-  if (System.GetCLIParam("bbbDoors", val) && val == "0") s_bDoors = false;
-  if (System.GetCLIParam("bbbUnstick", val) && val == "0") s_bUnstick = false;
-  if (System.GetCLIParam("bbbTacticalDismount", val) && val == "0") s_bTacticalDismount = false;
-  if (System.GetCLIParam("bbbGunnerReplace", val) && val == "0") s_bGunnerReplace = false;
+  s_bDoors = !(BBB_Settings.Get("bbbDoors", val) && val == "0");
+  s_bUnstick = !(BBB_Settings.Get("bbbUnstick", val) && val == "0");
+  s_bTacticalDismount = !(BBB_Settings.Get("bbbTacticalDismount", val) && val == "0");
+  s_bGunnerReplace = !(BBB_Settings.Get("bbbGunnerReplace", val) && val == "0");
  }
 
  void Tick()

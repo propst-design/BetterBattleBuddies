@@ -339,8 +339,8 @@ class BBB_Bios
   bool on = true;
   float eggs = 1;
   string value;
-  if (System.GetCLIParam("bbbBios", value) && value == "0") on = false;
-  if (System.GetCLIParam("bbbIdentityEggs", value)) eggs = value.ToFloat();
+  if (BBB_Settings.Get("bbbBios", value) && value == "0") on = false;
+  if (BBB_Settings.Get("bbbIdentityEggs", value)) eggs = value.ToFloat();
   AddGroup(holder, CONFIG, on, eggs);
   AddGroup(holder, CIV_CONFIG, on, eggs);
   if (System.IsCLIParam("bbbIdentityTest") && Replication.IsServer()) GetGame().GetCallqueue().CallLater(SelfTest, 8000);

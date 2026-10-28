@@ -36,7 +36,7 @@ class BBB_StaticGunnerJob : Managed
 
 class BBB_StaticWeapons
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 
 	// Tunable parameters
@@ -73,28 +73,27 @@ class BBB_StaticWeapons
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 
 		string value;
-		if (System.GetCLIParam("bbbStaticWeapons", value))
+		if (BBB_Settings.Get("bbbStaticWeapons", value))
 		{
 			s_bOn = value == "1";
 		}
 
-		if (System.GetCLIParam("bbbStaticReach", value))
+		if (BBB_Settings.Get("bbbStaticReach", value))
 		{
 			float reach = value.ToFloat();
 			if (reach >= 10.0 && reach <= 80.0) s_fSearchRadiusM = reach;
 		}
 
-		if (System.GetCLIParam("bbbStaticArc", value))
+		if (BBB_Settings.Get("bbbStaticArc", value))
 		{
 			float arc = value.ToFloat();
 			if (arc >= 15.0 && arc <= 180.0) s_fMaxArcDeg = arc;
 		}
 
-		if (System.GetCLIParam("bbbStaticQuiet", value))
+		if (BBB_Settings.Get("bbbStaticQuiet", value))
 		{
 			float quiet = value.ToFloat();
 			if (quiet >= 5.0 && quiet <= 120.0) s_fQuietTimeoutS = quiet;

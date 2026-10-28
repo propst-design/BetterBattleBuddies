@@ -60,7 +60,7 @@ class BBB_OrderLeash
  static void Read()
  {
   string value;
-  s_bOn = !(System.GetCLIParam("bbbOrderLeash", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbOrderLeash", value) && value == "0");
  }
 
  static BBB_OrderLease Lease(SCR_AIGroup group) { return s_Leases.Get(group); }

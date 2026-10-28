@@ -16,7 +16,7 @@ class BBB_RearmFailure
 class BBB_Rearm
 {
  static bool s_bOn = true;
- static bool s_bRead;
+ static int s_iRead;
  static int s_iRearmCount;
  static int s_iMagazinesLooted;
  static int s_iLaunchersLooted;
@@ -41,11 +41,10 @@ class BBB_Rearm
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string val;
-  if (System.GetCLIParam("bbbRearm", val) && val == "0") s_bOn = false;
-  if (System.GetCLIParam("bbbRearmRadius", val)) s_fSearchRadius = Math.Clamp(val.ToFloat(), 5.0, 100.0);
+  s_bOn = !(BBB_Settings.Get("bbbRearm", val) && val == "0");
+  if (BBB_Settings.Get("bbbRearmRadius", val)) s_fSearchRadius = Math.Clamp(val.ToFloat(), 5.0, 100.0);
   PrintFormat("[BBB] REARM on=%1 radius=%2", s_bOn, s_fSearchRadius);
  }
 

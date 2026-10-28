@@ -54,7 +54,7 @@ class BBB_AntiArmorJob : Managed
 
 class BBB_Armour
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn = true;
  static bool s_bLearn = true; // learning runs even while a test switches the behaviour off
  static bool s_bScatter = true; // forced crouch/prone near armour: on by default (20 Oct), no behaviour A/B yet
@@ -87,13 +87,14 @@ class BBB_Armour
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbArmour", value) && value == "0") { s_bOn = false; s_bLearn = false; }
-  if (System.GetCLIParam("bbbArmourHits", value)) s_iMinHits = Math.Max(1, value.ToInt());
-  if (System.GetCLIParam("bbbArmourScatter", value)) s_bScatter = value == "1";
-  if (System.GetCLIParam("bbbAntiArmor", value)) s_bScatter = value == "1";
+  bool off = BBB_Settings.Get("bbbArmour", value) && value == "0";
+  s_bOn = !off;
+  s_bLearn = !off;
+  if (BBB_Settings.Get("bbbArmourHits", value)) s_iMinHits = Math.Max(1, value.ToInt());
+  if (BBB_Settings.Get("bbbArmourScatter", value)) s_bScatter = value == "1";
+  if (BBB_Settings.Get("bbbAntiArmor", value)) s_bScatter = value == "1";
   PrintFormat("[BBB] ARMOUR on=%1 hits=%2 scatter=%3", s_bOn, s_iMinHits, s_bScatter);
  }
 
