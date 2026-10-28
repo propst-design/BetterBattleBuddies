@@ -1,0 +1,70 @@
+HorizontalLayoutWidgetClass {
+ Name "BBBSettings"
+ components {
+  BBB_SettingsSubMenu "{BBB05E7700000101}" {
+  }
+ }
+ {
+  ScrollLayoutWidgetClass "{BBB05E7700000102}" {
+   Name "ScrollLayout0"
+   Slot LayoutSlot "{BBB05E7700000103}" {
+    Padding -2 72 2 0
+    SizeMode Fill
+    FillWeight 1.433
+   }
+   Color 0.761 0.392 0.078 1
+   style Small
+   {
+    VerticalLayoutWidgetClass "{BBB05E7700000104}" {
+     Name "Content"
+     Slot AlignableSlot "{BBB05E7700000105}" {
+      HorizontalAlign 3
+      VerticalAlign 3
+      Padding -4 0 10 0
+     }
+    }
+   }
+  }
+  VerticalLayoutWidgetClass "{BBB05E7700000106}" {
+   Name "Description"
+   Slot LayoutSlot "{BBB05E7700000107}" {
+    SizeMode Fill
+    Padding 40 76 24 0
+   }
+   {
+    TextWidgetClass "{BBB05E7700000108}" {
+     Name "DescriptionHeader"
+     Slot LayoutSlot "{BBB05E7700000109}" {
+      Padding 0 0 0 8
+     }
+     "Font Size" 22
+     "Min Font Size" 16
+     FontProperties FontProperties "{BBB05E770000010A}" {
+      Bold 1
+     }
+    }
+    RichTextWidgetClass "{BBB05E770000010B}" {
+     Name "DescriptionText"
+     Slot LayoutSlot "{BBB05E770000010C}" {
+      Padding 0 0 0 16
+     }
+     Color 0.8 0.8 0.8 1
+     "Font Size" 18
+     "Min Font Size" 12
+     Wrap 1
+     "Line Spacing" 70
+    }
+    RichTextWidgetClass "{BBB05E770000010D}" {
+     Name "Status"
+     Slot LayoutSlot "{BBB05E770000010E}" {
+     }
+     Color 0.761 0.592 0.278 1
+     "Font Size" 18
+     "Min Font Size" 12
+     Wrap 1
+     "Line Spacing" 70
+    }
+   }
+  }
+ }
+}

@@ -23,7 +23,7 @@
 //  -bbbBinocsUnderFire 1   vanilla binoculars (fix 2 off)
 class BBB_Aim
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn = true;
  static float s_fScale = 1;
  static float s_fLauncher = 0;
@@ -47,16 +47,25 @@ class BBB_Aim
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbAimFixes", value) && value == "0") s_bOn = false;
-  if (System.GetCLIParam("bbbAimTuning", value) && value == "1") UseTuning();
-  if (System.GetCLIParam("bbbAimScale", value)) s_fScale = Math.Max(0, value.ToFloat());
-  if (System.GetCLIParam("bbbLauncherAim", value)) s_fLauncher = Math.Max(0, value.ToFloat());
-  if (System.GetCLIParam("bbbSuppressedAim", value)) s_fSuppressed = Math.Max(1, value.ToFloat());
-  if (System.GetCLIParam("bbbLongRangeAim", value)) s_fLongRange = value.ToFloat();
-  if (System.GetCLIParam("bbbBinocsUnderFire", value) && value == "1") s_bBinoculars = false;
+  s_bOn = !(BBB_Settings.Get("bbbAimFixes", value) && value == "0");
+  if (BBB_Settings.Get("bbbAimTuning", value))
+  {
+   // Tuning off again (a later mission's preset): back to the untuned values.
+   if (value == "1") UseTuning();
+   else
+   {
+    s_fLauncher = BBB_Settings.Find("bbbLauncherAim").m_sDefault.ToFloat();
+    s_fSuppressed = BBB_Settings.Find("bbbSuppressedAim").m_sDefault.ToFloat();
+    s_fLongRange = BBB_Settings.Find("bbbLongRangeAim").m_sDefault.ToFloat();
+   }
+  }
+  if (BBB_Settings.Get("bbbAimScale", value)) s_fScale = Math.Max(0, value.ToFloat());
+  if (BBB_Settings.Get("bbbLauncherAim", value)) s_fLauncher = Math.Max(0, value.ToFloat());
+  if (BBB_Settings.Get("bbbSuppressedAim", value)) s_fSuppressed = Math.Max(1, value.ToFloat());
+  if (BBB_Settings.Get("bbbLongRangeAim", value)) s_fLongRange = value.ToFloat();
+  s_bBinoculars = !(BBB_Settings.Get("bbbBinocsUnderFire", value) && value == "1");
   PrintFormat("[BBB] AIM fixes on=%1 scale=%2 launcher=%3 suppressed=%4 longRange=%5 binoculars=%6", s_bOn, s_fScale, s_fLauncher, s_fSuppressed, s_fLongRange, s_bBinoculars);
  }
 

@@ -30,7 +30,7 @@ class BBB_ArmorEscape : Managed
 
 class BBB_ArmorReaction
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn;
  static int s_iMissiles;
  static int s_iReactions;
@@ -45,10 +45,9 @@ class BBB_ArmorReaction
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbArmorReaction", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbArmorReaction", value) && value == "0");
   PrintFormat("[BBB] ARMOR REACTION enabled=%1", s_bOn);
  }
 

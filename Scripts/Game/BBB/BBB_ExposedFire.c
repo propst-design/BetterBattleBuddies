@@ -9,7 +9,7 @@
 // Host option: -bbbExposedFire 0 (off).
 class BBB_ExposedFire
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 	static const float ALERTED_PERCEPTION = 2.5;	// vanilla PERCEPTION_FACTOR_ALERTED
 	static const float OVERTHREATENED_WAIT_S = 0.8;	// vanilla WAIT_TIME_OVERTHREATENED
@@ -17,10 +17,9 @@ class BBB_ExposedFire
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 		string value;
-		if (System.GetCLIParam("bbbExposedFire", value)) s_bOn = value == "1";
+		if (BBB_Settings.Get("bbbExposedFire", value)) s_bOn = value == "1";
 		PrintFormat("[BBB] EXPOSED FIRE on=%1", s_bOn);
 	}
 

@@ -35,7 +35,7 @@ class BBB_SmokeTest : BBB_AimTest
 		BBB_Smoke.Read();
 
 		// Check 1: Feature flags read and defaults
-		Check("flag-read", BBB_Smoke.s_bRead);
+		Check("flag-read", BBB_Smoke.s_iRead > 0);
 		Check("defaults-valid", BBB_Smoke.s_fCooldownSquadS > 0 && BBB_Smoke.s_fThrowDistanceM > 0 && BBB_Smoke.s_bDrag && BBB_Smoke.s_bManeuver && BBB_Smoke.s_bMorale);
 
 		// Check 2: Disabled baseline

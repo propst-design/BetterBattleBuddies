@@ -15,7 +15,7 @@ class BBB_FireTeamJob : Managed
 
 class BBB_FireManeuver
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn = true;
  static int s_iStarted, s_iSwaps, s_iRequests, s_iArrived, s_iNoCover, s_iCoverShots;
  static int s_iTicks, s_iTickMs, s_iTickMax, s_iDecisionMs, s_iEventMs;
@@ -39,12 +39,11 @@ class BBB_FireManeuver
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbFireManeuver", value)) s_bOn = value == "1";
+  if (BBB_Settings.Get("bbbFireManeuver", value)) s_bOn = value == "1";
   // -bbbFireCoverOrders 0: no commanded covering fire (A/B; the wider windows stay).
-  if (System.GetCLIParam("bbbFireCoverOrders", value) && value == "0") s_bCoverOrders = false;
+  s_bCoverOrders = !(BBB_Settings.Get("bbbFireCoverOrders", value) && value == "0");
   PrintFormat("[BBB] FIRE MANEUVER enabled=%1 coverOrders=%2", s_bOn, s_bCoverOrders);
  }
 

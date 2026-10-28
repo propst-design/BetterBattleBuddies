@@ -26,7 +26,7 @@ class BBB_DoorUnstick
  static const int MAX_TRIES = 3;
  static const float BACKOFF_MS = 30000;
 
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn;
  static int s_iStalls;  // stalled soldiers found next to a house door
  static int s_iSwings;  // doors swung
@@ -42,10 +42,9 @@ class BBB_DoorUnstick
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbDoorUnstick", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbDoorUnstick", value) && value == "0");
   PrintFormat("[BBB] DOORUNSTICK enabled=%1", s_bOn);
  }
 

@@ -11,7 +11,7 @@ class BBB_CombatContact : Managed
 class BBB_Combat
 {
 	static ref BBB_Combat s_Combat;
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bDetail = true;
 	static bool s_bRadio = true;
 	static bool s_bResponse = true;
@@ -44,13 +44,12 @@ class BBB_Combat
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 		string value;
-		if (System.GetCLIParam("bbbCombatDetail", value) && value == "0") s_bDetail = false;
-		if (System.GetCLIParam("bbbCombatRadio", value) && value == "0") s_bRadio = false;
-		if (System.GetCLIParam("bbbCombatResponse", value) && value == "0") s_bResponse = false;
-		if (System.GetCLIParam("bbbCombatManeuver", value)) s_bManeuver = value == "1";
+		s_bDetail = !(BBB_Settings.Get("bbbCombatDetail", value) && value == "0");
+		s_bRadio = !(BBB_Settings.Get("bbbCombatRadio", value) && value == "0");
+		s_bResponse = !(BBB_Settings.Get("bbbCombatResponse", value) && value == "0");
+		if (BBB_Settings.Get("bbbCombatManeuver", value)) s_bManeuver = value == "1";
 		PrintFormat("[BBB] COMBAT detail=%1 radio=%2 response=%3 maneuver=%4", s_bDetail, s_bRadio, s_bResponse, s_bManeuver);
 	}
 

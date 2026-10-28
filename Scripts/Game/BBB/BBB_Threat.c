@@ -50,7 +50,7 @@ class BBB_ExplosionReflexJob : Managed
 
 class BBB_Threat
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 	static bool s_bGeometry = true;
 	static bool s_bExplosionReflex = true;
@@ -91,21 +91,22 @@ class BBB_Threat
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 		string value;
-		if (System.GetCLIParam("bbbThreat", value) && value == "0") s_bOn = false;
-		if (System.GetCLIParam("bbbThreatGeometry", value) && value == "0") s_bGeometry = false;
+		s_bOn = !(BBB_Settings.Get("bbbThreat", value) && value == "0");
+		s_bGeometry = !(BBB_Settings.Get("bbbThreatGeometry", value) && value == "0");
 
-		if (System.GetCLIParam("bbbThreatDecay", value))
+		if (BBB_Settings.Get("bbbThreatDecay", value))
 		{
 			if (value == "0") s_fDecayScale = 1.0;
 			else s_fDecayScale = Math.Clamp(value.ToFloat(), 0.05, 5.0);
 		}
-		if (System.GetCLIParam("bbbSuppressionDecay", value))
+		if (BBB_Settings.Get("bbbSuppressionDecay", value))
 			s_fDecayScale = Math.Clamp(value.ToFloat(), 0.05, 5.0);
 
-		if (System.GetCLIParam("bbbThreatExplosion", value))
+		s_bExplosionReflex = !(BBB_Settings.Get("bbbExplosionReflex", value) && value == "0");
+		// Legacy -bbbThreatExplosion 0 also turns the reflex off.
+		if (BBB_Settings.Get("bbbThreatExplosion", value))
 		{
 			if (value == "0")
 			{
@@ -117,11 +118,10 @@ class BBB_Threat
 				s_fExplosionScale = Math.Clamp(value.ToFloat(), 0.1, 5.0);
 			}
 		}
-		if (System.GetCLIParam("bbbExplosionReflex", value) && value == "0") s_bExplosionReflex = false;
-		if (System.GetCLIParam("bbbExplosionThreat", value)) s_fExplosionScale = Math.Clamp(value.ToFloat(), 0.1, 5.0);
-		if (System.GetCLIParam("bbbElevationThreat", value)) s_fElevationScale = Math.Clamp(value.ToFloat(), 0.0, 3.0);
-		if (System.GetCLIParam("bbbFlankThreat", value)) s_fFlankBonus = Math.Clamp(value.ToFloat(), 0.0, 2.0);
-		if (System.GetCLIParam("bbbAmbushThreat", value)) s_fAmbushBonus = Math.Clamp(value.ToFloat(), 0.0, 1.0);
+		if (BBB_Settings.Get("bbbExplosionThreat", value)) s_fExplosionScale = Math.Clamp(value.ToFloat(), 0.1, 5.0);
+		if (BBB_Settings.Get("bbbElevationThreat", value)) s_fElevationScale = Math.Clamp(value.ToFloat(), 0.0, 3.0);
+		if (BBB_Settings.Get("bbbFlankThreat", value)) s_fFlankBonus = Math.Clamp(value.ToFloat(), 0.0, 2.0);
+		if (BBB_Settings.Get("bbbAmbushThreat", value)) s_fAmbushBonus = Math.Clamp(value.ToFloat(), 0.0, 1.0);
 		PrintFormat("[BBB] THREAT on=%1 geom=%2 decay=%3 explosion=%4 reflex=%5 elevation=%6 flank=%7 ambush=%8", s_bOn, s_bGeometry, s_fDecayScale, s_fExplosionScale, s_bExplosionReflex, s_fElevationScale, s_fFlankBonus, s_fAmbushBonus);
 	}
 

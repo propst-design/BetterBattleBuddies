@@ -26,7 +26,7 @@ class BBB_ThinkLog
 
 class BBB_Think
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn;
  static bool s_bPrint;
  static const int LINES = 12;		// notes kept per soldier or squad
@@ -42,10 +42,9 @@ class BBB_Think
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbThink", value))
+  if (BBB_Settings.Get("bbbThink", value))
   {
    s_bOn = value == "1" || value == "2";
    s_bPrint = value == "2";

@@ -24,7 +24,7 @@ files = []
 if not (root / 'resourceDatabase.rdb').is_file():
     raise SystemExit('Open addon.gproj in Workbench to register resource GUIDs first.')
 for relative in ['addon.gproj', 'resourceDatabase.rdb', 'LICENSE.md', 'README.md'] + [
-        p.relative_to(root).as_posix() for folder in ['Scripts/Game/BBB', 'Configs/BBB']
+        p.relative_to(root).as_posix() for folder in ['Scripts/Game/BBB', 'Configs/BBB', 'UI/layouts/BBB']
         for p in sorted((root / folder).rglob('*')) if p.is_file()]:
     source = root / relative
     target = addon / relative

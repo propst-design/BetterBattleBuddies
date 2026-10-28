@@ -19,7 +19,7 @@
 
 class BBB_Grenades
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 
 	// Tunable parameters
@@ -50,38 +50,39 @@ class BBB_Grenades
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 
 		string value;
-		if (System.GetCLIParam("bbbGrenades", value))
+		if (BBB_Settings.Get("bbbGrenades", value))
 		{
 			s_bOn = value == "1";
 		}
 
-		if (System.GetCLIParam("bbbGrenadesMinDist", value))
+		if (BBB_Settings.Get("bbbGrenadesMinDist", value))
 		{
 			float minDist = value.ToFloat();
 			if (minDist >= 8.0 && minDist <= 25.0) s_fMinThrowDistM = minDist;
 		}
 
-		if (System.GetCLIParam("bbbGrenadesMaxDist", value))
+		if (BBB_Settings.Get("bbbGrenadesMaxDist", value))
 		{
 			float maxDist = value.ToFloat();
 			if (maxDist >= 20.0 && maxDist <= 45.0) s_fMaxThrowDistM = maxDist;
 		}
 
-		if (System.GetCLIParam("bbbGrenadesFriendlyDist", value))
+		if (BBB_Settings.Get("bbbGrenadesFriendlyDist", value))
 		{
 			float safeDist = value.ToFloat();
 			if (safeDist >= 8.0 && safeDist <= 25.0) s_fFriendlySafetyDistM = safeDist;
 		}
 
-		if (System.GetCLIParam("bbbGrenadesCooldown", value))
+		if (BBB_Settings.Get("bbbGrenadesCooldown", value))
 		{
 			float cd = value.ToFloat();
 			if (cd >= 5.0 && cd <= 120.0) s_fSquadCooldownS = cd;
 		}
+
+		if (BBB_Settings.Get("bbbGrenadesCorridor", value)) s_fThrowCorridorRadiusM = Math.Clamp(value.ToFloat(), 1.0, 5.0);
 
 		PrintFormat("[BBB] GRENADES enabled=%1 range=%2..%3m safeDist=%4m cooldown=%5s",
 			s_bOn, s_fMinThrowDistM, s_fMaxThrowDistM, s_fFriendlySafetyDistM, s_fSquadCooldownS);

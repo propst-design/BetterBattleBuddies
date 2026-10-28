@@ -2,15 +2,14 @@
 // reported under the seated gunner's character bypasses that aircraft check.
 class BBB_SuppressionSafety
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn = true;
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbSkySuppression", value) && value == "0") s_bOn = false;
+  s_bOn = !(BBB_Settings.Get("bbbSkySuppression", value) && value == "0");
  }
 
  static bool AircraftSource(IEntity source)

@@ -15,7 +15,7 @@
 // Host options: -bbbGunnerDrill 0 (drill off), -bbbGunnerScan 0 (moving scan vanilla).
 class BBB_Gunner
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bDrill = true;
  static bool s_bScan = true;
  static int s_iDrills;          // drills started (tests read it)
@@ -33,11 +33,10 @@ class BBB_Gunner
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbGunnerDrill", value) && value == "0") s_bDrill = false;
-  if (System.GetCLIParam("bbbGunnerScan", value) && value == "0") s_bScan = false;
+  s_bDrill = !(BBB_Settings.Get("bbbGunnerDrill", value) && value == "0");
+  s_bScan = !(BBB_Settings.Get("bbbGunnerScan", value) && value == "0");
   PrintFormat("[BBB] GUNNER drill=%1 movingScan=%2", s_bDrill, s_bScan);
  }
 

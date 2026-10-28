@@ -15,7 +15,7 @@ class BBB_HeldGuns
  static const float REMOUNT_S = 8;
  static const float REMOUNT_REACH = 40;
  static bool s_bOn = true;
- static bool s_bRead;
+ static int s_iRead;
  static int s_iKept;          // tests read these
  static int s_iRemounted;
  protected static ref map<IEntity, float> s_mEmptySince = new map<IEntity, float>();
@@ -23,10 +23,9 @@ class BBB_HeldGuns
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbHoldGuns", value)) s_bOn = value != "0";
+  if (BBB_Settings.Get("bbbHoldGuns", value)) s_bOn = value != "0";
   PrintFormat("[BBB] HELD GUNS enabled=%1 close=%2m fresh=%3s remount=%4s", s_bOn, CLOSE_M, FRESH_S, REMOUNT_S);
  }
 

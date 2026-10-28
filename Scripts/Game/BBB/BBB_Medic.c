@@ -28,7 +28,7 @@
 // problem (healers shot one after another) didn't show up against AI shooters.
 class BBB_Medic
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn = true;
  // Test only: soldiers that keep vanilla healing (the A/B sides of BBB_MedicTest).
  static ref array<IEntity> s_aVanilla = {};
@@ -120,11 +120,10 @@ class BBB_Medic
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  if (System.GetCLIParam("bbbMedic", value)) s_bOn = value == "1";
-  if (System.GetCLIParam("bbbMedicSmoke", value)) s_bSmokeOn = value != "0";
+  if (BBB_Settings.Get("bbbMedic", value)) s_bOn = value == "1";
+  if (BBB_Settings.Get("bbbMedicSmoke", value)) s_bSmokeOn = value != "0";
   PrintFormat("[BBB] MEDIC safer healing on=%1 smoke=%2", s_bOn, s_bSmokeOn);
  }
 

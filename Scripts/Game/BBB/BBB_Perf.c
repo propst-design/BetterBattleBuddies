@@ -20,7 +20,7 @@ class BBB_Perf
  static void Read()
  {
   string value;
-  if (System.GetCLIParam("bbbPerf", value) && value == "1") { s_bOn = true; s_bOwnReport = true; }
+  if (BBB_Settings.Get("bbbPerf", value) && value == "1") { s_bOn = true; s_bOwnReport = true; }
  }
 
  // Time since 'start' goes to this stage; returns the new start.

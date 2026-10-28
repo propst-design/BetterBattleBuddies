@@ -3,7 +3,7 @@
 // fire checks stay in charge. No targets are inferred from world/map positions.
 class BBB_Engagement
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 	static bool s_bTargetPriority = true;
 	static bool s_bTestMetrics;
@@ -14,11 +14,10 @@ class BBB_Engagement
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 		string value;
-		if (System.GetCLIParam("bbbCombatEngagement", value)) s_bOn = value == "1";
-		if (System.GetCLIParam("bbbCombatTargetPriority", value)) s_bTargetPriority = value == "1";
+		if (BBB_Settings.Get("bbbCombatEngagement", value)) s_bOn = value == "1";
+		if (BBB_Settings.Get("bbbCombatTargetPriority", value)) s_bTargetPriority = value == "1";
 		PrintFormat("[BBB] ENGAGEMENT movement=%1 visibleTargetPriority=%2", s_bOn, s_bTargetPriority);
 	}
 

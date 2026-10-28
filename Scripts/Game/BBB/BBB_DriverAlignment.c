@@ -31,7 +31,7 @@ class BBB_DriverAlignmentState : Managed
 
 class BBB_DriverAlignment
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn;
  static const float STABLE_MS = 3000;
  static const float COOLDOWN_MS = 15000;
@@ -62,10 +62,9 @@ class BBB_DriverAlignment
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbDriverAlign", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbDriverAlign", value) && value == "0");
  }
 
  static bool TraceOther(notnull IEntity entity)

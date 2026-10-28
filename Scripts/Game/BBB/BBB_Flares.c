@@ -103,7 +103,7 @@ class BBB_AIUseHandheldFlare : SCR_AIActionTask
 
 class BBB_Flares
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn;
  static int s_iDispatched;
  static int s_iCancelled;
@@ -112,17 +112,18 @@ class BBB_Flares
  protected static ref map<SCR_AIGroup, float> s_Cooldown = new map<SCR_AIGroup, float>();
  protected static int s_iCursor;
  protected static float s_fNextCheck;
- static const float SQUAD_COOLDOWN_MS = 120000;
- static const float AREA_COOLDOWN_MS = 90000;
+ static float s_fSquadCooldownMs = 120000;
+ static float s_fAreaCooldownMs = 90000;
  static const float AREA_RADIUS_M = 125;
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbFlares", value) && value == "0");
-  PrintFormat("[BBB] FLARES enabled=%1 squadCooldown=120s areaCooldown=90s", s_bOn);
+  s_bOn = !(BBB_Settings.Get("bbbFlares", value) && value == "0");
+  if (BBB_Settings.Get("bbbFlaresSquadCooldown", value)) s_fSquadCooldownMs = Math.Clamp(value.ToFloat(), 30, 600) * 1000;
+  if (BBB_Settings.Get("bbbFlaresAreaCooldown", value)) s_fAreaCooldownMs = Math.Clamp(value.ToFloat(), 30, 600) * 1000;
+  PrintFormat("[BBB] FLARES enabled=%1 squadCooldown=%2s areaCooldown=%3s", s_bOn, s_fSquadCooldownMs / 1000, s_fAreaCooldownMs / 1000);
  }
 
  // Replace vanilla's independent flare requests only for BBB's registered groups.
@@ -323,10 +324,10 @@ class BBB_Flares
     utility.AddAction(job.m_Action);
     s_Jobs.Insert(job);
     // Reserve immediately, including failed/interrupted requests: no retry storm.
-    s_Cooldown.Set(group, now + SQUAD_COOLDOWN_MS);
+    s_Cooldown.Set(group, now + s_fSquadCooldownMs);
     BBB_FlareArea area = new BBB_FlareArea();
     area.m_Position = target;
-    area.m_Until = now + AREA_COOLDOWN_MS;
+    area.m_Until = now + s_fAreaCooldownMs;
     s_Areas.Insert(area);
     if (groupInfo) groupInfo.OnIllumFlareUsed();
     s_iDispatched++;

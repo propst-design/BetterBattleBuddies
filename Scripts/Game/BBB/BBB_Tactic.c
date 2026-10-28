@@ -75,9 +75,10 @@ class BBB_Tactic
  static const int STAGGER = 4;             // squads not yet in contact are checked every 4th tick
  static const float CONTACT_S = 5;
  static const float CONTACT_LOCK_S = 600;
- static const float ASSAULT_S = 85;
- static const float HOLD_S = 45;
- static const float REORG_S = 20;
+ // How long a plan stands before it's judged again (-bbbTacticAssault/-Hold/-Reorg).
+ static float s_fAssaultS = 85;
+ static float s_fHoldS = 45;
+ static float s_fReorgS = 20;
  static const float LOST_S = 30;
  static const float MOST_SEEN_S = 120;
  static const float LEADER_PINNED = 0.33;  // leader's native threat at or above this: no new pick
@@ -90,7 +91,7 @@ class BBB_Tactic
  static bool s_bFlank = true;
  static bool s_bSearch = true;
  static bool s_bFire = false; // HOLD base of fire: opt-in until an A/B shows it adds fire (24 Oct)
- protected static bool s_bRead;
+ protected static int s_iRead;
  protected static ref map<SCR_AIGroup, ref BBB_TacticState> s_States = new map<SCR_AIGroup, ref BBB_TacticState>();
  static ref array<SCR_AIGroup> s_aVanilla = {}; // test only: squads left to the features' own rules
  static int s_iChanges; // tests read these
@@ -101,14 +102,16 @@ class BBB_Tactic
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbTactic", value) && value == "0");
-  s_bFlank = !(System.GetCLIParam("bbbTacticFlank", value) && value == "0");
-  s_bSearch = !(System.GetCLIParam("bbbTacticSearch", value) && value == "0");
-  s_bFire = System.GetCLIParam("bbbTacticFire", value) && value == "1";
-  PrintFormat("[BBB] SQUAD TACTIC enabled=%1 assault=%2s hold=%3s reorg=%4s flank=%5 search=%6 baseOfFire=%7", s_bOn, ASSAULT_S, HOLD_S, REORG_S, s_bFlank, s_bSearch, s_bFire);
+  s_bOn = !(BBB_Settings.Get("bbbTactic", value) && value == "0");
+  s_bFlank = !(BBB_Settings.Get("bbbTacticFlank", value) && value == "0");
+  s_bSearch = !(BBB_Settings.Get("bbbTacticSearch", value) && value == "0");
+  s_bFire = BBB_Settings.Get("bbbTacticFire", value) && value == "1";
+  if (BBB_Settings.Get("bbbTacticAssault", value)) s_fAssaultS = Math.Clamp(value.ToFloat(), 30, 300);
+  if (BBB_Settings.Get("bbbTacticHold", value)) s_fHoldS = Math.Clamp(value.ToFloat(), 15, 180);
+  if (BBB_Settings.Get("bbbTacticReorg", value)) s_fReorgS = Math.Clamp(value.ToFloat(), 5, 60);
+  PrintFormat("[BBB] SQUAD TACTIC enabled=%1 assault=%2s hold=%3s reorg=%4s flank=%5 search=%6 baseOfFire=%7", s_bOn, s_fAssaultS, s_fHoldS, s_fReorgS, s_bFlank, s_bSearch, s_bFire);
  }
 
  static string Name(int tactic)
@@ -351,7 +354,7 @@ class BBB_Tactic
   if (state.m_Leader && state.m_Leader != leader && Down(state.m_Leader))
   {
    state.m_Leader = leader;
-   Set(state, REORG, now, REORG_S, "leader down", vector.Zero);
+   Set(state, REORG, now, s_fReorgS, "leader down", vector.Zero);
    return;
   }
   if (leader && !Down(leader)) state.m_Leader = leader;
@@ -359,13 +362,13 @@ class BBB_Tactic
   // Hysteresis breakers: an assault the squad can no longer run.
   if (state.m_iTactic == ASSAULT && now < state.m_fUntil && !assaultFits && !BaseAssault(group, picture)) state.m_iAssaultMisses++;
   else state.m_iAssaultMisses = 0;
-  if (state.m_iAssaultMisses >= 2) { state.m_iAssaultMisses = 0; Set(state, HOLD, now, HOLD_S, "can't keep assaulting", vector.Zero); return; }
-  if ((state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now < state.m_fUntil && enemies >= picture.m_iConscious * OVERRUN) { Set(state, HOLD, now, HOLD_S, string.Format("more enemies than thought (%1 seen, %2 of us)", enemies, picture.m_iConscious), vector.Zero); return; }
+  if (state.m_iAssaultMisses >= 2) { state.m_iAssaultMisses = 0; Set(state, HOLD, now, s_fHoldS, "can't keep assaulting", vector.Zero); return; }
+  if ((state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now < state.m_fUntil && enemies >= picture.m_iConscious * OVERRUN) { Set(state, HOLD, now, s_fHoldS, string.Format("more enemies than thought (%1 seen, %2 of us)", enemies, picture.m_iConscious), vector.Zero); return; }
   if (state.m_iTactic == WITHDRAW) state.m_iTactic = NONE; // withdrawal over: pick afresh
   // Carry out the tactic in force (stage 4).
   if (state.m_iTactic == FLANK)
   {
-   if (BBB_TacticDrill.Flank(state, now)) { Set(state, ASSAULT, now, ASSAULT_S, "in position on the flank", threat); return; }
+   if (BBB_TacticDrill.Flank(state, now)) { Set(state, ASSAULT, now, s_fAssaultS, "in position on the flank", threat); return; }
   }
   else if (s_bFire && (state.m_iTactic == HOLD || state.m_iTactic == REORG))
   {
@@ -386,7 +389,7 @@ class BBB_Tactic
   SCR_AIUtilityComponent deciding = LeaderUtility(group);
   if (!deciding || (deciding.m_ThreatSystem && deciding.m_ThreatSystem.GetThreatMeasure() >= LEADER_PINNED))
   {
-   if (state.m_iTactic == CONTACT || state.m_iTactic == NONE || state.m_iTactic == REORG) Set(state, HOLD, now, HOLD_S, "leader pinned down", vector.Zero);
+   if (state.m_iTactic == CONTACT || state.m_iTactic == NONE || state.m_iTactic == REORG) Set(state, HOLD, now, s_fHoldS, "leader pinned down", vector.Zero);
    else state.m_fUntil = now + LOOK_S;
    return;
   }
@@ -408,9 +411,9 @@ class BBB_Tactic
     Set(state, FLANK, now, FLANK_S, string.Format("enemy dug in %1 m away: flanking to a point %2 m from us", Math.Round(range), Math.Round(vector.DistanceXZ(flankAt, picture.m_vCentre))), flankAt);
     return;
    }
-   Set(state, ASSAULT, now, ASSAULT_S, string.Format("enemy %1 m, %2 seen, %3 of us", Math.Round(range), enemies, picture.m_iConscious), threat);
+   Set(state, ASSAULT, now, s_fAssaultS, string.Format("enemy %1 m, %2 seen, %3 of us", Math.Round(range), enemies, picture.m_iConscious), threat);
   }
-  else Set(state, HOLD, now, HOLD_S, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
+  else Set(state, HOLD, now, s_fHoldS, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
  }
 
  // What an assault needs regardless of where the enemy is: the host and orders allow fire and

@@ -3,7 +3,7 @@
 // incoming damage. No orders, contacts, ammunition or fire inputs are changed.
 class BBB_WeaponReady
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 	static int s_iAttempts;
 	static int s_iAccepted;
@@ -11,10 +11,9 @@ class BBB_WeaponReady
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 		string value;
-		if (System.GetCLIParam("bbbWeaponReady", value) && value == "0") s_bOn = false;
+		s_bOn = !(BBB_Settings.Get("bbbWeaponReady", value) && value == "0");
 	}
 
 	static void Tick()

@@ -36,7 +36,7 @@ class BBB_MoraleTest : BBB_AimTest
 		BBB_Morale.Read();
 
 		// Check 1: Feature flags and defaults
-		Check("flag-read", BBB_Morale.s_bRead);
+		Check("flag-read", BBB_Morale.s_iRead > 0);
 		Check("defaults-valid", BBB_Morale.s_fCasualtyThreshold > 0 && BBB_Morale.s_fSuppressionThreshold > 0);
 
 		// Check 2: Retrograde destination calculation away from threat

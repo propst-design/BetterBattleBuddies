@@ -16,7 +16,7 @@ class BBB_CoverFire
  static const float MAX_M = 300;
  static const float PRIORITY = 90.5;  // just above attacking a selected target (90), as FireManeuver's orders
  static bool s_bOn = true;
- protected static bool s_bRead;
+ protected static int s_iRead;
  static int s_iOnCover, s_iOnReport, s_iRefused; // tests read these
  protected static ref array<IEntity> s_aFound = {};
  protected static float s_fGround;
@@ -26,10 +26,9 @@ class BBB_CoverFire
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbCoverFire", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbCoverFire", value) && value == "0");
   PrintFormat("[BBB] COVER FIRE enabled=%1 near=%2m friendly=%3m", s_bOn, NEAR_M, FRIENDLY_M);
  }
 

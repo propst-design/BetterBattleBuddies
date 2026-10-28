@@ -64,7 +64,7 @@ class BBB_Vanilla
  {
   if (!Replication.IsServer()) return;
   string value;
-  if (System.GetCLIParam("bbbVanilla", value) && value == "0") return;
+  if (BBB_Settings.Get("bbbVanilla", value) && value == "0") return;
   GetGame().GetCallqueue().CallLater(StartIfAlone, 10000);
  }
 

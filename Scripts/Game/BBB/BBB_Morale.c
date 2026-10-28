@@ -75,7 +75,7 @@ class BBB_SurrenderState : Managed
 
 class BBB_Morale
 {
-	static bool s_bRead;
+	static int s_iRead;
 	static bool s_bOn = true;
 	static bool s_bSurrenderOn = true;
 
@@ -111,37 +111,39 @@ class BBB_Morale
 
 	static void Read()
 	{
-		if (s_bRead) return;
-		s_bRead = true;
+		if (!BBB_Settings.Due(s_iRead)) return;
 
 		string value;
-		if (System.GetCLIParam("bbbMorale", value))
+		if (BBB_Settings.Get("bbbMorale", value))
 		{
 			s_bOn = value == "1";
 		}
 
-		if (System.GetCLIParam("bbbMoraleSurrender", value))
+		if (BBB_Settings.Get("bbbMoraleSurrender", value))
 		{
 			s_bSurrenderOn = value != "0";
 		}
 
-		if (System.GetCLIParam("bbbMoraleCasualties", value))
+		if (BBB_Settings.Get("bbbMoraleCasualties", value))
 		{
 			float c = value.ToFloat();
 			if (c > 0.1 && c <= 0.9) s_fCasualtyThreshold = c;
 		}
 
-		if (System.GetCLIParam("bbbMoraleSuppression", value))
+		if (BBB_Settings.Get("bbbMoraleSuppression", value))
 		{
 			float s = value.ToFloat();
 			if (s > 0.1 && s <= 1.0) s_fSuppressionThreshold = s;
 		}
 
-		if (System.GetCLIParam("bbbMoraleDistance", value))
+		if (BBB_Settings.Get("bbbMoraleDistance", value))
 		{
 			float d = value.ToFloat();
 			if (d >= 10.0 && d <= 50.0) s_fRetrogradeBoundDist = d;
 		}
+
+		if (BBB_Settings.Get("bbbMoraleBreak", value)) s_fBreakScore = Math.Clamp(value.ToFloat(), 0.3, 1.0);
+		if (BBB_Settings.Get("bbbMoraleWithdraw", value)) s_fMaxWithdrawDist = Math.Clamp(value.ToFloat(), 30.0, 250.0);
 
 		PrintFormat("[BBB] MORALE enabled=%1 surrender=%2 casualtyThreshold=%3", s_bOn, s_bSurrenderOn, s_fCasualtyThreshold);
 	}

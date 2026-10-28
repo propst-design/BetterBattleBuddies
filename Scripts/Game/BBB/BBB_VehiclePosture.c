@@ -109,7 +109,7 @@ class BBB_CrewTurnoutState : Managed
 
 class BBB_CrewTurnout
 {
- static bool s_bRead;
+ static int s_iRead;
  static bool s_bOn;
  static const float QUIET_MS = 30000;
  static const float THREAT_RADIUS = 600;
@@ -119,10 +119,9 @@ class BBB_CrewTurnout
 
  static void Read()
  {
-  if (s_bRead) return;
-  s_bRead = true;
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
-  s_bOn = !(System.GetCLIParam("bbbCrewTurnout", value) && value == "0");
+  s_bOn = !(BBB_Settings.Get("bbbCrewTurnout", value) && value == "0");
  }
 
  static BBB_CrewTurnoutState State(ChimeraCharacter body, BaseCompartmentSlot seat)

@@ -57,6 +57,31 @@ off unless enabled. ACE is optional; ACE-dependent behaviour needs ACE loaded.
 AC: Actual integrates through BBB's host hooks and manages its own commander,
 bases, logistics and vehicle-driving decisions. AiO Command Menu is optional.
 
+### Settings tab and presets
+
+Open **Settings > Battle Buddies** to change any BBB option without launch parameters. Each
+option has a short description; the panel on the right also shows its default and the launch
+parameter that sets it on a server.
+
+- **Presets.** Pick the preset in use at the top. *BBB default* is what the mod ships and
+  *Vanilla* turns every BBB feature off; both are read-only. Press **Duplicate** (or **New**) to
+  make your own, then change anything: edits save straight away. **Delete** asks for a second
+  press. **Reload** picks up preset files you added or edited outside the game.
+- **When it applies.** The preset in use applies when a mission starts, never in the middle of
+  one, in singleplayer and in games you host. On someone else's server that server's settings
+  apply; the tab says so when you open it there.
+- **Sharing.** **Export** copies the preset to the clipboard as JSON and shows its file:
+  `profile/BBB/Presets/<name>.json` in your Arma Reforger profile folder
+  (Documents/My Games/ArmaReforger on Windows). Paste it to a friend, who saves it to the same
+  folder and presses Reload.
+
+**Hosting a server with a preset.** Copy the preset file into the server's profile folder under
+`BBB/Presets/` and add `-bbbPreset <name>` to the server's launch parameters, using the file
+name without `.json` or the preset's name in quotes. The built-in presets need no file:
+`-bbbPreset Vanilla`. Priority is launch parameters, then the preset, then BBB's defaults, so a
+server that only uses `-bbb...` options keeps working exactly as before. The server log shows
+which preset loaded (`[BBB] SETTINGS preset ...`).
+
 ### Server options
 
 Player control, explicit player/GM orders and host-mod policy take priority over
