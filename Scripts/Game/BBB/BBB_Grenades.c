@@ -198,6 +198,12 @@ class BBB_Grenades
 		}
 
 		// 2. Check nearby entities within safety radius
+		return AreaClearOf(landingPos, throwerFac, safetyDist);
+	}
+
+	// Nobody who isn't an enemy of this side within the blast radius (squadmates included).
+	static bool AreaClearOf(vector landingPos, Faction throwerFac, float safetyDist)
+	{
 		s_aNearbyEntities.Clear();
 		GetGame().GetWorld().QueryEntitiesBySphere(landingPos, safetyDist + 2.0, CollectNearbyEntity);
 
@@ -231,7 +237,12 @@ class BBB_Grenades
 		}
 
 		// Anyone else on the line who isn't an enemy: a player, or another friendly squad.
-		Faction throwerFac = throwingGroup.GetFaction();
+		return LineClearOf(throwerPos, landingPos, throwingGroup.GetFaction(), thrower);
+	}
+
+	// Nobody who isn't an enemy of this side on the throw line (squadmates included).
+	static bool LineClearOf(vector throwerPos, vector landingPos, Faction throwerFac, IEntity thrower)
+	{
 		vector middle = (throwerPos + landingPos) * 0.5;
 		s_aNearbyEntities.Clear();
 		GetGame().GetWorld().QueryEntitiesBySphere(middle, vector.Distance(throwerPos, landingPos) * 0.5 + s_fThrowCorridorRadiusM, CollectNearbyEntity);
@@ -257,6 +268,24 @@ class BBB_Grenades
 			return false;
 		}
 		if (!IsThrowCorridorClear(thrower.GetOrigin(), landingPos, group, thrower))
+		{
+			s_iCorridorVetoes++;
+			return false;
+		}
+		return true;
+	}
+
+	// A thrower with no squad (a fake surrender whose squad is gone, BBB_Morale): his faction alone
+	// clears the throw. Fails closed without one.
+	static bool LandingStillClearAlone(Faction side, IEntity thrower, vector landingPos)
+	{
+		if (!side || !thrower) return false;
+		if (!AreaClearOf(landingPos, side, s_fFriendlySafetyDistM))
+		{
+			s_iSafetyVetoes++;
+			return false;
+		}
+		if (!LineClearOf(thrower.GetOrigin(), landingPos, side, thrower))
 		{
 			s_iCorridorVetoes++;
 			return false;
@@ -476,7 +505,7 @@ class BBB_Grenades
 				foreach (BaseTarget target : targets)
 				{
 					if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY) continue;
-					if (target.GetUnitType() != EAIUnitType.UnitType_Infantry) continue;
+					if (target.GetUnitType() != EAIUnitType.UnitType_Infantry || target.IsDisarmed()) continue; // downed or surrendered
 
 					float timeSince = target.GetTimeSinceDetected();
 					if (timeSince < 0 || timeSince > RECENT_TARGET_MAX_S) continue;
@@ -521,6 +550,8 @@ class BBB_AIThrowFrag : SCR_AIThrowGrenadeToBehavior
 {
 	// The squad the throw was cleared for (set by BBB_Grenades when it queues the throw).
 	SCR_AIGroup m_Group;
+	// A thrower with no squad (a fake surrender, BBB_Morale): the throw is cleared for his side.
+	Faction m_Side;
 	protected float m_fLandingCheckedMs;
 
 	override float CustomEvaluate()
@@ -548,7 +579,10 @@ class BBB_AIThrowFrag : SCR_AIThrowGrenadeToBehavior
 		float nowMs = GetGame().GetWorld().GetWorldTime();
 		if (m_fLandingCheckedMs > 0 && nowMs - m_fLandingCheckedMs < BBB_Grenades.RECHECK_MS) return priority;
 		m_fLandingCheckedMs = nowMs;
-		if (BBB_Grenades.LandingStillClear(m_Group, thrower, landing)) return priority;
+		bool clear;
+		if (!m_Group && m_Side) clear = BBB_Grenades.LandingStillClearAlone(m_Side, thrower, landing);
+		else clear = BBB_Grenades.LandingStillClear(m_Group, thrower, landing);
+		if (clear) return priority;
 		PrintFormat("[BBB] GRENADE: %1 called off the frag at %2: a friendly moved into the blast area or the throw line", thrower, landing);
 		BBB_Think.NoteUtility(m_Utility, "Grenades", "frag called off: a friendly is in the way");
 		Fail();

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11 — unreleased
+
+- Surrender now happens, and means something. Before, only the very last man of a squad with every round gone and an enemy within 15 m could give up, so it almost never happened, and when it did he just crouched holding still while everyone kept shooting him. Now a soldier cut off from his squad, pinned down, out of spare magazines or badly wounded, and facing an enemy close by may surrender. He drops his weapons, signals halt and kneels. AI on both sides leave him alone, as they do the unconscious; players can still shoot him. He leaves his squad (it counts him as lost) and is removed once no player is nearby or looking his way. The game has no hands-up animation, so he kneels unarmed instead (-bbbMoraleSurrender 0).
+- Surrenders don't always go cleanly. Now and then nearby enemy soldiers shoot a prisoner after a while instead of leaving him. And now and then a prisoner was faking: he kept a grenade or a pistol back, and when an enemy, player or AI, comes close he throws it or draws it and fights again. Walk up to a prisoner carefully (-bbbMoraleSurrenderFates 0 makes every surrender genuine).
+- For mod makers: new hook `AllowSurrender` (separate from `AllowMorale`, so a host that runs its own squad retreats can still let men surrender) and `BBB_Morale.IsPrisoner(soldier)`, so a host can leave prisoners out of anything that counts troops.
+
 ## 0.1.10 — unreleased
 
 - The squad leader draws the teams that bound. When a squad moves by fire and manoeuvre or flanks, its halves used to be every other man on the roster, and the fireteam the leader had just sent to watch a second enemy group got pulled into the bounds and walked off its sector. Now the leader splits the squad into the left and right halves of the line to the enemy, keeps a gunner and his assistant together, has the machine gunner's half cover first, and leaves the fireteam on the flank out of the bounds so it keeps watching. In five test runs the flank team's men spent 12 to 68 man-seconds bounding with the main body without this, and none with it. Option: `-bbbSquadTeams 0` (or the Battle Buddies settings tab, Squad tactics).

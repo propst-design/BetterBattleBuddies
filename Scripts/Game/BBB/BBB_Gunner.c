@@ -142,7 +142,7 @@ class BBB_Gunner
   float best = -1;
   foreach (BaseTarget target : targets)
   {
-   if (!target || target.GetTimeSinceDetected() > 10) continue;
+   if (!target || target.IsDisarmed() || target.GetTimeSinceDetected() > 10) continue;
    vector at = target.GetLastDetectedPosition();
    if (BBB_SuppressionSafety.AircraftSource(target.GetTargetEntity()) || !BBB_SuppressionSafety.GroundSector(at)) continue;
    vector to = at - me;

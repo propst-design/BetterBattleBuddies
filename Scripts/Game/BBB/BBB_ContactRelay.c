@@ -145,6 +145,7 @@ class BBB_ContactRelay
    if (!target || !target.m_Entity || target.m_eCategory != EAITargetInfoCategory.IDENTIFIED) continue;
    if (perceptionNow - target.m_fTimestamp > s_fFreshS) continue;
    if (target.m_Perceivable && target.m_Perceivable.GetUnitType() == EAIUnitType.UnitType_Aircraft) continue;
+   if (BBB.Disarmed(target.m_Entity)) continue; // down or surrendered since he was seen: nothing to report
    fresh.Insert(target);
   }
   if (fresh.IsEmpty()) return;
@@ -211,7 +212,7 @@ class BBB_ContactRelay
    BBB_RelayReport report = s_Pending[i];
    if (report.m_fDeliverAt > now) continue;
    s_Pending.Remove(i);
-   if (!report.m_Receiver || !report.m_Enemy || !Accepts(report.m_Receiver)) continue;
+   if (!report.m_Receiver || !report.m_Enemy || BBB.Disarmed(report.m_Enemy) || !Accepts(report.m_Receiver)) continue;
    SCR_AIGroupUtilityComponent utility = report.m_Receiver.GetGroupUtilityComponent();
    if (!utility || !utility.m_Perception) continue;
    utility.m_Perception.AddOrUpdateGunshot(report.m_Enemy, report.m_vPosition, report.m_Faction, report.m_fSeen, false);
