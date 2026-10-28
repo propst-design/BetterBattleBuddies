@@ -7,7 +7,7 @@
 > testing and pull requests. No direct repository access is needed.
 
 [![Game: Arma Reforger](https://img.shields.io/badge/Arma-Reforger-556b2f?style=flat-square)](https://reforger.armaplatform.com/)
-[![Workshop release: 0.1.6](https://img.shields.io/badge/Workshop-0.1.6-blue?style=flat-square)](CHANGELOG.md)
+[![Workshop release: 0.1.7](https://img.shields.io/badge/Workshop-0.1.7-blue?style=flat-square)](CHANGELOG.md)
 [![Standalone addon](https://img.shields.io/badge/Addon-Standalone-teal?style=flat-square)](#install-and-play)
 [![License: APL-SA](https://img.shields.io/badge/License-APL--SA-orange?style=flat-square)](LICENSE.md)
 
@@ -24,7 +24,7 @@ AC: Actual and does not add a commander game mode.
 2. Start a vanilla scenario such as Conflict or Game Master with AI present.
 3. For multiplayer, load BBB on the server and joining clients.
 
-The current Workshop release is **0.1.6**.
+The current Workshop release is **0.1.7**.
 See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
 ## What your buddies do
