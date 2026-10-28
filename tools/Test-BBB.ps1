@@ -59,7 +59,7 @@ $profile = Join-Path $root ('.local-testserver/' + $id)
 $resultDir = Join-Path $root '.bbb-results'
 New-Item -ItemType Directory -Path $profile,$resultDir -Force | Out-Null
 $flags = @{ vanilla = '-bbbVanillaTest 1'; rearm = '-bbbRearmTest 1'; seatdiag = '-bbbSeatDiag 1 -bbbTurretTrace 1'; seatfire = '-bbbSeatDiag 1 -bbbTurretTrace 1 -bbbSeatDiagFireOnly 1'; seatidle = '-bbbSeatDiag 1 -bbbTurretTrace 1 -bbbSeatDiagIdleOnly 1'; look = '-acrBbbLookTest 1'; firemaneuverperf = '-acrBbbFireManeuverPerfTest 1'; morale = '-bbbMoraleTest 1 -bbbPerf 1'; smoke = '-bbbSmokeTest 1 -bbbPerf 1'; staticweapons = '-bbbStaticWeaponsTest 1 -bbbPerf 1'; grenades = '-bbbGrenadeTest 1 -bbbPerf 1'; featureaudit = '-bbbFeatureAuditTest 1 -bbbPerf 1'; reactions = '-bbbReactionTest 1 -bbbPerf 1'; compile = '' }
-$timeouts = @{ vanilla = 100; rearm = 65; seatdiag = 330; seatfire = 150; seatidle = 150; look = 90; firemaneuverperf = 160; morale = 120; smoke = 120; staticweapons = 120; grenades = 120; featureaudit = 200; reactions = 160; compile = 45 }
+$timeouts = @{ vanilla = 100; rearm = 65; seatdiag = 330; seatfire = 150; seatidle = 150; look = 90; firemaneuverperf = 160; morale = 180; smoke = 120; staticweapons = 120; grenades = 120; featureaudit = 200; reactions = 160; compile = 45 }
 $sourceSnapshot = Join-Path $resultDir ($id + '.source.json')
 $sourceFiles = @('Scripts','Configs/BBB','Prefabs/BBB','Prefabs/BBB_Tests') | ForEach-Object {
  $sourcePath = Join-Path $AddonRoot $_

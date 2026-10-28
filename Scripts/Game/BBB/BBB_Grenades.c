@@ -431,7 +431,7 @@ class BBB_Grenades
 				foreach (BaseTarget target : targets)
 				{
 					if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY) continue;
-					if (target.GetUnitType() != EAIUnitType.UnitType_Infantry) continue;
+					if (target.GetUnitType() != EAIUnitType.UnitType_Infantry || target.IsDisarmed()) continue; // downed or surrendered
 
 					float timeSince = target.GetTimeSinceDetected();
 					if (timeSince < 0 || timeSince > RECENT_TARGET_MAX_S) continue;

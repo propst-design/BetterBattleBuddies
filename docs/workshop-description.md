@@ -13,7 +13,7 @@ FIGHT AS A SQUAD
 - Fight from buildings: keep the window while the enemy is in view, move to another window when not, duck behind walls when shot at instead of running out. Seek indoor cover near detected enemies.
 - Walk to and crew nearby loaded friendly static weapons during contact, then give them up for orders or when no longer useful.
 - Screen advances, casualty drags and withdrawals with smoke. At night, use carried flares to illuminate recently sighted enemy sectors.
-- Broken squads fall back in two halves that cover each other, through the open side. Cornered out-of-ammo survivors can surrender.
+- Broken squads fall back in two halves that cover each other, through the open side. A cut-off, pinned soldier with no spare ammo or bad wounds may surrender: he drops his weapons and kneels, and AI leave him alone. Mostly: captors sometimes shoot a prisoner, and some prisoners kept a grenade or pistol back for whoever walks up.
 
 LOOK AFTER EACH OTHER
 

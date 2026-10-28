@@ -31,6 +31,9 @@ class BBB_Hooks : Managed
  bool AllowRelaxedMarch(SCR_AIGroup group) { return true; }
  // Host orders or commander retreats may handle morale for this group.
  bool AllowMorale(SCR_AIGroup group) { return true; }
+ // A cornered, cut-off soldier of this group may surrender (BBB_Morale). Separate from
+ // AllowMorale: a host that runs its own squad retreats can still let men give up.
+ bool AllowSurrender(SCR_AIGroup group) { return true; }
  // Host tactical doctrines may veto autonomous tactical smoke.
  bool AllowSmoke(SCR_AIGroup group) { return true; }
  // Host tactical doctrines may veto static weapon crewing.

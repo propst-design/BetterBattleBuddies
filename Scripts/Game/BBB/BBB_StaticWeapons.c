@@ -179,7 +179,7 @@ class BBB_StaticWeapons
 			if (u.m_CombatComponent)
 			{
 				BaseTarget cur = u.m_CombatComponent.GetCurrentTarget();
-				if (cur && cur.GetTargetCategory() == ETargetCategory.ENEMY)
+				if (cur && cur.GetTargetCategory() == ETargetCategory.ENEMY && !cur.IsDisarmed())
 				{
 					vector curPos = cur.GetLastDetectedPosition();
 					vector toCur = curPos - weaponPos;
@@ -200,7 +200,7 @@ class BBB_StaticWeapons
 				u.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
 				foreach (BaseTarget tgt : targets)
 				{
-					if (!tgt || tgt.GetTargetCategory() != ETargetCategory.ENEMY) continue;
+					if (!tgt || tgt.GetTargetCategory() != ETargetCategory.ENEMY || tgt.IsDisarmed()) continue;
 					if (tgt.GetTimeSinceDetected() > 20.0) continue;
 
 					vector tPos = tgt.GetLastDetectedPosition();

@@ -167,7 +167,7 @@ class BBB_Smoke
 			if (utility.m_CombatComponent)
 			{
 				BaseTarget current = utility.m_CombatComponent.GetCurrentTarget();
-				if (current && current.GetTargetCategory() == ETargetCategory.ENEMY)
+				if (current && current.GetTargetCategory() == ETargetCategory.ENEMY && !current.IsDisarmed())
 				{
 					sum = sum + current.GetLastDetectedPosition();
 					count++;
@@ -180,7 +180,7 @@ class BBB_Smoke
 				utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
 				foreach (BaseTarget target : targets)
 				{
-					if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY) continue;
+					if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY || target.IsDisarmed()) continue;
 					float timeSince = target.GetTimeSinceDetected();
 					if (timeSince >= 0 && timeSince <= RECENT_THREAT_MAX_S)
 					{

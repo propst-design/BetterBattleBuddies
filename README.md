@@ -100,7 +100,9 @@ Server owners can disable features individually:
 | `-bbbGrenades 0` | Autonomous fragmentation-grenade use |
 | `-bbbStaticWeapons 0` | Autonomous static-weapon crewing |
 | `-bbbHoldGuns 0` | Gunners staying on static guns a host mod marks as held |
-| `-bbbMorale 0` | Morale-driven withdrawal and surrender |
+| `-bbbMorale 0` | Morale-driven withdrawal |
+| `-bbbMoraleSurrender 0` | Cut-off, pinned soldiers surrendering |
+| `-bbbMoraleSurrenderFates 0` | Surrenders that go wrong: executions and fake surrenders |
 | `-bbbBuildings 0` | Contact-driven indoor cover movement |
 | `-bbbFlares 0` | BBB's autonomous night-illumination requests |
 | `-bbbDoorUnstick 0` | Opening or flipping doors that block movement |

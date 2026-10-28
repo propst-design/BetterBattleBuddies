@@ -133,7 +133,7 @@ class BBB_Squad
    utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
    foreach (BaseTarget target : targets)
    {
-    if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY) continue;
+    if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY || target.IsDisarmed()) continue;
     float age = target.GetTimeSinceDetected();
     if (age < 0 || age > MEMORY_S) continue;
     IEntity enemy = target.GetTargetEntity();

@@ -6,6 +6,9 @@
 - Lighter on the server: gunner replacement checks whether a turret needs a gunner before anything else, and the door, weapon-lowering and head-scanning checks skip work for soldiers they can't affect. Checking whether a soldier is a player no longer walks the whole player list, which cost more the fuller the server.
 - Fixed a script error when a soldier was removed while waiting for a window to fight from (seen in a long AC: Actual battle).
 - Soldiers looking around when BBB stops (a host mod turning it off mid-mission) turn their heads back instead of staying in free-look.
+- Surrender now happens, and means something. Before, only the very last man of a squad with every round gone and an enemy within 15 m could give up, so it almost never happened, and when it did he just crouched holding still while everyone kept shooting him. Now a soldier cut off from his squad, pinned down, out of spare magazines or badly wounded, and facing an enemy close by may surrender. He drops his weapons, signals halt and kneels. AI on both sides leave him alone, as they do the unconscious; players can still shoot him. He leaves his squad (it counts him as lost) and is removed once no player is nearby or looking his way. The game has no hands-up animation, so he kneels unarmed instead (-bbbMoraleSurrender 0).
+- Surrenders don't always go cleanly. Now and then nearby enemy soldiers shoot a prisoner after a while instead of leaving him. And now and then a prisoner was faking: he kept a grenade or a pistol back, and when an enemy, player or AI, comes close he throws it or draws it and fights again. Walk up to a prisoner carefully (-bbbMoraleSurrenderFates 0 makes every surrender genuine).
+- For mod makers: new hook `AllowSurrender` (separate from `AllowMorale`, so a host that runs its own squad retreats can still let men surrender) and `BBB_Morale.IsPrisoner(soldier)`, so a host can leave prisoners out of anything that counts troops.
 
 ## 0.1.7 — released
 

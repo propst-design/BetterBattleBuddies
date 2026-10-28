@@ -6,7 +6,6 @@
 // - a static weapon gunner walks to the seat (no teleport), the job only counts as
 //   crewed once he is seated, and it is released (native get-out) for host policy and
 //   player orders; a pending boarding is cancelled cleanly;
-// - surrender cleanup restores only AI that the feature switched off;
 // - a withdrawal counts only ground actually gained and never reports a frozen squad
 //   as having broken contact.
 // Fixture: one US fireteam, a USSR team 60 m north (hold fire, blind), an armed M1025
@@ -28,7 +27,6 @@ class BBB_AuditStatic : BBB_StaticWeapons
 
 class BBB_AuditMorale : BBB_Morale
 {
-	static void Surrender(ChimeraCharacter body, SCR_AIUtilityComponent utility) { ApplySurrender(body, utility, body.GetCharacterController()); }
 	static void BeginWithdrawal(BBB_GroupMoraleState state, vector threat, float now) { StartWithdrawal(state, threat, now); }
 	static void Advance(BBB_GroupMoraleState state, float now) { UpdateWithdrawal(state, now); }
 }
@@ -423,20 +421,6 @@ class BBB_FeatureAuditTest : BBB_AimTest
 	void MoraleBegin()
 	{
 		RestoreHooks();
-		// Surrender cleanup restores only AI the feature parked
-		ChimeraCharacter body = Member(3);
-		SCR_AIUtilityComponent utility = UtilityAt(3);
-		AIControlComponent control = AIControlComponent.Cast(body.FindComponent(AIControlComponent));
-		control.DeactivateAI();
-		BBB_AuditMorale.Surrender(body, utility);
-		BBB_Morale.Stop();
-		Audit("surrender-stop-keeps-inactive-ai-off", !control.IsAIActivated());
-		control.ActivateAI();
-		BBB_AuditMorale.Surrender(body, utility);
-		bool parked = !control.IsAIActivated();
-		BBB_Morale.Stop();
-		Audit("surrender-parks-and-restores-own-ai", parked && control.IsAIActivated());
-
 		// A frozen squad gains no ground: no contact broken, no invented distance
 		array<AIAgent> agents = {};
 		m_Group.GetAgents(agents);

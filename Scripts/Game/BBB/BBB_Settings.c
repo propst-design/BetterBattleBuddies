@@ -321,8 +321,9 @@ class BBB_Settings
   Num(g, "bbbFlaresAreaCooldown", 90, 30, 600, 10, "Illumination area cooldown (s)", "Time before anyone lights up the same area again.");
 
   g = "Morale";
-  On(g, "bbbMorale", "Morale and break contact", "Badly hurt or pinned squads fall back in alternating halves; isolated soldiers out of ammo may surrender.");
-  On(g, "bbbMoraleSurrender", "Surrender", "Isolated soldiers out of ammo may surrender.");
+  On(g, "bbbMorale", "Morale and break contact", "Badly hurt or pinned squads fall back in alternating halves.");
+  On(g, "bbbMoraleSurrender", "Surrender", "A soldier cut off from his squad, pinned, out of spare ammo or badly wounded, with an enemy close, may drop his weapons and give up. AI leave him alone.");
+  On(g, "bbbMoraleSurrenderFates", "Surrenders can go wrong", "Now and then captors shoot a prisoner, or a prisoner who hid a grenade or pistol uses it on whoever comes close.");
   Num(g, "bbbMoraleCasualties", 0.5, 0.15, 0.9, 0.05, "Losses before breaking", "Share of the squad lost that counts fully toward a break.");
   Num(g, "bbbMoraleSuppression", 0.6, 0.15, 1, 0.05, "Suppression before breaking", "Suppression that counts fully toward a break.");
   Num(g, "bbbMoraleDistance", 25, 10, 50, 1, "Withdrawal bound (m)", "Length of each bound when a squad falls back.");
