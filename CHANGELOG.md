@@ -2,6 +2,11 @@
 
 ## 0.1.8 — unreleased
 
+- Better Battle Buddies now restarts cleanly for every mission. Without a host mod (Conflict, Game Master, scenario missions), a server that restarted or rotated its scenario, or the next mission in singleplayer, kept running BBB on the previous mission's state: illumination flares stayed off and horizon scanning skipped most groups for as long as the previous mission had lasted, and a new preset's vehicle and order settings weren't read. BBB now stops when a mission ends and starts fresh with the next one.
+- Lighter on the server: gunner replacement checks whether a turret needs a gunner before anything else, and the door, weapon-lowering and head-scanning checks skip work for soldiers they can't affect. Checking whether a soldier is a player no longer walks the whole player list, which cost more the fuller the server.
+- Fixed a script error when a soldier was removed while waiting for a window to fight from (seen in a long AC: Actual battle).
+- Soldiers looking around when BBB stops (a host mod turning it off mid-mission) turn their heads back instead of staying in free-look.
+
 ## 0.1.7 — released
 
 - A **Battle Buddies** tab in the game's Settings menu, so you can set up how BBB's AI fights without touching launch parameters. Every option has a switch or slider with a short description, grouped by feature. Save setups as presets, then duplicate, rename, delete and share them: Export copies a preset to the clipboard and tells you where its file is. Two built-in presets to start from: BBB default (what the mod ships) and Vanilla (every BBB feature off). A preset applies when a mission starts, in singleplayer and in games you host; on someone else's server, that server's settings apply. Server hosts drop the file into the server's profile folder under BBB/Presets and start the server with -bbbPreset <name>. Launch parameters still win over a preset, so existing server setups keep working unchanged.

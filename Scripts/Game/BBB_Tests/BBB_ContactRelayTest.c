@@ -219,7 +219,9 @@ class BBB_ContactRelayTest : BBB_AimTest
    if (m_Wait < 10) return;
    RelayCheck("host-veto-no-report", Known(m_Receiver, category, at) < 0);
    m_Hooks.m_Veto = false;
-   m_Order = SCR_AIWaypoint.Cast(Spawn("{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et", BBB.AnchorOf(m_Receiver).GetOrigin(), "0 0 1"));
+   // A Defend on the spot: a Move there could complete at once, leave the group with no
+   // current order and let the report through (failed 2 of 4 runs, 27-28 Oct).
+   m_Order = SCR_AIWaypoint.Cast(Spawn("{93291E72AC23930F}Prefabs/AI/Waypoints/AIWaypoint_Defend.et", BBB.AnchorOf(m_Receiver).GetOrigin(), "0 0 1"));
    if (m_Order)
    {
     m_Order.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
@@ -231,7 +233,7 @@ class BBB_ContactRelayTest : BBB_AimTest
   if (m_Phase == 3)
   {
    if (m_Wait < 10) return;
-   RelayCheck("player-order-no-report", m_Order && Known(m_Receiver, category, at) < 0);
+   RelayCheck("player-order-no-report", m_Order && m_Receiver.GetCurrentWaypoint() == m_Order && Known(m_Receiver, category, at) < 0, string.Format("order current %1", m_Order && m_Receiver.GetCurrentWaypoint() == m_Order));
    if (m_Order) m_Receiver.RemoveWaypoint(m_Order);
    m_Order = null;
    // A report about the spotter's current sighting is needed again (FRESH_S).

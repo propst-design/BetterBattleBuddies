@@ -82,7 +82,15 @@ class BBB_DoorUnstick
   if (!cc || cc.IsUnconscious() || cc.IsPlayerControlled() || cc.IsClimbing() || cc.IsSwimming()) return false;
   AIControlComponent control = AIControlComponent.Cast(body.FindComponent(AIControlComponent));
   if (!control || !control.IsAIActivated()) return false;
-  return WantsToMove(agent);
+  return HasRequest(agent);
+ }
+
+ // Cheap, every tick: a move he hasn't finished. The path itself (copied out) is only read
+ // once he has stood still long enough to count as stalled (WantsToMove).
+ static bool HasRequest(AIAgent agent)
+ {
+  AIBaseMovementComponent move = agent.GetMovementComponent();
+  return move && !move.HasCompletedRequest(false);
  }
 
  static bool WantsToMove(AIAgent agent)
@@ -127,6 +135,7 @@ class BBB_DoorUnstick
    return;
   }
   if (now - stall.m_Since < STALL_MS || now < stall.m_Next) return;
+  if (!WantsToMove(agent)) { stall.m_Since = now; return; } // no path to walk: not jammed
   BaseDoorComponent door = HouseDoorNear(pos);
   if (!door) { stall.m_Next = now + RETRY_MS; return; }
   if (stall.m_Tries >= MAX_TRIES)

@@ -140,6 +140,7 @@ class BBB
   BBB_Squad.Stop();
   BBB_Tactic.Stop();
   BBB_Transport.ClearHits();
+  BBB_VehicleHelpers.Reset();
   s_bStarted = false;
 		s_VehicleHelpers = null;
 		s_Launchers = null;
@@ -247,18 +248,13 @@ class BBB
   return !ChimeraCharacter.Cast(entity).GetCharacterController().IsUnconscious();
  }
 
- // The player controlling this entity (0: nobody).
+ // The player controlling this entity (0: nobody). Called for most soldiers by most features
+ // each tick: the native lookup, not a walk over every connected player (test servers have
+ // none, so that cost never showed in a perf run).
  static int PlayerOf(IEntity entity)
  {
   if (!entity) return 0;
-  array<int> players = {};
-  GetGame().GetPlayerManager().GetPlayers(players);
-  foreach (int id : players)
-  {
-   PlayerController pc = GetGame().GetPlayerManager().GetPlayerController(id);
-   if (pc && pc.GetControlledEntity() == entity) return id;
-  }
-  return 0;
+  return GetGame().GetPlayerManager().GetPlayerIdFromControlledEntity(entity);
  }
 
  static bool HasPlayer(SCR_AIGroup group)

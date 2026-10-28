@@ -94,7 +94,9 @@ class BBB_OrderLeashTest : BBB_ReactionTest
   bool ownJobRemains;
   foreach (BBB_BuildingJob pendingIndoor : BBB_Buildings.s_Jobs)
    if (pendingIndoor.m_Utility == m_InfantryUtility) ownJobRemains = true;
-  Assert("queued-player-binding-releases-owned-action", !ownJobRemains && m_OwnedAction.GetActionState() == EAIActionState.FAILED);
+  // Since 26 Oct an arrived job holds no action (BBB_Buildings drops its move on arrival), so
+  // the job itself is what BBB owns; a move still running must have been failed.
+  Assert("queued-player-binding-releases-owned-action", !ownJobRemains && (!m_OwnedAction || m_OwnedAction.GetActionState() == EAIActionState.FAILED));
   queuedHumanOrder.Fail();
   queuedActions.Clear();
   m_LeashHooks.m_Binding = true;

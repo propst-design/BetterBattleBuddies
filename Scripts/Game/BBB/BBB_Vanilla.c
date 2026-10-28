@@ -79,6 +79,21 @@ class BBB_Vanilla
   BBB.Start(new BBB_VanillaHooks());
   Print("[BBB] started on its own (vanilla adapter: all AI groups)");
  }
+
+ // The world is going away (a scenario restart or rotation on a server, the next mission in
+ // singleplayer). Nothing else stops BBB under the vanilla adapter, and while it counted as
+ // started the next mission's StartIfAlone skipped it: BBB ran on the old mission's state, or
+ // not at all if the queue was cleared. Stop it here; the next OnGameStart starts it fresh.
+ // A host mod stops it itself as well (ACA: ACR_Manager.Stop); a second Stop does nothing.
+ static void OnWorldCleanup()
+ {
+  if (!GetGame()) return;
+  ScriptCallQueue queue = GetGame().GetCallqueue();
+  queue.Remove(StartIfAlone);
+  if (s_bFrameSource) queue.Remove(BBB.Frame);
+  s_bFrameSource = false;
+  if (BBB.IsStarted()) BBB.Stop();
+ }
 }
 
 modded class SCR_BaseGameMode

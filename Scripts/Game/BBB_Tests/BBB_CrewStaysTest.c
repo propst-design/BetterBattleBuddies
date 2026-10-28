@@ -187,6 +187,9 @@ class BBB_CrewStaysTest : BBB_AimTest
     if (!Seated(man, lane.m_Lav)) aboard = false;
   Check("aboard-before-request", aboard, "");
 
+  // Its settings read first: On() reads them on its first call (BBB_Settings.Due), which here
+  // was inside the off requests and turned the switch back on (failed since the 27 Oct settings).
+  BBB_CrewStays.On();
   BBB_CrewStays.s_bOn = false;
   VanillaRequests(m_A);
   BBB_CrewStays.s_bOn = true;

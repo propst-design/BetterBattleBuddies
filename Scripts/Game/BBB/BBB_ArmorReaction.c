@@ -61,13 +61,11 @@ class BBB_ArmorReaction
 
  static bool PlayerAboard(IEntity vehicle)
  {
-  array<int> players = {};
-  GetGame().GetPlayerManager().GetPlayers(players);
-  foreach (int id : players)
-  {
-   IEntity player = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
-   if (player && BBB_Transport.VehicleOf(player) == vehicle) return true;
-  }
+  // Its seats, not every connected player (escapes ask this each frame).
+  array<BaseCompartmentSlot> seats = {};
+  BBB_VehicleHelpers.GetVehicleCompartments(vehicle, seats);
+  foreach (BaseCompartmentSlot seat : seats)
+   if (BBB.PlayerOf(seat.GetOccupant())) return true;
   return false;
  }
 

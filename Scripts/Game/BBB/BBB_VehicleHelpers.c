@@ -55,6 +55,14 @@ class BBB_VehicleHelpers : Managed
   s_bGunnerReplace = !(BBB_Settings.Get("bbbGunnerReplace", val) && val == "0");
  }
 
+ // BBB.Stop: the per-vehicle gunner cooldowns hold world times, which start again next mission.
+ static void Reset()
+ {
+  if (GetGame()) GetGame().GetCallqueue().Remove(DoSeatInTurret);
+  s_mGunnerReplaceNext.Clear();
+  s_aReplacingVehicles.Clear();
+ }
+
  void Tick()
  {
   array<SCR_AIGroup> groups = {};
@@ -644,8 +652,21 @@ class BBB_VehicleHelpers : Managed
   SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
   if (!compartments) return false;
 
+  // Cheapest first: almost every tick the turret is manned by an able gunner (or there is none).
   array<BaseCompartmentSlot> allSlots = {};
   GetVehicleCompartments(vehicle, allSlots);
+  BaseCompartmentSlot targetTurret = null;
+  foreach (BaseCompartmentSlot slot : allSlots)
+  {
+   if (slot.GetType() != ECompartmentType.TURRET) continue;
+   IEntity gunner = slot.GetOccupant();
+   if (gunner && (BBB.PlayerOf(gunner) || IsAble(gunner))) continue;
+   if (!TurretHasAmmo(slot)) continue;
+   targetTurret = slot;
+   break;
+  }
+  if (!targetTurret) return false;
+
   foreach (BaseCompartmentSlot s : allSlots)
   {
    ChimeraCharacter occ = ChimeraCharacter.Cast(s.GetOccupant());
@@ -654,28 +675,6 @@ class BBB_VehicleHelpers : Managed
    CompartmentAccessComponent occAcc = occ.GetCompartmentAccessComponent();
    if (occAcc && occAcc.IsGettingOut()) return false;
   }
-
-  array<BaseCompartmentSlot> turrets = {};
-  GetVehicleCompartments(vehicle, turrets, ECompartmentType.TURRET);
-  if (turrets.IsEmpty()) return false;
-
-  BaseCompartmentSlot targetTurret = null;
-  foreach (BaseCompartmentSlot slot : turrets)
-  {
-   if (!TurretHasAmmo(slot)) continue;
-   IEntity occ = slot.GetOccupant();
-   if (!occ)
-   {
-    targetTurret = slot;
-    break;
-   }
-   if (!BBB.PlayerOf(occ) && !IsAble(occ))
-   {
-    targetTurret = slot;
-    break;
-   }
-  }
-  if (!targetTurret) return false;
 
   IEntity leaderEnt = null;
   if (group && group.GetLeaderAgent()) leaderEnt = group.GetLeaderAgent().GetControlledEntity();

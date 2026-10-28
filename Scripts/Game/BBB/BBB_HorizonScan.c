@@ -144,6 +144,10 @@ class BBB_HorizonScan
 				SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
 				if (!utility) continue;
 
+				// Not scanning and not due yet: nothing below would act, so skip the danger scan
+				// in Eligible (two perception lists per man every tick, perf 27 Oct 0.31 ms/tick).
+				if (!utility.m_bBBBScanning && utility.m_fBBBNextScanTime > now) continue;
+
 				CharacterControllerComponent controller = soldier.GetCharacterController();
 				if (!controller) continue;
 
@@ -196,6 +200,26 @@ class BBB_HorizonScan
 
 	static void Stop()
 	{
+		// Hand back the heads BBB turned: forced free-look stayed on otherwise.
+		array<SCR_AIGroup> groups = {};
+		groups.Copy(s_aHostGroups);
+		array<SCR_AIGroup> nativeGroups = {};
+		s_WorldGroups.GetGroups(nativeGroups);
+		foreach (SCR_AIGroup worldGroup : nativeGroups)
+			if (!groups.Contains(worldGroup)) groups.Insert(worldGroup);
+		foreach (SCR_AIGroup group : groups)
+		{
+			if (!group) continue;
+			array<AIAgent> agents = {};
+			group.GetAgents(agents);
+			foreach (AIAgent agent : agents)
+			{
+				if (!agent) continue;
+				SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+				if (utility && utility.m_bBBBScanning) ResetScan(ChimeraCharacter.Cast(agent.GetControlledEntity()), utility);
+			}
+		}
+		s_WorldGroups = new BBB_VanillaHooks(); // new world's clock may start below this cache's timestamp
 		s_aHostGroups.Clear();
 		s_ExemptSoldier = null;
 	}

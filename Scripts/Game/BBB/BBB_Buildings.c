@@ -96,6 +96,9 @@ class BBB_Buildings
 
  static IEntity BuildingAt(SCR_AIUtilityComponent utility)
  {
+  // A window request can outlive its soldier (deleted while queued: ACA Kolguyev soak 28 Oct,
+  // NULL m_OwnerEntity from ServeWindows).
+  if (!utility || !utility.m_OwnerEntity) return null;
   float now = GetGame().GetWorld().GetWorldTime();
   vector here = utility.m_OwnerEntity.GetOrigin();
   BBB_IndoorSpot spot = s_Indoor.Get(utility);

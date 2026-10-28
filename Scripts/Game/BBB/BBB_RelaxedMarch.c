@@ -73,19 +73,37 @@ class BBB_RelaxedMarch
 			if (!group) continue;
 			array<AIAgent> agents = {};
 			BBB.s_Hooks.GetMembers(group, agents);
-			bool danger = false;
-			foreach (AIAgent member : agents)
+			// Who could relax first: the danger scan (two perception lists per man) only matters
+			// when someone could, and one man in danger is enough (perf 27 Oct: 0.36 ms/tick).
+			array<bool> eligibles = {};
+			bool anyEligible = false;
+			foreach (AIAgent candidate : agents)
 			{
-				if (!member || !BBB.IsAlive(member.GetControlledEntity())) continue;
-				SCR_AIUtilityComponent info = SCR_AIUtilityComponent.Cast(member.FindComponent(SCR_AIUtilityComponent));
-				if (Danger(member, info)) danger = true;
+				bool can = false;
+				if (candidate && s_bOn)
+				{
+					SCR_AIUtilityComponent candidateUtility = SCR_AIUtilityComponent.Cast(candidate.FindComponent(SCR_AIUtilityComponent));
+					can = candidateUtility && Eligible(candidate, candidateUtility);
+				}
+				eligibles.Insert(can);
+				if (can) anyEligible = true;
 			}
-			foreach (AIAgent agent : agents)
+			bool danger = false;
+			if (anyEligible)
+			{
+				foreach (AIAgent member : agents)
+				{
+					if (!member || !BBB.IsAlive(member.GetControlledEntity())) continue;
+					SCR_AIUtilityComponent info = SCR_AIUtilityComponent.Cast(member.FindComponent(SCR_AIUtilityComponent));
+					if (Danger(member, info)) { danger = true; break; }
+				}
+			}
+			foreach (int index, AIAgent agent : agents)
 			{
 				if (!agent) continue;
 				SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
 				if (!utility) continue;
-				bool eligible = s_bOn && Eligible(agent, utility);
+				bool eligible = eligibles[index];
 				if (danger || !eligible || utility.m_fBBBMarchQuietSince <= 0) utility.m_fBBBMarchQuietSince = now;
 				bool relaxed = eligible && !danger && now - utility.m_fBBBMarchQuietSince >= QUIET_MS;
 				ChimeraCharacter character = ChimeraCharacter.Cast(agent.GetControlledEntity());
