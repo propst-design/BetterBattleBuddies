@@ -314,6 +314,15 @@ class BBB_ReactionTest : BBB_AimTest
   Assert("armor-cooldown", !BBB_ArmorReaction.React(m_Truck, enemy, line, "0 0 -1"));
   m_At = Now();
   GetGame().GetCallqueue().CallLater(ObserveReverse, 1000, true);
+  GetGame().GetCallqueue().CallLater(TraceReverse, 250, true);
+ }
+
+ void TraceReverse()
+ {
+  if (!m_Truck || Now() - m_At > 3.5) { GetGame().GetCallqueue().Remove(TraceReverse); return; }
+  CarControllerComponent c = CarControllerComponent.Cast(m_Truck.FindComponent(CarControllerComponent));
+  vector m[4]; m_Truck.GetWorldTransform(m);
+  PrintFormat("[BBB] REACTION trace t=%1 fwd=%2 gear=%3 thr=%4 clutch=%5 brake=%6 rpm=%7 jobs=%8 ai=%9", Now() - m_At, vector.Dot(m_Truck.GetPhysics().GetVelocity(), m[2]), c.GetSimulation().GetGear(), c.GetSimulation().GetThrottle(), c.GetSimulation().GetClutch(), c.GetSimulation().GetBrake(), c.GetSimulation().EngineGetRPM(), BBB_ArmorReaction.s_Escapes.Count(), m_DriverControl.IsAIActivated());
  }
 
  void ObserveReverse()
@@ -322,7 +331,8 @@ class BBB_ReactionTest : BBB_AimTest
   GetGame().GetCallqueue().Remove(ObserveReverse);
   vector moved = m_Truck.GetOrigin() - m_TruckStart;
   CarControllerComponent motionCar = CarControllerComponent.Cast(m_Truck.FindComponent(CarControllerComponent));
-  PrintFormat("[BBB] REACTION motion jobs=%1 ai=%2 gear=%3 throttle=%4 brake=%5 awake=%6 frames=%7", BBB_ArmorReaction.s_Escapes.Count(), m_DriverControl.IsAIActivated(), motionCar.GetSimulation().GetGear(), motionCar.GetSimulation().GetThrottle(), motionCar.GetSimulation().GetBrake(), m_Truck.GetPhysics().IsActive(), BBB.s_iFrames);
+  PrintFormat("[BBB] REACTION motion jobs=%1 ai=%2 gear=%3 throttle=%4 brake=%5 awake=%6 frames=%7 engine=%8 rpm=%9", BBB_ArmorReaction.s_Escapes.Count(), m_DriverControl.IsAIActivated(), motionCar.GetSimulation().GetGear(), motionCar.GetSimulation().GetThrottle(), motionCar.GetSimulation().GetBrake(), m_Truck.GetPhysics().IsActive(), BBB.s_iFrames, motionCar.IsEngineOn(), motionCar.GetSimulation().EngineGetRPM());
+  PrintFormat("[BBB] REACTION motion2 hb=%1 hbsim=%2 persistent=%3 clutch=%4 simEngine=%5 speed=%6", motionCar.GetHandBrake(), motionCar.GetSimulation().IsHandbrakeOn(), motionCar.GetPersistentHandBrake(), motionCar.GetSimulation().GetClutch(), motionCar.GetSimulation().EngineIsOn(), m_Truck.GetPhysics().GetVelocity().Length());
   Assert("observed-reverse-motion", BBB_ArmorReaction.s_Escapes.Count() == 1 && moved[2] < -0.4, string.Format("delta=%1", moved));
   m_Crew.AddWaypoint(m_Order);
   GetGame().GetCallqueue().CallLater(AfterOrder, 300);
