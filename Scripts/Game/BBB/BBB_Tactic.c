@@ -25,6 +25,16 @@
 // commitment ends early only for withdrawal, leader loss, a player/GM order, contact gone 30 s,
 // or an ASSAULT the squad can no longer run (host, order leash, fewer than four fit men) or that
 // turns out to face twice its number.
+// "Pinned" is incoming fire (the native suppression part of threat: flybys, blasts), not the
+// native total: that is 0.25 for any soldier who has a target and climbs with every shot he
+// hears, his own squad's included, so a squad simply returning fire read as pinned and held
+// (BBB #9: "leader pinned -> hold" stopped ACA assaults).
+// A squad with ground to take (search and destroy/attack order, or a move order still 30 m off)
+// holds only when outnumbered or flanked, and never searches (its order already takes it to
+// the enemy). Pinned, too far, too few, host or leash, or contact lost: the tactic stands aside
+// (NONE) and the order carries the squad on, as without BBB; vanilla's own suppression reactions
+// still put pinned men in cover. In a real-fight A/B (assault preset) a held or searching
+// attacker stood 130 m off while the same squad without the tactic closed in and won.
 // Host hook AllowSquadTactic(group); player squads, crews and player/GM orders are left alone.
 //  -bbbTactic 0   off: features decide as before
 //  -bbbTacticFlank 0 / -bbbTacticSearch 0   just that part off; -bbbTacticFire 1  HOLD base of fire on
@@ -81,8 +91,9 @@ class BBB_Tactic
  static float s_fReorgS = 20;
  static const float LOST_S = 30;
  static const float MOST_SEEN_S = 120;
- static const float LEADER_PINNED = 0.33;  // leader's native threat at or above this: no new pick
- static const float SQUAD_PINNED = 0.6;    // squad average at or above this: no assault
+ static const float LEADER_PINNED = 0.3;   // leader's suppression (incoming fire) at or above this: no new pick
+ static const float SQUAD_PINNED = 0.35;   // squad average suppression at or above this: no assault
+ static const float ADVANCE_M = 30;        // a move order farther than this is ground still to take
  static const float ASSAULT_MIN_M = 45;
  static const float ASSAULT_MAX_M = 300;
  static const float OUTNUMBERED = 1.5;     // enemies seen (last minute) in the main sector per conscious man: no assault
@@ -246,6 +257,14 @@ class BBB_Tactic
   return first;
  }
 
+ // The tactic stands aside: no hold, the squad's order and vanilla (and fire and manoeuvre on its
+ // own rules) carry on; it looks again on the next look.
+ protected static void StandAside(BBB_TacticState state, float now, string why)
+ {
+  if (state.m_iTactic == NONE) { state.m_fUntil = now; return; }
+  Set(state, NONE, now, 0, why, vector.Zero);
+ }
+
  protected static void Drop(SCR_AIGroup group)
  {
   BBB_TacticState state = s_States.Get(group);
@@ -326,15 +345,18 @@ class BBB_Tactic
   }
   BBB_SquadPicture picture = BBB_Squad.Get(group);
   if (!picture) return;
+  bool advancing = Advancing(group, picture.m_vCentre);
   if (!contact)
   {
+   // An attacker that lost sight of the enemy goes on with its order rather than wait or search.
+   if (advancing && state.m_iTactic != NONE && state.m_iTactic != WITHDRAW && state.m_iTactic != SEARCH) StandAside(state, now, "contact lost: the order carries them on");
    if (state.m_iTactic == SEARCH)
    {
     if (BBB_TacticDrill.Search(state, now) || now >= state.m_fUntil) { Say(group, ECommunicationType.REPORT_CLEAR, vector.Zero); PrintFormat("[BBB] TACTIC %1: search over", BBB.s_Hooks.NameOf(group)); Drop(group); }
     return;
    }
    float lost = now - state.m_fLastContact;
-   if (s_bSearch && lost >= SEARCH_AFTER_S && !state.m_bSearched && state.m_iTactic != WITHDRAW && picture.m_iConscious >= 2 && state.m_vLastThreat.LengthSq() > 0)
+   if (s_bSearch && !advancing && lost >= SEARCH_AFTER_S && !state.m_bSearched && state.m_iTactic != WITHDRAW && picture.m_iConscious >= 2 && state.m_vLastThreat.LengthSq() > 0)
    {
     state.m_bSearched = true;
     BBB_TacticDrill.SearchPoints(state, state.m_vLastThreat, picture.m_vCentre, state.m_aPoints);
@@ -362,7 +384,13 @@ class BBB_Tactic
   // Hysteresis breakers: an assault the squad can no longer run.
   if (state.m_iTactic == ASSAULT && now < state.m_fUntil && !assaultFits && !BaseAssault(group, picture)) state.m_iAssaultMisses++;
   else state.m_iAssaultMisses = 0;
-  if (state.m_iAssaultMisses >= 2) { state.m_iAssaultMisses = 0; Set(state, HOLD, now, s_fHoldS, "can't keep assaulting", vector.Zero); return; }
+  if (state.m_iAssaultMisses >= 2)
+  {
+   state.m_iAssaultMisses = 0;
+   if (advancing && !MustHold(picture, flanked, enemies)) StandAside(state, now, "can't keep assaulting: the order carries them on");
+   else Set(state, HOLD, now, s_fHoldS, "can't keep assaulting", vector.Zero);
+   return;
+  }
   if ((state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now < state.m_fUntil && enemies >= picture.m_iConscious * OVERRUN) { Set(state, HOLD, now, s_fHoldS, string.Format("more enemies than thought (%1 seen, %2 of us)", enemies, picture.m_iConscious), vector.Zero); return; }
   if (state.m_iTactic == WITHDRAW) state.m_iTactic = NONE; // withdrawal over: pick afresh
   // Carry out the tactic in force (stage 4).
@@ -387,10 +415,11 @@ class BBB_Tactic
   }
   // Only a conscious leader who isn't pinned down picks; otherwise the squad keeps its tactic.
   SCR_AIUtilityComponent deciding = LeaderUtility(group);
-  if (!deciding || (deciding.m_ThreatSystem && deciding.m_ThreatSystem.GetThreatMeasure() >= LEADER_PINNED))
+  if (!deciding || (deciding.m_ThreatSystem && deciding.m_ThreatSystem.GetSuppressionMeasure() >= LEADER_PINNED))
   {
-   if (state.m_iTactic == CONTACT || state.m_iTactic == NONE || state.m_iTactic == REORG) Set(state, HOLD, now, s_fHoldS, "leader pinned down", vector.Zero);
-   else state.m_fUntil = now + LOOK_S;
+   if (state.m_iTactic != CONTACT && state.m_iTactic != NONE && state.m_iTactic != REORG) state.m_fUntil = now + LOOK_S;
+   else if (!advancing) Set(state, HOLD, now, s_fHoldS, "leader pinned down", vector.Zero);
+   else StandAside(state, now, "leader down or pinned: the order carries them on");
    return;
   }
   if (assaultFits)
@@ -413,7 +442,26 @@ class BBB_Tactic
    }
    Set(state, ASSAULT, now, s_fAssaultS, string.Format("enemy %1 m, %2 seen, %3 of us", Math.Round(range), enemies, picture.m_iConscious), threat);
   }
+  else if (!advancing) Set(state, HOLD, now, s_fHoldS, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
+  else if (!MustHold(picture, flanked, enemies)) StandAside(state, now, HoldReason(group, picture, threat, flanked, enemies) + ": the order carries them on");
   else Set(state, HOLD, now, s_fHoldS, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
+ }
+
+ // Has the squad ground to take? A search and destroy or attack order, or a move order still
+ // ADVANCE_M away (patrol, defend, hold and specialist orders: no).
+ static bool Advancing(SCR_AIGroup group, vector centre)
+ {
+  AIWaypoint waypoint = group.GetCurrentWaypoint();
+  if (!waypoint || !waypoint.GetPrefabData()) return false;
+  string path = waypoint.GetPrefabData().GetPrefabName();
+  if (path.Contains("AIWaypoint_SearchAndDestroy") || path.Contains("AIWaypoint_Attack")) return true;
+  return path.Contains("AIWaypoint_Move") && vector.DistanceXZ(waypoint.GetOrigin(), centre) > ADVANCE_M;
+ }
+
+ // A reason to hold even with ground to take: flanked or outnumbered.
+ protected static bool MustHold(BBB_SquadPicture picture, bool flanked, int enemies)
+ {
+  return flanked || enemies >= picture.m_iConscious * OUTNUMBERED;
  }
 
  // What an assault needs regardless of where the enemy is: the host and orders allow fire and
@@ -430,7 +478,7 @@ class BBB_Tactic
   // Close in, the squad fights it out (vanilla close combat; fire and manoeuvre keeps its own
   // 45 m floor): no hold for being pinned, flanked or few.
   if (range < ASSAULT_MIN_M) return true;
-  if (flanked || range > ASSAULT_MAX_M || picture.m_fAvgThreat >= SQUAD_PINNED) return false;
+  if (flanked || range > ASSAULT_MAX_M || picture.m_fAvgSuppression >= SQUAD_PINNED) return false;
   return BaseAssault(group, picture);
  }
 
@@ -439,7 +487,7 @@ class BBB_Tactic
   float range = vector.DistanceXZ(threat, picture.m_vCentre);
   if (flanked) return "flanked";
   if (enemies >= picture.m_iConscious * OUTNUMBERED) return string.Format("outnumbered (%1 seen, %2 of us)", enemies, picture.m_iConscious);
-  if (picture.m_fAvgThreat >= SQUAD_PINNED) return "pinned down";
+  if (picture.m_fAvgSuppression >= SQUAD_PINNED) return "pinned down";
   if (range > ASSAULT_MAX_M) return string.Format("enemy too far (%1 m)", Math.Round(range));
   if (picture.m_iConscious < 4) return "too few to bound";
   return "orders or host keep them in place";

@@ -83,7 +83,9 @@ class BBB_FireManeuver
   if (!body || !body.GetCharacterController() || !BBB.IsAlive(body) || body.GetCharacterController().IsPlayerControlled() || body.IsInVehicle()) return false;
   CharacterControllerComponent controller = body.GetCharacterController();
   if (controller.IsReloading() || controller.IsChangingItem() || controller.IsClimbing() || controller.IsSwimming() || controller.GetDisableWeaponControls()) return false;
-  if (utility.m_ThreatSystem && utility.m_ThreatSystem.GetThreatMeasure() >= 0.66) return false;
+  // Pinned by incoming fire. Not the native total: shots he hears (his own team's too) and simply
+  // having a target take it toward 0.66 in any exchange, which left nobody ready to bound (BBB #9).
+  if (utility.m_ThreatSystem && utility.m_ThreatSystem.GetSuppressionMeasure() >= 0.66) return false;
   return !BBB_Drag.Busy(body) && !OrdersBlock(utility);
  }
 
