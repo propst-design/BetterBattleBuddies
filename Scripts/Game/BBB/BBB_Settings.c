@@ -369,6 +369,7 @@ class BBB_Settings
 
   g = "Diagnostics";
   Def(g, "bbbThink", BBB_ESettingKind.CHOICE, "0", "Think panel", "Look at a soldier to see BBB's decisions and its reasons for holding back. For hosts and mission makers.").Choices("0|1|2", "Off|On|On, with log notes");
+  Off(g, "bbbTacticStats", "Squad plan stats in the log", "Logs how far each squad plan really moved the squad, and a minute-by-minute count of squads in contact and why plans were left out. For testing.");
  }
 
  // ---- small helpers ----
