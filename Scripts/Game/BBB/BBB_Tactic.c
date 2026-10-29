@@ -127,6 +127,9 @@ class BBB_Tactic
  protected static ref map<SCR_AIGroup, int> s_mStat = new map<SCR_AIGroup, int>();
  protected static float s_fStatAt;
  protected static int s_iPinnedLooks; // looks where a pinned leader kept the squad from picking
+ protected static int s_iPinnedTotal;      // "leader pinned" decisions with a leader to read...
+ protected static int s_iPinnedSuppressed; // ...of which his suppression alone was also >= LEADER_PINNED
+ protected static int s_iPinnedNoLeader;   // leader down or unreadable
 
  static void Read()
  {
@@ -277,6 +280,21 @@ class BBB_Tactic
   PrintFormat("[BBB] TACTIC END %1: %2 %3 s %4 (range %5 -> %6 m, moved %7 m, men %8 -> %9)", BBB.s_Hooks.NameOf(state.m_Group), Name(state.m_iTactic), Math.Round(now - state.m_fSince), why, rangeFrom, rangeTo, moved, state.m_iStatMen, men);
  }
 
+ // "Pinned" is the leader's total threat (target held, own shots, heard fire, suppression):
+ // count how often his suppression alone would also have said so.
+ protected static void StatPinned(SCR_AIUtilityComponent leader)
+ {
+  if (!leader || !leader.m_ThreatSystem) { s_iPinnedNoLeader++; return; }
+  s_iPinnedTotal++;
+  if (leader.m_ThreatSystem.GetSuppressionMeasure() >= LEADER_PINNED) s_iPinnedSuppressed++;
+ }
+
+ protected static string PinnedReason(SCR_AIUtilityComponent leader)
+ {
+  if (!s_bStats || !leader || !leader.m_ThreatSystem) return "leader pinned down";
+  return string.Format("leader pinned down (threat %1, suppression %2)", BBB_Settings.Number(leader.m_ThreatSystem.GetThreatMeasure()), BBB_Settings.Number(leader.m_ThreatSystem.GetSuppressionMeasure()));
+ }
+
  protected static void StatMark(SCR_AIGroup group, int bit)
  {
   int bits;
@@ -309,7 +327,7 @@ class BBB_Tactic
    if (state && state.m_iTactic >= 0 && state.m_iTactic < by.Count()) by[state.m_iTactic] = by[state.m_iTactic] + 1;
   PrintFormat("[BBB] TACTIC STATS t=%1 inContact=%2 run=%3 leftOut host=%4 player=%5 crew=%6 order=%7", Math.Round(now), s_mStat.Count(), run, host, player, crew, order);
   PrintFormat("[BBB] TACTIC STATS now: none=%1 contact=%2 assault=%3 hold=%4 reorg=%5 withdraw=%6 flank=%7 search=%8", by[NONE], by[CONTACT], by[ASSAULT], by[HOLD], by[REORG], by[WITHDRAW], by[FLANK], by[SEARCH]);
-  PrintFormat("[BBB] TACTIC STATS total: changes=%1 callouts=%2 pinnedLooks=%3 relayDelivered=%4", s_iChanges, s_iCallouts, s_iPinnedLooks, BBB_ContactRelay.s_iDelivered);
+  PrintFormat("[BBB] TACTIC STATS total: changes=%1 callouts=%2 pinnedLooks=%3 relayDelivered=%4 pinned=%5 pinnedSuppressed=%6 pinnedNoLeader=%7", s_iChanges, s_iCallouts, s_iPinnedLooks, BBB_ContactRelay.s_iDelivered, s_iPinnedTotal, s_iPinnedSuppressed, s_iPinnedNoLeader);
   s_mStat.Clear();
  }
 
@@ -519,8 +537,9 @@ class BBB_Tactic
   SCR_AIUtilityComponent deciding = LeaderUtility(group);
   if (!deciding || (deciding.m_ThreatSystem && deciding.m_ThreatSystem.GetSuppressionMeasure() >= LEADER_PINNED))
   {
+   if (s_bStats) StatPinned(deciding);
    if (state.m_iTactic != CONTACT && state.m_iTactic != NONE && state.m_iTactic != REORG) { state.m_fUntil = now + LOOK_S; s_iPinnedLooks++; }
-   else if (!advancing) Set(state, HOLD, now, s_fHoldS, "leader pinned down", vector.Zero);
+   else if (!advancing) Set(state, HOLD, now, s_fHoldS, PinnedReason(deciding), vector.Zero);
    else StandAside(state, now, "leader down or pinned: the order carries them on");
    return;
   }
