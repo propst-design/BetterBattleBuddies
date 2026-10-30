@@ -33,6 +33,7 @@ class BBB_SquadPicture : Managed
  bool m_bHasCentre;
  vector m_vCentre;   // conscious members (any living member when none is conscious)
  float m_fAvgThreat; // native threat measure of the conscious members
+ float m_fAvgSuppression; // ...its incoming-fire part only (flybys, blasts): the total also rises with the squad's own shots and with simply having a target
  ref array<ref BBB_SquadContact> m_Contacts = {};
 }
 
@@ -101,6 +102,7 @@ class BBB_Squad
   picture.m_bLeaderUp = false;
   picture.m_bHasCentre = false;
   picture.m_fAvgThreat = 0;
+  picture.m_fAvgSuppression = 0;
   picture.m_Contacts.Clear();
   array<AIAgent> agents = {};
   BBB.s_Hooks.GetMembers(picture.m_Group, agents);
@@ -110,6 +112,7 @@ class BBB_Squad
   vector living;
   int livingCount;
   float threat;
+  float suppression;
   map<IEntity, BBB_SquadContact> byEnemy = new map<IEntity, BBB_SquadContact>();
   array<BaseTarget> targets = {};
   foreach (AIAgent agent : agents)
@@ -126,7 +129,7 @@ class BBB_Squad
     picture.m_iConscious++;
     conscious = conscious + character.GetOrigin();
     if (character == leader) picture.m_bLeaderUp = true;
-    if (utility && utility.m_ThreatSystem) threat += utility.m_ThreatSystem.GetThreatMeasure();
+    if (utility && utility.m_ThreatSystem) { threat += utility.m_ThreatSystem.GetThreatMeasure(); suppression += utility.m_ThreatSystem.GetSuppressionMeasure(); }
    }
    if (!utility || !utility.m_PerceptionComponent) continue;
    targets.Clear();
@@ -165,6 +168,7 @@ class BBB_Squad
    picture.m_bHasCentre = true;
    picture.m_vCentre = conscious * (1.0 / picture.m_iConscious);
    picture.m_fAvgThreat = threat / picture.m_iConscious;
+   picture.m_fAvgSuppression = suppression / picture.m_iConscious;
   }
   else if (livingCount > 0)
   {
@@ -306,7 +310,7 @@ class BBB_Squad
   if (!picture) return "";
   string leader = "down";
   if (picture.m_bLeaderUp) leader = "up";
-  string text = string.Format("squad: %1/%2 up, leader %3, threat %4", picture.m_iConscious, picture.m_iMembers, leader, picture.m_fAvgThreat.ToString(4, 2));
+  string text = string.Format("squad: %1/%2 up, leader %3, threat %4, suppressed %5", picture.m_iConscious, picture.m_iMembers, leader, picture.m_fAvgThreat.ToString(4, 2), picture.m_fAvgSuppression.ToString(4, 2));
   vector main;
   bool flanked;
   if (!MainThreat(group, RECENT_S, main, flanked)) return text + ", no contact";

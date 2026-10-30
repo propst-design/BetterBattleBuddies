@@ -49,6 +49,63 @@ class BBB_OrderLease : Managed
  bool m_HadWaypoint;
 }
 
+// BBB #15: one gate for squad tactics and fire and manoeuvre, from the host's BBB_Hooks.Intent,
+// and the leash it sets. A squad allowed to plan is allowed to move under the same leash.
+//  -bbbHostIntent 0   the older separate gates: AllowSquadTactic, AllowFireManeuver, HostLeash
+class BBB_HostIntent
+{
+ static bool s_bOn = true;
+ protected static int s_iRead;
+
+ static void Read()
+ {
+  if (!BBB_Settings.Due(s_iRead)) return;
+  string value;
+  s_bOn = !(BBB_Settings.Get("bbbHostIntent", value) && value == "0");
+  PrintFormat("[BBB] HOST INTENT enabled=%1", s_bOn);
+ }
+
+ static BBB_EIntent Of(SCR_AIGroup group, out vector centre, out float radius)
+ {
+  Read();
+  radius = 0;
+  if (!group) return BBB_EIntent.NONE;
+  if (s_bOn) return BBB.s_Hooks.Intent(group, centre, radius);
+  if (!BBB.s_Hooks.HostLeash(group, centre, radius)) radius = 0;
+  IEntity anchor = BBB.s_Hooks.AnchorOf(group);
+  if (anchor && BBB_Tactic.Advancing(group, anchor.GetOrigin())) return BBB_EIntent.PUSH;
+  return BBB_EIntent.HOLD;
+ }
+
+ // The host's leash for this squad, if it sets one.
+ static bool Leash(SCR_AIGroup group, out vector centre, out float radius)
+ {
+  Of(group, centre, radius);
+  return radius > 0;
+ }
+
+ static bool Fights(BBB_EIntent intent) { return intent == BBB_EIntent.PUSH || intent == BBB_EIntent.HOLD; }
+
+ static bool TacticAllowed(SCR_AIGroup group, out BBB_EIntent intent)
+ {
+  vector centre;
+  float radius;
+  intent = Of(group, centre, radius);
+  if (!s_bOn) return BBB.s_Hooks.AllowSquadTactic(group);
+  return Fights(intent) && BBB.s_Hooks.AllowSquadTactic(group);
+ }
+
+ static bool FireAllowed(SCR_AIGroup group)
+ {
+  if (!group) return false;
+  Read();
+  if (!s_bOn) return BBB.s_Hooks.AllowFireManeuver(group);
+  vector centre;
+  float radius;
+  return Fights(Of(group, centre, radius));
+ }
+}
+
 class BBB_OrderLeash
 {
  static bool s_bOn = true;
@@ -126,10 +183,10 @@ class BBB_OrderLeash
  {
   if (!group || BBB.s_Hooks.IsBinding(group)) return false;
   if (expected && (!SameOrder(group, expected) || Lease(group) != expected)) return false;
-  // The host's leash, when it sets one, is the area (BBB_Hooks.HostLeash).
+  // The host's leash, when it sets one, is the area (BBB_Hooks.Intent / HostLeash).
   vector centre;
   float radius;
-  if (s_bOn && BBB.s_Hooks.HostLeash(group, centre, radius)) return vector.DistanceXZ(point, centre) <= radius;
+  if (s_bOn && BBB_HostIntent.Leash(group, centre, radius)) return vector.DistanceXZ(point, centre) <= radius;
   if (!group.GetCurrentWaypoint()) return true;
   // FireManeuver retains its own pre-leash waypoint filter in the off case.
   if (!s_bOn) return legacyMove;

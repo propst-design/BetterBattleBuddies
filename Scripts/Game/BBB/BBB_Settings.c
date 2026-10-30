@@ -281,6 +281,7 @@ class BBB_Settings
 
   g = "Squad tactics";
   On(g, "bbbSquadPicture", "Squad threat picture", "A squad under fire from two sides aims smoke, static guns and fire and manoeuvre at the group that matters most, and retreats through the open side.");
+  On(g, "bbbHostIntent", "Host mod decides who fights", "A host mod says per squad whether it has ground to take, holds a post or is just travelling; squad plans and fire and manoeuvre follow that one answer. Off: the older separate rules.");
   On(g, "bbbTactic", "Squad plans", "A short pause on first contact, then assault when the odds are fair, or hold and fight from cover when outnumbered, flanked or pinned.");
   On(g, "bbbTacticFlank", "Fix and flank", "A squad held by a dug-in enemy fixes it and sends a team round the side.");
   On(g, "bbbTacticSearch", "Search after losing contact", "A squad that loses contact searches where the enemy was last seen.");
@@ -369,6 +370,7 @@ class BBB_Settings
 
   g = "Diagnostics";
   Def(g, "bbbThink", BBB_ESettingKind.CHOICE, "0", "Think panel", "Look at a soldier to see BBB's decisions and its reasons for holding back. For hosts and mission makers.").Choices("0|1|2", "Off|On|On, with log notes");
+  Off(g, "bbbTacticStats", "Squad plan stats in the log", "Logs how far each squad plan really moved the squad, and a minute-by-minute count of squads in contact and why plans were left out. For testing.");
  }
 
  // ---- small helpers ----

@@ -83,7 +83,9 @@ class BBB_FireManeuver
   if (!body || !body.GetCharacterController() || !BBB.IsAlive(body) || body.GetCharacterController().IsPlayerControlled() || body.IsInVehicle()) return false;
   CharacterControllerComponent controller = body.GetCharacterController();
   if (controller.IsReloading() || controller.IsChangingItem() || controller.IsClimbing() || controller.IsSwimming() || controller.GetDisableWeaponControls()) return false;
-  if (utility.m_ThreatSystem && utility.m_ThreatSystem.GetThreatMeasure() >= 0.66) return false;
+  // Pinned by incoming fire. Not the native total: shots he hears (his own team's too) and simply
+  // having a target take it toward 0.66 in any exchange, which left nobody ready to bound (BBB #9).
+  if (utility.m_ThreatSystem && utility.m_ThreatSystem.GetSuppressionMeasure() >= 0.66) return false;
   return !BBB_Drag.Busy(body) && !OrdersBlock(utility);
  }
 
@@ -155,16 +157,17 @@ class BBB_FireManeuver
 
  static bool GroupAllowed(SCR_AIGroup group)
  {
-  if (!group || !group.GetGroupUtilityComponent() || !BBB.s_Hooks.AllowFireManeuver(group) || BBB_Morale.IsWithdrawing(group)) return false;
+  // The host's intent (BBB_Hooks.Intent) answers for fire and manoeuvre and squad tactics alike.
+  if (!group || !group.GetGroupUtilityComponent() || !BBB_HostIntent.FireAllowed(group) || BBB_Morale.IsWithdrawing(group)) return false;
   IEntity anchor = BBB.s_Hooks.AnchorOf(group);
   if (!anchor || !BBB_OrderLeash.Allows(group, anchor.GetOrigin(), null, true)) return false;
   SCR_AIGroupUtilityComponent groupUtility = group.GetGroupUtilityComponent();
   if (groupUtility.GetCombatModeExternal() != EAIGroupCombatMode.FIRE_AT_WILL) return false;
   SCR_AIWaypoint waypoint = SCR_AIWaypoint.Cast(group.GetCurrentWaypoint());
-  // A host leash (BBB_Hooks.HostLeash) lets defenders bound inside their post.
+  // A host leash (BBB_Hooks.Intent / HostLeash) lets defenders bound inside their post.
   vector leashCentre;
   float leashRadius;
-  bool hostLeash = BBB_OrderLeash.s_bOn && BBB.s_Hooks.HostLeash(group, leashCentre, leashRadius);
+  bool hostLeash = BBB_OrderLeash.s_bOn && BBB_HostIntent.Leash(group, leashCentre, leashRadius);
   if (waypoint)
   {
    if (waypoint.GetPriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
