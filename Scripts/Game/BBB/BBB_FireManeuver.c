@@ -157,16 +157,17 @@ class BBB_FireManeuver
 
  static bool GroupAllowed(SCR_AIGroup group)
  {
-  if (!group || !group.GetGroupUtilityComponent() || !BBB.s_Hooks.AllowFireManeuver(group) || BBB_Morale.IsWithdrawing(group)) return false;
+  // The host's intent (BBB_Hooks.Intent) answers for fire and manoeuvre and squad tactics alike.
+  if (!group || !group.GetGroupUtilityComponent() || !BBB_HostIntent.FireAllowed(group) || BBB_Morale.IsWithdrawing(group)) return false;
   IEntity anchor = BBB.s_Hooks.AnchorOf(group);
   if (!anchor || !BBB_OrderLeash.Allows(group, anchor.GetOrigin(), null, true)) return false;
   SCR_AIGroupUtilityComponent groupUtility = group.GetGroupUtilityComponent();
   if (groupUtility.GetCombatModeExternal() != EAIGroupCombatMode.FIRE_AT_WILL) return false;
   SCR_AIWaypoint waypoint = SCR_AIWaypoint.Cast(group.GetCurrentWaypoint());
-  // A host leash (BBB_Hooks.HostLeash) lets defenders bound inside their post.
+  // A host leash (BBB_Hooks.Intent / HostLeash) lets defenders bound inside their post.
   vector leashCentre;
   float leashRadius;
-  bool hostLeash = BBB_OrderLeash.s_bOn && BBB.s_Hooks.HostLeash(group, leashCentre, leashRadius);
+  bool hostLeash = BBB_OrderLeash.s_bOn && BBB_HostIntent.Leash(group, leashCentre, leashRadius);
   if (waypoint)
   {
    if (waypoint.GetPriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;

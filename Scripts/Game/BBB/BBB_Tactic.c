@@ -35,12 +35,29 @@
 // (NONE) and the order carries the squad on, as without BBB; vanilla's own suppression reactions
 // still put pinned men in cover. In a real-fight A/B (assault preset) a held or searching
 // attacker stood 130 m off while the same squad without the tactic closed in and won.
-// Host hook AllowSquadTactic(group); player squads, crews and player/GM orders are left alone.
+// The host decides (BBB_Hooks.Intent, BBB #15): PUSH squads are the ones with ground to take
+// above; one that has held PUSH_HOLD_S carries on with its order for PUSH_REST_S. HOLD squads
+// fight where they are. TRANSIT and NONE: no tactic. AllowSquadTactic is a plain on/off on top.
+// Hosts read a squad's tactic, its reason, whether it is gaining ground and whether it needs
+// support through Report. Player squads, crews and player/GM orders are left alone.
 //  -bbbTactic 0   off: features decide as before
 //  -bbbTacticFlank 0 / -bbbTacticSearch 0   just that part off; -bbbTacticFire 1  HOLD base of fire on
 //  -bbbTacticStats 1   log only (BBB #9 soaks): a TACTIC END line per tactic with the ground the
 //             squad really covered, and a TACTIC STATS line a minute: squads in contact, how many
 //             a tactic ran and why the rest were left out
+// What a host reads about a squad the tactic runs (BBB_Tactic.Report, BBB #15).
+class BBB_TacticReport : Managed
+{
+ int m_iTactic;          // BBB_Tactic.NONE .. SEARCH
+ BBB_EIntent m_iIntent;  // what the host asked for
+ string m_sWhy;          // why this tactic was picked
+ float m_fSeconds;       // how long it has been in force
+ vector m_vThreat;       // where the main threat was last seen by the squad's own men (zero: never)
+ float m_fThreatAge;     // seconds since that sighting
+ bool m_bGaining;        // assaulting or flanking and the squad really moved PROGRESS_M in PROGRESS_S
+ bool m_bNeedsSupport;   // holding because outnumbered or flanked
+}
+
 class BBB_TacticState : Managed
 {
  SCR_AIGroup m_Group;
@@ -66,6 +83,15 @@ class BBB_TacticState : Managed
  ref array<ref BBB_AIWithdrawMove> m_aRuns = {};
  ref array<ref SCR_AIMoveAndInvestigateBehavior> m_aLooks = {};
  ref array<SCR_AIUtilityComponent> m_aLookers = {};
+ // Host intent and what a host can read back (BBB #15, BBB_Tactic.Report)
+ BBB_EIntent m_iIntent;
+ string m_sWhy;          // why the tactic in force was picked
+ float m_fNoHoldUntil;   // a pushing squad that has held its fill doesn't hold again before this
+ vector m_vProgressAt;   // squad centre when it last moved PROGRESS_M...
+ float m_fProgressAt;    // ...and when
+ bool m_bFlanked;        // the odds at the last look
+ int m_iEnemies;
+ int m_iMen;
  // -bbbTacticStats: where the tactic in force started
  vector m_vStatCentre;
  vector m_vStatThreat;
@@ -105,6 +131,10 @@ class BBB_Tactic
  static const float ASSAULT_MAX_M = 300;
  static const float OUTNUMBERED = 1.5;     // enemies seen (last minute) in the main sector per conscious man: no assault
  static const float OVERRUN = 2;           // ...this many: an assault already running turns to HOLD
+ static const float PUSH_HOLD_S = 90;      // a squad with ground to take holds at most this long...
+ static const float PUSH_REST_S = 60;      // ...then its order carries it on at least this long
+ static const float PROGRESS_M = 10;       // Report: the squad centre moved this far...
+ static const float PROGRESS_S = 30;       // ...within this long: it is gaining ground
  static bool s_bOn = true;
  static bool s_bFlank = true;
  static bool s_bSearch = true;
@@ -227,6 +257,9 @@ class BBB_Tactic
  {
   if (state.m_iTactic == tactic && tactic != NONE) { state.m_fUntil = now + commit; return; }
   StatEnd(state, now, "-> " + Name(tactic));
+  state.m_sWhy = why;
+  // An assault or flank gets PROGRESS_S to start moving before Report calls it stuck.
+  if (tactic == ASSAULT || tactic == FLANK) state.m_fProgressAt = now;
   int old = state.m_iTactic;
   state.m_iTactic = tactic;
   state.m_fSince = now;
@@ -415,7 +448,8 @@ class BBB_Tactic
    if (!state && (index + s_iTick) % STAGGER != 0) continue;
    if (s_aVanilla.Contains(group)) { if (s_States.Contains(group)) Drop(group); continue; }
    int veto = 0;
-   if (!BBB.s_Hooks.AllowSquadTactic(group)) veto = STAT_HOST;
+   BBB_EIntent intent;
+   if (!BBB_HostIntent.TacticAllowed(group, intent)) veto = STAT_HOST;
    else if (BBB.HasPlayer(group)) veto = STAT_PLAYER;
    else if (BBB_Transport.CrewedVehicle(group)) veto = STAT_CREW;
    if (veto != 0) { if (s_bStats) StatLeftOut(group, veto); if (s_States.Contains(group)) Drop(group, "left out"); continue; }
@@ -432,6 +466,7 @@ class BBB_Tactic
     state.m_Leader = group.GetLeaderEntity();
     s_States.Set(group, state);
    }
+   state.m_iIntent = intent;
    if (now < state.m_fNextLook) continue;
    state.m_fNextLook = now + LOOK_S;
    Look(state, now);
@@ -465,7 +500,16 @@ class BBB_Tactic
   }
   BBB_SquadPicture picture = BBB_Squad.Get(group);
   if (!picture) return;
-  bool advancing = Advancing(group, picture.m_vCentre);
+  // Ground to take is the host's call (BBB_Hooks.Intent; by default the waypoint, Advancing).
+  bool advancing = state.m_iIntent == BBB_EIntent.PUSH;
+  state.m_bFlanked = contact && flanked;
+  state.m_iEnemies = enemies;
+  state.m_iMen = picture.m_iConscious;
+  if (picture.m_bHasCentre && (state.m_vProgressAt.LengthSq() == 0 || vector.DistanceXZ(state.m_vProgressAt, picture.m_vCentre) >= PROGRESS_M))
+  {
+   state.m_vProgressAt = picture.m_vCentre;
+   state.m_fProgressAt = now;
+  }
   if (!contact)
   {
    // An attacker that lost sight of the enemy goes on with its order rather than wait or search.
@@ -508,10 +552,18 @@ class BBB_Tactic
   {
    state.m_iAssaultMisses = 0;
    if (advancing && !MustHold(picture, flanked, enemies)) StandAside(state, now, "can't keep assaulting: the order carries them on");
-   else Set(state, HOLD, now, s_fHoldS, "can't keep assaulting", vector.Zero);
+   else Hold(state, now, "can't keep assaulting", advancing);
    return;
   }
-  if ((state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now < state.m_fUntil && enemies >= picture.m_iConscious * OVERRUN) { Set(state, HOLD, now, s_fHoldS, string.Format("more enemies than thought (%1 seen, %2 of us)", enemies, picture.m_iConscious), vector.Zero); return; }
+  if ((state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now < state.m_fUntil && enemies >= picture.m_iConscious * OVERRUN) { Hold(state, now, string.Format("more enemies than thought (%1 seen, %2 of us)", enemies, picture.m_iConscious), advancing); return; }
+  // A squad with ground to take holds only so long; then its order carries it on for a while
+  // (the host hears it needs support through Report).
+  if (advancing && state.m_iTactic == HOLD && now - state.m_fSince >= PUSH_HOLD_S)
+  {
+   state.m_fNoHoldUntil = now + PUSH_REST_S;
+   StandAside(state, now, string.Format("held %1 s with ground to take: the order carries them on", Math.Round(now - state.m_fSince)));
+   return;
+  }
   if (state.m_iTactic == WITHDRAW) state.m_iTactic = NONE; // withdrawal over: pick afresh
   // Carry out the tactic in force (stage 4).
   if (state.m_iTactic == FLANK)
@@ -565,7 +617,33 @@ class BBB_Tactic
   }
   else if (!advancing) Set(state, HOLD, now, s_fHoldS, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
   else if (!MustHold(picture, flanked, enemies)) StandAside(state, now, HoldReason(group, picture, threat, flanked, enemies) + ": the order carries them on");
-  else Set(state, HOLD, now, s_fHoldS, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
+  else Hold(state, now, HoldReason(group, picture, threat, flanked, enemies), advancing);
+ }
+
+ // HOLD, but a squad with ground to take that held its fill a moment ago carries on instead.
+ protected static void Hold(BBB_TacticState state, float now, string why, bool advancing)
+ {
+  if (advancing && now < state.m_fNoHoldUntil) { StandAside(state, now, why + ": held enough, the order carries them on"); return; }
+  Set(state, HOLD, now, s_fHoldS, why, vector.Zero);
+ }
+
+ // What a host can read about a squad the tactic runs (BBB #15): null when it runs none.
+ static BBB_TacticReport Report(SCR_AIGroup group)
+ {
+  if (!Runs(group)) return null;
+  BBB_TacticState state = s_States.Get(group);
+  if (!state) return null;
+  float now = Now();
+  BBB_TacticReport report = new BBB_TacticReport();
+  report.m_iTactic = state.m_iTactic;
+  report.m_iIntent = state.m_iIntent;
+  report.m_sWhy = state.m_sWhy;
+  report.m_fSeconds = now - state.m_fSince;
+  report.m_vThreat = state.m_vLastThreat;
+  report.m_fThreatAge = now - state.m_fLastContact;
+  report.m_bGaining = (state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now - state.m_fProgressAt < PROGRESS_S;
+  report.m_bNeedsSupport = state.m_iTactic == HOLD && state.m_iMen > 0 && (state.m_bFlanked || state.m_iEnemies >= state.m_iMen * OUTNUMBERED);
+  return report;
  }
 
  // Has the squad ground to take? A search and destroy or attack order, or a move order still
