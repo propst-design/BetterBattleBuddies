@@ -88,6 +88,7 @@ class BBB_Launchers : Managed
    {
     IEntity soldier = agent.GetControlledEntity();
     if (!soldier || !BBB.IsAlive(soldier) || BBB.PlayerOf(soldier) != 0) continue;
+    BBB_LauncherUse.Settle(group, soldier);
     IEntity launcher = DisposableOf(soldier);
     if (!launcher) continue;
     if (Loaded(launcher) > 0) { m_EmptyChecks.Remove(launcher); continue; }
