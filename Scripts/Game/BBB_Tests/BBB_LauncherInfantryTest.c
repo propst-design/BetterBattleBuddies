@@ -22,6 +22,17 @@
 //  and every rocket still carried; then the enemy team appears and at least 1 rocket hits the air.
 // What it does not establish: infantry in cover or in buildings, HEAT at a building, an
 // RPG-7 with an OG-7V/TBG-7V loaded (no soldier carries one), other ranges.
+// A round that left a tube: a shot, or a swap's ejected round on its way back into the kit.
+class BBB_LaunchLeft
+{
+ IEntity m_Man;
+ IEntity m_Magazine;
+ string m_sWeapon;
+ string m_sRound;
+ string m_sKind;
+ float m_fAt;
+}
+
 class BBB_LauncherInfantryTest : BBB_AimTest
 {
  static ref BBB_LauncherInfantryTest s_Launch;
@@ -47,12 +58,14 @@ class BBB_LauncherInfantryTest : BBB_AimTest
  protected ref array<float> m_aDelay = {};
  protected float m_fEnemyAt;
  protected int m_iRocketsAtStart;
+ protected int m_iRocketsAll;
  protected int m_iCase;
  protected IEntity m_Vehicle;
  protected ref map<IEntity, int> m_mLoaded = new map<IEntity, int>();
  // The round last seen in each tube, and the rounds that left them, in order.
  protected ref map<IEntity, string> m_mTubeRound = new map<IEntity, string>();
  protected int m_iUnloadedSeen;
+ protected ref array<ref BBB_LaunchLeft> m_aLeft = {};
  protected ref map<IEntity, IEntity> m_mTubeMagazine = new map<IEntity, IEntity>();
  protected ref array<string> m_aFired = {};
  protected int m_iAtInfantry;
@@ -163,11 +176,14 @@ class BBB_LauncherInfantryTest : BBB_AimTest
   }
   if (round >= m_aName.Count()) return false;
   m_iCase = round;
+  // The swap case needs the wrong round in the tube when the armour shows up.
+  BBB_LauncherUse.s_bTestNoSettle = m_aVehicle[round] == BTR;
   m_aLanes.Clear();
   m_mLoaded.Clear();
   m_mTubeRound.Clear();
   m_mTubeMagazine.Clear();
   m_aFired.Clear();
+  m_aLeft.Clear();
   BBB_AimLane lane = new BBB_AimLane();
   lane.m_vFrom = m_aSiteFrom[0];
   lane.m_vDir = m_aSiteDir[0];
@@ -282,6 +298,15 @@ class BBB_LauncherInfantryTest : BBB_AimTest
   return n;
  }
 
+ // Every rocket one man has, loaded or carried.
+ protected int RocketsOf(IEntity man)
+ {
+  if (!man) return -1;
+  BBB_AimSide one = new BBB_AimSide();
+  one.m_aMen.Insert(man);
+  return Rockets(one, false) + Rockets(one, true);
+ }
+
  protected string TargetKind(SCR_AICombatComponent combat)
  {
   if (!combat || !combat.GetCurrentTarget()) return "none";
@@ -309,32 +334,67 @@ class BBB_LauncherInfantryTest : BBB_AimTest
     if (!weapon || weapon.GetWeaponType() != EWeaponType.WT_ROCKETLAUNCHER) continue;
     int loaded = BBB_Launchers.Loaded(item);
     int before;
-    // A swap ejects the old round into his kit: that's not a shot.
-    IEntity ejected = m_mTubeMagazine.Get(item);
-    BaseMagazineComponent ejectedMagazine;
-    if (ejected) ejectedMagazine = BaseMagazineComponent.Cast(ejected.FindComponent(BaseMagazineComponent));
-    SCR_InventoryStorageManagerComponent kit = SCR_InventoryStorageManagerComponent.Cast(man.FindComponent(SCR_InventoryStorageManagerComponent));
-    if (m_mLoaded.Find(item, before) && loaded < before && ejectedMagazine && ejectedMagazine.GetAmmoCount() > 0 && kit && kit.Contains(ejected) && BBB_LauncherUse.InTube(weapon) != ejectedMagazine)
+    if (m_mLoaded.Find(item, before) && loaded < before)
     {
-     PrintFormat("[BBB] LAUNCHTEST unloaded: %1 back into the kit", m_mTubeRound.Get(item));
-     m_iUnloadedSeen++;
-    }
-    else if (m_mLoaded.Find(item, before) && loaded < before)
-    {
-     // One rocket: single-shot tubes, and Loaded() counts a chambered RPG round twice.
-     int fired = 1;
-     if (kind == "infantry") m_iAtInfantry += fired;
-     else if (kind == "vehicle") m_iAtVehicle += fired;
-     else m_iAtNothing += fired;
-     string left = m_mTubeRound.Get(item);
-     m_aFired.Insert(left);
-     PrintFormat("[BBB] LAUNCHTEST shot: %1 fired %2 (%4) at %3", BBB_Launchers.WeaponName(item), fired, kind, left);
+     BBB_LaunchLeft left = new BBB_LaunchLeft();
+     left.m_Man = man;
+     left.m_Magazine = m_mTubeMagazine.Get(item);
+     left.m_sWeapon = BBB_Launchers.WeaponName(item);
+     left.m_sRound = m_mTubeRound.Get(item);
+     left.m_sKind = kind;
+     left.m_fAt = Now();
+     m_aLeft.Insert(left);
     }
     m_mLoaded.Set(item, loaded);
     BaseMagazineComponent seated = BBB_LauncherUse.InTube(weapon);
     if (seated) m_mTubeRound.Set(item, BBB_Launchers.WeaponName(seated.GetOwner()));
     if (seated) m_mTubeMagazine.Set(item, seated.GetOwner());
    }
+  }
+ }
+
+ // A swap ejects the old round, which reaches his kit when the reload ends (~10 s); a fired
+ // round never does (spent RPG and RPO tubes still report ammo, so the count can't tell).
+ protected void ResolveLeft(bool all)
+ {
+  float now = Now();
+  int i = 0;
+  while (i < m_aLeft.Count())
+  {
+   BBB_LaunchLeft left = m_aLeft[i];
+   bool back;
+   if (left.m_Man && left.m_Magazine)
+   {
+    SCR_InventoryStorageManagerComponent kit = SCR_InventoryStorageManagerComponent.Cast(left.m_Man.FindComponent(SCR_InventoryStorageManagerComponent));
+    BaseMagazineComponent magazine = BaseMagazineComponent.Cast(left.m_Magazine.FindComponent(BaseMagazineComponent));
+    back = kit && magazine && magazine.GetAmmoCount() > 0 && kit.Contains(left.m_Magazine);
+   }
+   if (!back && !all && now - left.m_fAt < 12) { i++; continue; }
+   m_aLeft.RemoveOrdered(i);
+   if (back)
+   {
+    PrintFormat("[BBB] LAUNCHTEST unloaded: %1 back into the kit", left.m_sRound);
+    m_iUnloadedSeen++;
+    continue;
+   }
+   // One rocket: single-shot tubes, and Loaded() counts a chambered RPG round twice.
+   if (left.m_sKind == "infantry") m_iAtInfantry++;
+   else if (left.m_sKind == "vehicle") m_iAtVehicle++;
+   else m_iAtNothing++;
+   m_aFired.Insert(left.m_sRound);
+   PrintFormat("[BBB] LAUNCHTEST shot: %1 fired 1 (%3) at %2", left.m_sWeapon, left.m_sKind, left.m_sRound);
+   string where = "gone";
+   if (left.m_Magazine)
+   {
+    BaseMagazineComponent spent = BaseMagazineComponent.Cast(left.m_Magazine.FindComponent(BaseMagazineComponent));
+    IEntity parent = left.m_Magazine.GetParent();
+    string parentName = "none";
+    if (parent) parentName = BBB_Launchers.WeaponName(parent);
+    int ammo = -1;
+    if (spent) ammo = spent.GetAmmoCount();
+    where = string.Format("exists, ammo %1, parent %2", ammo, parentName);
+   }
+   PrintFormat("[BBB] LAUNCHTEST shot detail: round %1, rockets he carries %2", where, RocketsOf(left.m_Man));
   }
  }
 
@@ -403,6 +463,8 @@ class BBB_LauncherInfantryTest : BBB_AimTest
     Hook(lane.m_A, false);
     Invulnerable(lane.m_A);
     m_iRocketsAtStart = Rockets(lane.m_A, false);
+    m_iRocketsAll = m_iRocketsAtStart + Rockets(lane.m_A, true);
+    PrintFormat("[BBB] LAUNCHTEST rockets at hook: %1 carried, %2 in tubes", m_iRocketsAtStart, Rockets(lane.m_A, true));
     if (lane.m_B.m_Group)
     {
      Hook(lane.m_B, false);
@@ -439,6 +501,7 @@ class BBB_LauncherInfantryTest : BBB_AimTest
    lane.m_A.SampleAmmo();
    WatchLaunchers(lane.m_A);
   }
+  ResolveLeft(false);
   if (now >= m_fNextSample)
   {
    m_fNextSample = now + 2;
@@ -449,6 +512,7 @@ class BBB_LauncherInfantryTest : BBB_AimTest
 
  override protected void EndRound()
  {
+  ResolveLeft(true);
   foreach (BBB_AimLane lane : m_aLanes)
   {
    string name = m_aName[m_iCase];
@@ -464,6 +528,12 @@ class BBB_LauncherInfantryTest : BBB_AimTest
    string fired = "";
    foreach (string f : m_aFired) fired += " " + f;
    PrintFormat("[BBB] LAUNCHTEST rounds that left the tubes:%1", fired);
+   if (m_aVehicle[m_iCase] == BTR)
+   {
+    int left = Rockets(lane.m_A, false) + Rockets(lane.m_A, true);
+    int shots = m_iAtInfantry + m_iAtVehicle + m_iAtNothing;
+    Assert("no-rocket-lost-swapping-" + m_iCase, left + shots == m_iRocketsAll, string.Format("%1 left + %2 fired of %3", left, shots, m_iRocketsAll));
+   }
    if (m_aVehicle[m_iCase] == BTR && BBB_LauncherUse.s_bSwap) Assert("armour-gets-antiarmour-round-" + m_iCase, !m_aFired.IsEmpty() && m_aFired[0].Contains("HEAA"), fired);
    int expect = m_aExpect[m_iCase];
    if (expect == 2 && !BBB_LauncherUse.s_bOn) expect = 0;

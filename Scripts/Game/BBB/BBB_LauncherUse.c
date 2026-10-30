@@ -52,6 +52,7 @@ class BBB_LauncherUse
  static int s_iArmourSwaps;
  static int s_iUnloaded;
  static bool s_bTrace; // test only: print why each hold ends
+ static bool s_bTestNoSettle; // test only: leave tubes loaded (swap fixture)
  static ref map<string, int> s_mClass = new map<string, int>();
 
  static void Read()
@@ -203,10 +204,22 @@ class BBB_LauncherUse
 
  // Loaded in contact: out of contact, a gunner with both kinds of round empties his tube into
  // his kit. Called from BBB_Launchers.Tick (every 2 s, AI soldiers on foot only).
+ // Puts a loaded round back into his kit. Swapping by reload alone makes the engine drop the old
+ // round on the ground (measured: ejected SMAW HEDP, ammo 1, no parent), so a swap stows it first.
+ static bool Stow(IEntity soldier, BaseMagazineComponent round)
+ {
+  if (!soldier || !round || !round.GetOwner()) return false;
+  SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(soldier.FindComponent(SCR_InventoryStorageManagerComponent));
+  if (!inventory) return false;
+  IEntity entity = round.GetOwner();
+  BaseInventoryStorageComponent into = inventory.FindStorageForItem(entity, EStoragePurpose.PURPOSE_DEPOSIT);
+  return into && inventory.TryMoveItemToStorage(entity, into);
+ }
+
  static void Settle(SCR_AIGroup group, IEntity soldier)
  {
   Read();
-  if (!s_bCombatLoad || BBB.HasPlayer(group)) return;
+  if (!s_bCombatLoad || s_bTestNoSettle || BBB.HasPlayer(group)) return;
   ChimeraCharacter character = ChimeraCharacter.Cast(soldier);
   if (!character || character.IsInVehicle()) return;
   BaseWeaponComponent launcher = Reloadable(soldier);
@@ -221,11 +234,7 @@ class BBB_LauncherUse
   if (!Spare(soldier, launcher, other)) return;
   PerceptionComponent perception = PerceptionComponent.Cast(soldier.FindComponent(PerceptionComponent));
   if (!perception || InContact(perception)) return;
-  SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(soldier.FindComponent(SCR_InventoryStorageManagerComponent));
-  if (!inventory) return;
-  IEntity entity = round.GetOwner();
-  BaseInventoryStorageComponent into = inventory.FindStorageForItem(entity, EStoragePurpose.PURPOSE_DEPOSIT);
-  if (!into || !inventory.TryMoveItemToStorage(entity, into)) return;
+  if (!Stow(soldier, round)) return;
   s_iUnloaded++;
   BBB_Perf.Count("launcher.unloaded");
   BBB_Think.Note(soldier, "Launcher", "no enemy about: carries his " + BBB_Launchers.WeaponName(launcher.GetOwner()) + " empty, loads for the first target");
@@ -307,6 +316,13 @@ modded class SCR_AICombatComponent
   if (m_BBBArmourRound && m_BBBArmourRound.GetAmmoCount() > 0) return true;
   m_BBBArmourRound = BBB_LauncherUse.Spare(GetOwner(), m_SelectedWeaponComp, BBB_LauncherUse.ANTI_ARMOUR);
   if (!m_BBBArmourRound) return false;
+  // No room to stow the loaded round: fire it (HEDP still hurts armour) rather than drop it.
+  BaseMagazineComponent loaded = BBB_LauncherUse.InTube(m_SelectedWeaponComp);
+  if (loaded && !BBB_LauncherUse.Stow(GetOwner(), loaded))
+  {
+   m_BBBArmourRound = null;
+   return false;
+  }
   BBB_LauncherUse.s_iArmourSwaps++;
   BBB_Perf.Count("launcher.armourswap");
   BBB_Think.Note(GetOwner(), "Launcher", "armour: loads his " + BBB_Launchers.WeaponName(m_BBBArmourRound.GetOwner()) + " instead");
@@ -450,6 +466,7 @@ modded class SCR_AICombatComponent
   if (distance < minimum || distance > maximum) return false;
   SCR_AIGroup group = BBBGroup();
   if (group && !BBB_Grenades.IsBlastAreaClearOfFriendlies(target.GetLastSeenPosition(), group, BBB_LauncherUse.FRIEND_M)) return false;
+  if (swap && !BBB_LauncherUse.Stow(owner, BBB_LauncherUse.InTube(launcher))) return false;
   m_BBBLaunchTarget = target;
   m_BBBLauncher = launcher;
   m_iBBBLauncherMuzzle = 0;
