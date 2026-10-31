@@ -1,11 +1,13 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','squad','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','armourrounds','settings','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','squad','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','armourrounds','launcherinf','launcherinfrhs','settings','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
- [string]$ExtraArgs = ''
+ [string]$ExtraArgs = '',
+ # Folder holding RHS: Status Quo and its content packs (preset launcherinfrhs); searched if empty.
+ [string]$RhsAddonsDir
 )
 $ErrorActionPreference = 'Stop'
 if (!$AddonRoot) { $AddonRoot = Split-Path $PSScriptRoot -Parent }
@@ -113,10 +115,26 @@ $timeouts.indoorhold = 200
 $flags.armourrounds = '-bbbArmourRoundsTest 1'
 $timeouts.armourrounds = 150
 $flags.settings = '-bbbSettingsTest 1 -bbbStaticArc 120'
+$flags.launcherinf = '-bbbLauncherInfantryTest 1'
+$timeouts.launcherinf = 240
+$flags.launcherinfrhs = '-bbbLauncherInfantryTest 1 -bbbLauncherInfantryRhs 1'
+$timeouts.launcherinfrhs = 660
 $timeouts.settings = 70
 $world = '{AC230926A00100E0}Worlds/BBB_TestArland.ent'
 if ($Preset -eq 'compile') { $world = '{77C41EA429B6AC35}worlds/GameMaster/GM_Arland.ent' }
-$argsLine = '-server "' + $world + '" -addonsDir "' + (Split-Path $AddonRoot -Parent) + '" -addons BBB0261015000001 -profile "' + $profile + '" -maxFPS 60 -noBackend ' + $flags[$Preset] + ' ' + $ExtraArgs
+$addonsDir = Split-Path $AddonRoot -Parent
+$addons = 'BBB0261015000001'
+if ($Preset -eq 'launcherinfrhs') {
+ if (!$RhsAddonsDir) {
+  foreach ($candidate in @($addonsDir, (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games/ArmaReforger/addons'), 'E:\ArmaReforgerMods\addons')) {
+   if ($candidate -and (Test-Path -LiteralPath $candidate) -and (Get-ChildItem -LiteralPath $candidate -Directory -Filter 'RHS-StatusQuo_*' -ErrorAction SilentlyContinue)) { $RhsAddonsDir = $candidate; break }
+  }
+ }
+ if (!$RhsAddonsDir) { throw 'RHS: Status Quo not found; supply -RhsAddonsDir.' }
+ if ($RhsAddonsDir -ne $addonsDir) { $addonsDir += ',' + $RhsAddonsDir }
+ $addons += ',595F2BF2F44836FB,1337C0DE5DABBEEF,BADC0DEDABBEDA5E'
+}
+$argsLine = '-server "' + $world + '" -addonsDir "' + $addonsDir + '" -addons ' + $addons + ' -profile "' + $profile + '" -maxFPS 60 -noBackend ' + $flags[$Preset] + ' ' + $ExtraArgs
 $process = Start-Process -FilePath $ServerPath -ArgumentList $argsLine -WorkingDirectory (Split-Path $ServerPath -Parent) -WindowStyle Hidden -PassThru
 $started = Get-Date
 $status = 'timeout'

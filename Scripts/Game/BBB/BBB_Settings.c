@@ -262,6 +262,9 @@ class BBB_Settings
   On(g, "bbbAimFixes", "Aim fixes", "All of BBB's aim changes below. Off: vanilla aim.");
   Num(g, "bbbAimScale", 1, 0.25, 3, 0.05, "Aim error", "Overall AI aim error. 1 is vanilla; lower aims better, higher aims worse.");
   Num(g, "bbbSuppressedAim", 1.3, 1, 3, 0.05, "Aim when suppressed", "How much worse a fully suppressed soldier aims. 1 is vanilla (no effect).");
+  On(g, "bbbLauncherInfantry", "Launchers on infantry", "AT gunners fire HE, thermobaric or dual-purpose rockets at groups and men in cover, and any rocket at men in buildings, unless enemy armour is about. Vanilla keeps every rocket for vehicles.");
+  On(g, "bbbLauncherSwap", "Right warhead for the target", "An AT gunner reloads with the round that suits the target when he carries it: anti-tank for armour, HE for infantry when there is time.");
+  On(g, "bbbLauncherCombatLoad", "Load in contact", "A gunner who carries more than one kind of rocket walks with the tube empty until he meets the enemy, then loads for the first target.");
   Num(g, "bbbLauncherAim", 0, 0, 2, 0.05, "Launcher aim error", "Rocket launchers get aim error. 0 is vanilla (launchers never miss from aim); 1 aims like a rifle.");
   Num(g, "bbbLongRangeAim", 0, 0, 5, 0.1, "Aim error at 600 m", "Aim error keeps growing past 215 m, reaching this factor at 600 m. 0 is vanilla (it stops growing at 215 m).");
   Def(g, "bbbBinocsUnderFire", BBB_ESettingKind.CHOICE, "0", "Binoculars under fire", "Soldiers being shot at or hit don't raise binoculars at distant threats.").Choices("0|1", "Kept down|Vanilla").Vanilla("1");
