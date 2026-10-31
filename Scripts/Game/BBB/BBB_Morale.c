@@ -368,7 +368,9 @@ class BBB_Morale
 		float score = 0;
 
 		// 1. Casualty ratio
-		float casualtyRatio = (state.m_iInitialCount - aliveCount) / state.m_iInitialCount;
+		// float first: int / int divides in ints (0 while anyone is alive)
+		float initialCount = state.m_iInitialCount;
+		float casualtyRatio = (initialCount - aliveCount) / initialCount;
 		if (casualtyRatio >= s_fCasualtyThreshold) score = score + 0.40;
 		if (casualtyRatio >= 0.75) score = score + 0.25;
 
@@ -386,7 +388,8 @@ class BBB_Morale
 		// 4. Ammunition status
 		if (aliveCount > 0)
 		{
-			float ammoEmptyRatio = outOfAmmoCount / aliveCount;
+			float outOfAmmo = outOfAmmoCount;
+			float ammoEmptyRatio = outOfAmmo / aliveCount;
 			if (ammoEmptyRatio >= 0.50) score = score + 0.20;
 		}
 

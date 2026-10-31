@@ -688,6 +688,7 @@ class BBB_VehicleHelpers : Managed
   {
    ChimeraCharacter ch = ChimeraCharacter.Cast(cSlot.GetOccupant());
    if (!ch || !IsAble(ch) || BBB.PlayerOf(ch)) continue;
+   if (BBB_OrderIntent.Blocks(BBB_StaticWeapons.UtilityOf(ch))) continue; // under a player/GM order
    CompartmentAccessComponent acc = ch.GetCompartmentAccessComponent();
    if (!acc || acc.IsGettingIn() || acc.IsGettingOut()) continue;
    AIControlComponent ai = AIControlComponent.Cast(ch.FindComponent(AIControlComponent));
@@ -719,6 +720,7 @@ class BBB_VehicleHelpers : Managed
      ChimeraCharacter ch = ChimeraCharacter.Cast(agent.GetControlledEntity());
      if (!ch || ch.IsInVehicle() || !IsAble(ch) || BBB.PlayerOf(ch)) continue;
      if (BBB_Drag.Busy(ch) || BBB_Medic.s_mGoingTo.Contains(ch) || BBB_Claims.Committed(ch)) continue;
+     if (BBB_OrderIntent.Blocks(BBB_StaticWeapons.UtilityOf(ch))) continue;
      CompartmentAccessComponent acc = ch.GetCompartmentAccessComponent();
      if (!acc || acc.IsGettingIn() || acc.IsGettingOut()) continue;
      float d = vector.DistanceXZ(ch.GetOrigin(), vehicle.GetOrigin());
@@ -847,8 +849,10 @@ class BBB_VehicleHelpers : Managed
   bool hasGunner = HasGunner(vehicle);
   if (hasGunner && BBB_Transport.CrewedVehicle(group) == vehicle) return;
   if (DismountGroupFromVehicle(group, vehicle, hasGunner) > 0)
+  {
    PrintFormat("[BBB] TACTICS %1: tactical dismount under fire", BBB.s_Hooks.NameOf(group));
    BBB_Think.NoteGroup(group, "Vehicle", "tactical dismount under fire");
+  }
  }
 
  protected void ClearStallState(IEntity vehicle)
@@ -888,8 +892,10 @@ class BBB_VehicleHelpers : Managed
   if (underFire && (!driver || !BBB.IsAlive(driver)) && speed < 2.0)
   {
    if (DismountGroupFromVehicle(group, vehicle, false) > 0)
+   {
     PrintFormat("[BBB] DRIVE %1: driver lost under fire, crew bails out", BBB.s_Hooks.NameOf(group));
     BBB_Think.NoteGroup(group, "Vehicle", "driver lost under fire: crew bails out");
+   }
    ClearStallState(vehicle);
    return;
   }
@@ -924,8 +930,10 @@ class BBB_VehicleHelpers : Managed
   if (underFire && !fightingVehicle && stalled >= STALL_SECONDS_HELPLESS)
   {
    if (DismountGroupFromVehicle(group, vehicle, false) > 0)
+   {
     PrintFormat("[BBB] DRIVE %1: stopped under fire (unarmed), crew bails out", BBB.s_Hooks.NameOf(group));
     BBB_Think.NoteGroup(group, "Vehicle", "stopped under fire (unarmed): crew bails out");
+   }
    ClearStallState(vehicle);
    return;
   }

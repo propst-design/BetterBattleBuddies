@@ -739,6 +739,8 @@ modded class ArmaReforgerScripted
 {
  protected override void OnBeforeWorldCleanup()
  {
+  // Stop first: Stop hands state back with this mission's settings still read
+  BBB_Vanilla.OnWorldCleanup();
   BBB_Settings.Invalidate();
   super.OnBeforeWorldCleanup();
  }
