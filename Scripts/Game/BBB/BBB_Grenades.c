@@ -421,7 +421,8 @@ class BBB_Grenades
 
 			foreach (AIAgent agent : agents)
 			{
-				if (!agent || grenadeThrown) break;
+				if (grenadeThrown) break;
+				if (!agent) continue;
 				SCR_AIUtilityComponent u = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
 				if (!u || !u.m_PerceptionComponent) continue;
 

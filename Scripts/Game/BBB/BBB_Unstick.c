@@ -24,6 +24,7 @@ class BBB_Unstick : Managed
  ChimeraCharacter m_Driver;
  protected float m_fStart;
  protected float m_fSteer;
+ protected bool m_bParkedAI; // only hand back an AI this parked (something else may have parked it)
  protected ref BBB_UnstickListener m_Listener;
 
  // Start backing this vehicle out; steer is the wheel while reversing (-1..1).
@@ -36,7 +37,11 @@ class BBB_Unstick : Managed
   unstick.m_fSteer = steer;
   unstick.m_Listener = listener;
   AIControlComponent ai = AIControlComponent.Cast(driver.FindComponent(AIControlComponent));
-  if (ai && ai.IsAIActivated()) ai.DeactivateAI();
+  if (ai && ai.IsAIActivated())
+  {
+   ai.DeactivateAI();
+   unstick.m_bParkedAI = true;
+  }
   ReleaseHorn(driver);
   s_Active.Insert(unstick);
  }
@@ -58,7 +63,18 @@ class BBB_Unstick : Managed
    if (s_Active[i].m_Listener == listener) s_Active.RemoveOrdered(i);
  }
 
- static void StopAll() { s_Active.Clear(); }
+ // BBB is stopping: finish every manoeuvre (inputs released, parked AI handed back), tell no one.
+ static void StopAll()
+ {
+  foreach (BBB_Unstick unstick : s_Active)
+  {
+   unstick.m_Listener = null;
+   CarControllerComponent car;
+   if (unstick.m_Vehicle) car = CarControllerComponent.Cast(unstick.m_Vehicle.FindComponent(CarControllerComponent));
+   unstick.End(car);
+  }
+  s_Active.Clear();
+ }
 
  static void FrameAll()
  {
@@ -115,7 +131,7 @@ class BBB_Unstick : Managed
    sim.SetGear(neutral + 1);
   }
   ReleaseHorn(m_Driver);
-  if (m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver))
+  if (m_bParkedAI && m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver))
   {
    AIControlComponent ai = AIControlComponent.Cast(m_Driver.FindComponent(AIControlComponent));
    if (ai && !ai.IsAIActivated()) ai.ActivateAI();

@@ -10,6 +10,19 @@ class BBB_OrderIntent
   return true;
  }
 
+ // The group's current waypoint is a Game Master's: placed in the editor (editable waypoint
+ // prefab), or raised to GM priority. Editor waypoints keep priority 0, so the priority checks
+ // never saw them. For decisions that would override where the GM sent the group.
+ static bool GameMasterOrder(AIGroup group)
+ {
+  if (!group) return false;
+  AIWaypoint waypoint = group.GetCurrentWaypoint();
+  if (!waypoint) return false;
+  SCR_AIWaypoint scripted = SCR_AIWaypoint.Cast(waypoint);
+  if (scripted && scripted.GetPriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_GAMEMASTER) return true;
+  return waypoint.FindComponent(SCR_EditableWaypointComponent) != null;
+ }
+
  static bool Held(SCR_AIUtilityComponent utility)
  {
   if (!utility) return false;

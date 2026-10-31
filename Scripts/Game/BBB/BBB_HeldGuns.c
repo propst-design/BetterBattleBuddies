@@ -146,6 +146,8 @@ class BBB_HeldGuns
    if (!agent) continue;
    ChimeraCharacter man = ChimeraCharacter.Cast(agent.GetControlledEntity());
    if (!man || !BBB.IsAlive(man) || !BBB_VehicleHelpers.IsAble(man) || man.IsInVehicle() || BBB.PlayerOf(man) != 0) continue;
+   // Same busy filter as the turret gunner swap: not mid-drag, on a medic run or committed elsewhere.
+   if (BBB_Drag.Busy(man) || BBB_Medic.s_mGoingTo.Contains(man) || BBB_Claims.Committed(man)) continue;
    float d = vector.Distance(man.GetOrigin(), gun.GetOrigin());
    if (d >= bestDistance) continue;
    bestDistance = d;

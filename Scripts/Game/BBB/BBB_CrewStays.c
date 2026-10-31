@@ -92,7 +92,9 @@ class BBB_CrewStays
   if (gate)
   {
    SCR_AISmartActionComponent smart = gate.m_SmartActionComponent.m_Value;
-   if (smart) OpenGate(smart.GetOwner());
+   // No door found to open from the seat: let the crewman get out and open it (vanilla),
+   // or the gate stays shut and the vehicle waits at it for good.
+   if (!smart || !OpenGate(smart.GetOwner())) return false;
    gate.m_bBBBKept = true;
    s_iGatesKept++;
    BBB_Perf.Count("crewStays.gate");

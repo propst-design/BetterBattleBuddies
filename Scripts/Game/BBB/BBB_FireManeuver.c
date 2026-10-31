@@ -924,7 +924,7 @@ modded class SCR_AICombatMoveLogic_Attack
  protected override bool MoveToNextPosCondition()
  {
   // Covering a squad's withdrawal, or the squad tactic holds: fight from here (danger moves are decided before this).
-  if (m_Utility.m_bBBBHoldGround || m_Utility.m_bBBBTacticHold) return false;
+  if (m_Utility.m_bBBBHoldGround || m_Utility.BBBTacticHolds()) return false;
   int decision = BBB_FireManeuver.Decision(m_Utility);
   if (decision < 0) return false;
   if (decision > 0) return true;
@@ -943,7 +943,7 @@ modded class SCR_AICombatMoveLogic_Suppressive
  protected override bool MoveToNextPosCondition()
  {
   // Covering a squad's withdrawal, or the squad tactic holds: fight from here (danger moves are decided before this).
-  if (m_Utility.m_bBBBHoldGround || m_Utility.m_bBBBTacticHold) return false;
+  if (m_Utility.m_bBBBHoldGround || m_Utility.BBBTacticHolds()) return false;
   int decision = BBB_FireManeuver.Decision(m_Utility);
   if (decision < 0) return false;
   if (decision > 0) return true;
