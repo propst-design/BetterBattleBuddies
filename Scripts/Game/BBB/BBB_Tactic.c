@@ -642,7 +642,7 @@ class BBB_Tactic
   report.m_vThreat = state.m_vLastThreat;
   report.m_fThreatAge = now - state.m_fLastContact;
   report.m_bGaining = (state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now - state.m_fProgressAt < PROGRESS_S;
-  report.m_bNeedsSupport = state.m_iTactic == HOLD && state.m_iMen > 0 && (state.m_bFlanked || state.m_iEnemies >= state.m_iMen * OUTNUMBERED);
+  report.m_bNeedsSupport = state.m_iTactic == HOLD && state.m_iMen > 0 && (state.m_bFlanked || state.m_iMen * OUTNUMBERED <= state.m_iEnemies);
   return report;
  }
 
@@ -660,7 +660,7 @@ class BBB_Tactic
  // A reason to hold even with ground to take: flanked or outnumbered.
  protected static bool MustHold(BBB_SquadPicture picture, bool flanked, int enemies)
  {
-  return flanked || enemies >= picture.m_iConscious * OUTNUMBERED;
+  return flanked || picture.m_iConscious * OUTNUMBERED <= enemies;
  }
 
  // What an assault needs regardless of where the enemy is: the host and orders allow fire and
@@ -673,7 +673,7 @@ class BBB_Tactic
  protected static bool CanAssault(SCR_AIGroup group, BBB_SquadPicture picture, vector threat, bool flanked, int enemies)
  {
   float range = vector.DistanceXZ(threat, picture.m_vCentre);
-  if (enemies >= picture.m_iConscious * OUTNUMBERED) return false;
+  if (picture.m_iConscious * OUTNUMBERED <= enemies) return false;
   // Close in, the squad fights it out (vanilla close combat; fire and manoeuvre keeps its own
   // 45 m floor): no hold for being pinned, flanked or few.
   if (range < ASSAULT_MIN_M) return true;
@@ -685,7 +685,7 @@ class BBB_Tactic
  {
   float range = vector.DistanceXZ(threat, picture.m_vCentre);
   if (flanked) return "flanked";
-  if (enemies >= picture.m_iConscious * OUTNUMBERED) return string.Format("outnumbered (%1 seen, %2 of us)", enemies, picture.m_iConscious);
+  if (picture.m_iConscious * OUTNUMBERED <= enemies) return string.Format("outnumbered (%1 seen, %2 of us)", enemies, picture.m_iConscious);
   if (picture.m_fAvgSuppression >= SQUAD_PINNED) return "pinned down";
   if (range > ASSAULT_MAX_M) return string.Format("enemy too far (%1 m)", Math.Round(range));
   if (picture.m_iConscious < 4) return "too few to bound";
