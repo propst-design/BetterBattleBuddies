@@ -12,6 +12,8 @@
 - A soldier who is dragging a casualty, running to treat one or busy with another job is no longer sent to man an empty held gun.
 - A vehicle being backed out of a dead end when BBB stops (a host mod turning it off, a mission ending) gets its driver's AI back instead of sitting parked for good, and no longer switches on a driver that something else had parked.
 - The thinking panel no longer says a squad dismounted under fire, or bailed out of a stopped vehicle, every second when nobody actually got out.
+- The "Smoke on one spot cooldown" setting now works: soldiers wait that long before smoking the same place again (before, any spot could be smoked again as soon as the last cloud cleared).
+- A gate that can't be opened from the seat is handled the game's way again (a crewman gets out and opens it), instead of the vehicle waiting at a shut gate.
 - Soldiers looking around when BBB stops (a host mod turning it off mid-mission) turn their heads back instead of staying in free-look.
 
 ## 0.1.7 — released
