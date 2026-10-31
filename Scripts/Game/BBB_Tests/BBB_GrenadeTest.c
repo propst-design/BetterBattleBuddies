@@ -129,6 +129,34 @@ class BBB_GrenadeTest : BBB_AimTest
 		// Light FireTeam riflemen carry M67 fragmentation grenades
 		Check("frag-grenade-inventory-check", foundGrenadier || agents.Count() >= 4);
 
+		// Check 12a: a squad on hold fire doesn't throw (a fit thrower is refused once the squad holds fire)
+		ChimeraCharacter fitChar = null;
+		SCR_AIUtilityComponent fitUtil = null;
+		foreach (AIAgent fitAgent : agents)
+		{
+			if (!fitAgent) continue;
+			ChimeraCharacter candidate = ChimeraCharacter.Cast(fitAgent.GetControlledEntity());
+			SCR_AIUtilityComponent candidateUtil = SCR_AIUtilityComponent.Cast(fitAgent.FindComponent(SCR_AIUtilityComponent));
+			if (candidate && candidateUtil && BBB_Grenades.IsFitThrower(candidate, candidateUtil)) { fitChar = candidate; fitUtil = candidateUtil; break; }
+		}
+		SCR_AIGroupUtilityComponent squadUtil = SCR_AIGroupUtilityComponent.Cast(m_SquadUS.FindComponent(SCR_AIGroupUtilityComponent));
+		if (fitChar && squadUtil)
+		{
+			squadUtil.SetCombatMode(EAIGroupCombatMode.HOLD_FIRE);
+			squadUtil.EvaluateCombatMode(); // applied on the group's next update otherwise
+			bool heldBack = !BBB_Grenades.IsFitThrower(fitChar, fitUtil);
+			squadUtil.SetCombatMode(EAIGroupCombatMode.FIRE_AT_WILL);
+			squadUtil.EvaluateCombatMode(); // applied on the group's next update otherwise
+			bool freedAgain = BBB_Grenades.IsFitThrower(fitChar, fitUtil);
+			PrintFormat("[BBB] GRENADETEST hold fire: refused %1, fit again after fire at will %2", heldBack, freedAgain);
+			Check("hold-fire-blocks", heldBack && freedAgain);
+		}
+		else
+		{
+			PrintFormat("[BBB] GRENADETEST hold fire: no fit thrower (%1) or group utility (%2)", fitChar != null, squadUtil != null);
+			Check("hold-fire-blocks", false);
+		}
+
 		// Check 12: Player/GM explicit order blocks grenade throwing
 		if (firstUtil && firstChar)
 		{
@@ -187,12 +215,12 @@ class BBB_GrenadeTest : BBB_AimTest
 	protected void FinishTest()
 	{
 		string verdict = "FAIL";
-		if (m_iFailures == 0 && m_iChecks >= 16)
+		if (m_iFailures == 0 && m_iChecks >= 18)
 		{
 			verdict = "PASS";
 		}
 		PrintFormat("[BBB] GRENADETEST FINISHED checks=%1 failures=%2", m_iChecks, m_iFailures);
-		PrintFormat("[ACR] VERDICT %1 test=bbbgrenades passed=%2 failed=%3 expected=16", verdict, m_iChecks - m_iFailures, m_iFailures);
+		PrintFormat("[ACR] VERDICT %1 test=bbbgrenades passed=%2 failed=%3 expected=18", verdict, m_iChecks - m_iFailures, m_iFailures);
 		Print("[ACR] TEST COMPLETE");
 	}
 }

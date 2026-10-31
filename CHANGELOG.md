@@ -7,6 +7,7 @@
 - Better Battle Buddies now restarts cleanly for every mission. Without a host mod (Conflict, Game Master, scenario missions), a server that restarted or rotated its scenario, or the next mission in singleplayer, kept running BBB on the previous mission's state: illumination flares stayed off and horizon scanning skipped most groups for as long as the previous mission had lasted, and a new preset's vehicle and order settings weren't read. BBB now stops when a mission ends and starts fresh with the next one.
 - Lighter on the server: gunner replacement checks whether a turret needs a gunner before anything else, and the door, weapon-lowering and head-scanning checks skip work for soldiers they can't affect. Checking whether a soldier is a player no longer walks the whole player list, which cost more the fuller the server.
 - Fixed a script error when a soldier was removed while waiting for a window to fight from (seen in a long AC: Actual battle).
+- Soldiers told to hold fire no longer throw hand grenades. Every other BBB fighting behaviour already respected hold fire, but the grenade throw didn't, so a squad waiting in ambush, or one a Game Master or player had set to hold fire, could give itself away with a frag.
 - Soldiers looking around when BBB stops (a host mod turning it off mid-mission) turn their heads back instead of staying in free-look.
 
 ## 0.1.7 — released

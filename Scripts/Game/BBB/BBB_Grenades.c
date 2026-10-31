@@ -123,6 +123,8 @@ class BBB_Grenades
 		if (utility.m_AIInfo && (utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || utility.m_AIInfo.HasUnitState(EUnitState.UNCONSCIOUS))) return false;
 
 		if (BBB_OrderIntent.Blocks(utility)) return false;
+		// Hold fire means hold fire: a frag gives the position away as surely as a shot.
+		if (utility.m_CombatComponent && utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) return false;
 		if (BBB_Drag.Busy(soldier) || BBB_Claims.Committed(soldier)) return false;
 
 		return HasFragGrenade(soldier);
