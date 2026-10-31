@@ -25,9 +25,39 @@
 // commitment ends early only for withdrawal, leader loss, a player/GM order, contact gone 30 s,
 // or an ASSAULT the squad can no longer run (host, order leash, fewer than four fit men) or that
 // turns out to face twice its number.
-// Host hook AllowSquadTactic(group); player squads, crews and player/GM orders are left alone.
+// "Pinned" is incoming fire (the native suppression part of threat: flybys, blasts), not the
+// native total: that is 0.25 for any soldier who has a target and climbs with every shot he
+// hears, his own squad's included, so a squad simply returning fire read as pinned and held
+// (BBB #9: "leader pinned -> hold" stopped ACA assaults).
+// A squad with ground to take (search and destroy/attack order, or a move order still 30 m off)
+// holds only when outnumbered or flanked, and never searches (its order already takes it to
+// the enemy). Pinned, too far, too few, host or leash, or contact lost: the tactic stands aside
+// (NONE) and the order carries the squad on, as without BBB; vanilla's own suppression reactions
+// still put pinned men in cover. In a real-fight A/B (assault preset) a held or searching
+// attacker stood 130 m off while the same squad without the tactic closed in and won.
+// The host decides (BBB_Hooks.Intent, BBB #15): PUSH squads are the ones with ground to take
+// above; one that has held PUSH_HOLD_S carries on with its order for PUSH_REST_S. HOLD squads
+// fight where they are. TRANSIT and NONE: no tactic. AllowSquadTactic is a plain on/off on top.
+// Hosts read a squad's tactic, its reason, whether it is gaining ground and whether it needs
+// support through Report. Player squads, crews and player/GM orders are left alone.
 //  -bbbTactic 0   off: features decide as before
 //  -bbbTacticFlank 0 / -bbbTacticSearch 0   just that part off; -bbbTacticFire 1  HOLD base of fire on
+//  -bbbTacticStats 1   log only (BBB #9 soaks): a TACTIC END line per tactic with the ground the
+//             squad really covered, and a TACTIC STATS line a minute: squads in contact, how many
+//             a tactic ran and why the rest were left out
+// What a host reads about a squad the tactic runs (BBB_Tactic.Report, BBB #15).
+class BBB_TacticReport : Managed
+{
+ int m_iTactic;          // BBB_Tactic.NONE .. SEARCH
+ BBB_EIntent m_iIntent;  // what the host asked for
+ string m_sWhy;          // why this tactic was picked
+ float m_fSeconds;       // how long it has been in force
+ vector m_vThreat;       // where the main threat was last seen by the squad's own men (zero: never)
+ float m_fThreatAge;     // seconds since that sighting
+ bool m_bGaining;        // assaulting or flanking and the squad really moved PROGRESS_M in PROGRESS_S
+ bool m_bNeedsSupport;   // holding because outnumbered or flanked
+}
+
 class BBB_TacticState : Managed
 {
  SCR_AIGroup m_Group;
@@ -53,6 +83,19 @@ class BBB_TacticState : Managed
  ref array<ref BBB_AIWithdrawMove> m_aRuns = {};
  ref array<ref SCR_AIMoveAndInvestigateBehavior> m_aLooks = {};
  ref array<SCR_AIUtilityComponent> m_aLookers = {};
+ // Host intent and what a host can read back (BBB #15, BBB_Tactic.Report)
+ BBB_EIntent m_iIntent;
+ string m_sWhy;          // why the tactic in force was picked
+ float m_fNoHoldUntil;   // a pushing squad that has held its fill doesn't hold again before this
+ vector m_vProgressAt;   // squad centre when it last moved PROGRESS_M...
+ float m_fProgressAt;    // ...and when
+ bool m_bFlanked;        // the odds at the last look
+ int m_iEnemies;
+ int m_iMen;
+ // -bbbTacticStats: where the tactic in force started
+ vector m_vStatCentre;
+ vector m_vStatThreat;
+ int m_iStatMen;
 }
 
 class BBB_Tactic
@@ -81,12 +124,17 @@ class BBB_Tactic
  static float s_fReorgS = 20;
  static const float LOST_S = 30;
  static const float MOST_SEEN_S = 120;
- static const float LEADER_PINNED = 0.33;  // leader's native threat at or above this: no new pick
- static const float SQUAD_PINNED = 0.6;    // squad average at or above this: no assault
+ static const float LEADER_PINNED = 0.3;   // leader's suppression (incoming fire) at or above this: no new pick
+ static const float SQUAD_PINNED = 0.35;   // squad average suppression at or above this: no assault
+ static const float ADVANCE_M = 30;        // a move order farther than this is ground still to take
  static const float ASSAULT_MIN_M = 45;
  static const float ASSAULT_MAX_M = 300;
  static const float OUTNUMBERED = 1.5;     // enemies seen (last minute) in the main sector per conscious man: no assault
  static const float OVERRUN = 2;           // ...this many: an assault already running turns to HOLD
+ static const float PUSH_HOLD_S = 90;      // a squad with ground to take holds at most this long...
+ static const float PUSH_REST_S = 60;      // ...then its order carries it on at least this long
+ static const float PROGRESS_M = 10;       // Report: the squad centre moved this far...
+ static const float PROGRESS_S = 30;       // ...within this long: it is gaining ground
  static bool s_bOn = true;
  static bool s_bFlank = true;
  static bool s_bSearch = true;
@@ -99,6 +147,19 @@ class BBB_Tactic
  static int s_iCallouts;
  // First contact plays once per squad per CONTACT_LOCK_S, across contacts (world time s).
  protected static ref map<SCR_AIGroup, float> s_mContactLock = new map<SCR_AIGroup, float>();
+ // -bbbTacticStats: squads seen in contact this minute -> bits of what happened to them
+ static bool s_bStats;
+ static const int STAT_RUN = 1;     // a tactic ran it
+ static const int STAT_HOST = 2;    // host hook said no
+ static const int STAT_PLAYER = 4;  // player in the squad
+ static const int STAT_CREW = 8;    // crewing a vehicle
+ static const int STAT_ORDER = 16;  // player/GM order on a member
+ protected static ref map<SCR_AIGroup, int> s_mStat = new map<SCR_AIGroup, int>();
+ protected static float s_fStatAt;
+ protected static int s_iPinnedLooks; // looks where a pinned leader kept the squad from picking
+ protected static int s_iPinnedTotal;      // "leader pinned" decisions with a leader to read...
+ protected static int s_iPinnedSuppressed; // ...of which his suppression alone was also >= LEADER_PINNED
+ protected static int s_iPinnedNoLeader;   // leader down or unreadable
 
  static void Read()
  {
@@ -111,7 +172,8 @@ class BBB_Tactic
   if (BBB_Settings.Get("bbbTacticAssault", value)) s_fAssaultS = Math.Clamp(value.ToFloat(), 30, 300);
   if (BBB_Settings.Get("bbbTacticHold", value)) s_fHoldS = Math.Clamp(value.ToFloat(), 15, 180);
   if (BBB_Settings.Get("bbbTacticReorg", value)) s_fReorgS = Math.Clamp(value.ToFloat(), 5, 60);
-  PrintFormat("[BBB] SQUAD TACTIC enabled=%1 assault=%2s hold=%3s reorg=%4s flank=%5 search=%6 baseOfFire=%7", s_bOn, s_fAssaultS, s_fHoldS, s_fReorgS, s_bFlank, s_bSearch, s_bFire);
+  s_bStats = BBB_Settings.Get("bbbTacticStats", value) && value == "1";
+  PrintFormat("[BBB] SQUAD TACTIC enabled=%1 assault=%2s hold=%3s reorg=%4s flank=%5 search=%6 baseOfFire=%7 stats=%8", s_bOn, s_fAssaultS, s_fHoldS, s_fReorgS, s_bFlank, s_bSearch, s_bFire, s_bStats);
  }
 
  static string Name(int tactic)
@@ -169,6 +231,7 @@ class BBB_Tactic
   s_States.Clear();
   s_aVanilla.Clear();
   s_mContactLock.Clear();
+  s_mStat.Clear();
  }
 
  // HOLD, REORG and the contact pause keep every member from vanilla advances.
@@ -193,6 +256,10 @@ class BBB_Tactic
  protected static void Set(BBB_TacticState state, int tactic, float now, float commit, string why, vector threat)
  {
   if (state.m_iTactic == tactic && tactic != NONE) { state.m_fUntil = now + commit; return; }
+  StatEnd(state, now, "-> " + Name(tactic));
+  state.m_sWhy = why;
+  // An assault or flank gets PROGRESS_S to start moving before Report calls it stuck.
+  if (tactic == ASSAULT || tactic == FLANK) state.m_fProgressAt = now;
   int old = state.m_iTactic;
   state.m_iTactic = tactic;
   state.m_fSince = now;
@@ -205,6 +272,96 @@ class BBB_Tactic
   PrintFormat("[BBB] TACTIC %1: %2 -> %3 (%4)", BBB.s_Hooks.NameOf(state.m_Group), Name(old), Name(tactic), why);
   BBB_Think.NoteGroup(state.m_Group, "Tactic", Name(tactic) + ": " + why);
   CallOut(state.m_Group, tactic, threat);
+  StatStart(state);
+ }
+
+ // ---- -bbbTacticStats (log only) ----
+
+ protected static void StatStart(BBB_TacticState state)
+ {
+  if (!s_bStats) return;
+  BBB_SquadPicture picture = BBB_Squad.Get(state.m_Group);
+  state.m_vStatCentre = vector.Zero;
+  state.m_iStatMen = 0;
+  state.m_vStatThreat = state.m_vLastThreat;
+  if (!picture) return;
+  state.m_iStatMen = picture.m_iConscious;
+  if (picture.m_bHasCentre) state.m_vStatCentre = picture.m_vCentre;
+ }
+
+ // Range is to where the threat was when the tactic began (a fixed point), so it measures the
+ // squad's own movement, not the enemy's.
+ protected static void StatEnd(BBB_TacticState state, float now, string why)
+ {
+  if (!s_bStats || state.m_iTactic == NONE || !state.m_Group) return;
+  BBB_SquadPicture picture = BBB_Squad.Get(state.m_Group);
+  int men = -1;
+  string rangeFrom = "-";
+  string rangeTo = "-";
+  string moved = "-";
+  if (picture)
+  {
+   men = picture.m_iConscious;
+   bool hasStart = state.m_vStatCentre.LengthSq() > 0;
+   if (hasStart && picture.m_bHasCentre) moved = Math.Round(vector.DistanceXZ(state.m_vStatCentre, picture.m_vCentre)).ToString();
+   if (state.m_vStatThreat.LengthSq() > 0)
+   {
+    if (hasStart) rangeFrom = Math.Round(vector.DistanceXZ(state.m_vStatCentre, state.m_vStatThreat)).ToString();
+    if (picture.m_bHasCentre) rangeTo = Math.Round(vector.DistanceXZ(picture.m_vCentre, state.m_vStatThreat)).ToString();
+   }
+  }
+  PrintFormat("[BBB] TACTIC END %1: %2 %3 s %4 (range %5 -> %6 m, moved %7 m, men %8 -> %9)", BBB.s_Hooks.NameOf(state.m_Group), Name(state.m_iTactic), Math.Round(now - state.m_fSince), why, rangeFrom, rangeTo, moved, state.m_iStatMen, men);
+ }
+
+ // "Pinned" is the leader's total threat (target held, own shots, heard fire, suppression):
+ // count how often his suppression alone would also have said so.
+ protected static void StatPinned(SCR_AIUtilityComponent leader)
+ {
+  if (!leader || !leader.m_ThreatSystem) { s_iPinnedNoLeader++; return; }
+  s_iPinnedTotal++;
+  if (leader.m_ThreatSystem.GetSuppressionMeasure() >= LEADER_PINNED) s_iPinnedSuppressed++;
+ }
+
+ protected static string PinnedReason(SCR_AIUtilityComponent leader)
+ {
+  if (!s_bStats || !leader || !leader.m_ThreatSystem) return "leader pinned down";
+  return string.Format("leader pinned down (threat %1, suppression %2)", BBB_Settings.Number(leader.m_ThreatSystem.GetThreatMeasure()), BBB_Settings.Number(leader.m_ThreatSystem.GetSuppressionMeasure()));
+ }
+
+ protected static void StatMark(SCR_AIGroup group, int bit)
+ {
+  int bits;
+  s_mStat.Find(group, bits);
+  s_mStat.Set(group, bits | bit);
+ }
+
+ // A squad a tactic doesn't run: count it only if it is in contact.
+ protected static void StatLeftOut(SCR_AIGroup group, int bit)
+ {
+  vector seen;
+  if (BBB_Squad.On(group) && BBB_Squad.Threat(group, BBB_Squad.RECENT_S, seen)) StatMark(group, bit);
+ }
+
+ protected static void StatReport(float now)
+ {
+  if (now < s_fStatAt) return;
+  s_fStatAt = now + 60;
+  int run, host, player, crew, order;
+  foreach (SCR_AIGroup group, int bits : s_mStat)
+  {
+   if (bits & STAT_RUN) run++;
+   if (bits & STAT_HOST) host++;
+   if (bits & STAT_PLAYER) player++;
+   if (bits & STAT_CREW) crew++;
+   if (bits & STAT_ORDER) order++;
+  }
+  array<int> by = {0, 0, 0, 0, 0, 0, 0, 0};
+  foreach (SCR_AIGroup group, BBB_TacticState state : s_States)
+   if (state && state.m_iTactic >= 0 && state.m_iTactic < by.Count()) by[state.m_iTactic] = by[state.m_iTactic] + 1;
+  PrintFormat("[BBB] TACTIC STATS t=%1 inContact=%2 run=%3 leftOut host=%4 player=%5 crew=%6 order=%7", Math.Round(now), s_mStat.Count(), run, host, player, crew, order);
+  PrintFormat("[BBB] TACTIC STATS now: none=%1 contact=%2 assault=%3 hold=%4 reorg=%5 withdraw=%6 flank=%7 search=%8", by[NONE], by[CONTACT], by[ASSAULT], by[HOLD], by[REORG], by[WITHDRAW], by[FLANK], by[SEARCH]);
+  PrintFormat("[BBB] TACTIC STATS total: changes=%1 callouts=%2 pinnedLooks=%3 relayDelivered=%4 pinned=%5 pinnedSuppressed=%6 pinnedNoLeader=%7", s_iChanges, s_iCallouts, s_iPinnedLooks, BBB_ContactRelay.s_iDelivered, s_iPinnedTotal, s_iPinnedSuppressed, s_iPinnedNoLeader);
+  s_mStat.Clear();
  }
 
  // The leader (or the next conscious man) says the order, through vanilla's comms queue.
@@ -246,10 +403,18 @@ class BBB_Tactic
   return first;
  }
 
- protected static void Drop(SCR_AIGroup group)
+ // The tactic stands aside: no hold, the squad's order and vanilla (and fire and manoeuvre on its
+ // own rules) carry on; it looks again on the next look.
+ protected static void StandAside(BBB_TacticState state, float now, string why)
+ {
+  if (state.m_iTactic == NONE) { state.m_fUntil = now; return; }
+  Set(state, NONE, now, 0, why, vector.Zero);
+ }
+
+ protected static void Drop(SCR_AIGroup group, string why = "dropped")
  {
   BBB_TacticState state = s_States.Get(group);
-  if (state) { BBB_TacticDrill.Clear(state); SetHold(state, false); }
+  if (state) { StatEnd(state, Now(), why); BBB_TacticDrill.Clear(state); SetHold(state, false); }
   s_States.Remove(group);
  }
 
@@ -266,7 +431,7 @@ class BBB_Tactic
    if (!known || !groups.Contains(known))
    {
     BBB_TacticState gone = s_States.GetElement(i);
-    if (gone) { BBB_TacticDrill.Clear(gone); SetHold(gone, false); }
+    if (gone) { StatEnd(gone, now, "squad gone"); BBB_TacticDrill.Clear(gone); SetHold(gone, false); }
     s_States.RemoveElement(i);
    }
   }
@@ -281,7 +446,13 @@ class BBB_Tactic
    BBB_TacticState state = s_States.Get(group);
    // Squads not in contact are looked at a quarter at a time (host checks included).
    if (!state && (index + s_iTick) % STAGGER != 0) continue;
-   if (s_aVanilla.Contains(group) || !BBB.s_Hooks.AllowSquadTactic(group) || BBB.HasPlayer(group) || BBB_Transport.CrewedVehicle(group)) { if (s_States.Contains(group)) Drop(group); continue; }
+   if (s_aVanilla.Contains(group)) { if (s_States.Contains(group)) Drop(group); continue; }
+   int veto = 0;
+   BBB_EIntent intent;
+   if (!BBB_HostIntent.TacticAllowed(group, intent)) veto = STAT_HOST;
+   else if (BBB.HasPlayer(group)) veto = STAT_PLAYER;
+   else if (BBB_Transport.CrewedVehicle(group)) veto = STAT_CREW;
+   if (veto != 0) { if (s_bStats) StatLeftOut(group, veto); if (s_States.Contains(group)) Drop(group, "left out"); continue; }
    if (!state)
    {
     // Only squads in contact get a state.
@@ -295,17 +466,19 @@ class BBB_Tactic
     state.m_Leader = group.GetLeaderEntity();
     s_States.Set(group, state);
    }
+   state.m_iIntent = intent;
    if (now < state.m_fNextLook) continue;
    state.m_fNextLook = now + LOOK_S;
    Look(state, now);
   }
+  if (s_bStats) StatReport(now);
  }
 
  protected static void Look(BBB_TacticState state, float now)
  {
   SCR_AIGroup group = state.m_Group;
   // A player or GM order on anyone: the squad is theirs.
-  if (OrderHeld(group)) { Drop(group); return; }
+  if (OrderHeld(group)) { if (s_bStats) StatMark(group, STAT_ORDER); Drop(group, "player/GM order"); return; }
   if (BBB_Morale.IsWithdrawing(group)) { Set(state, WITHDRAW, now, LOOK_S * 2, "morale broke", vector.Zero); return; }
   vector threat;
   bool flanked;
@@ -320,21 +493,34 @@ class BBB_Tactic
   enemies = Math.Max(enemies, state.m_iMostSeen);
   if (contact)
   {
+   if (s_bStats) StatMark(group, STAT_RUN);
    state.m_fLastContact = now;
    state.m_vLastThreat = threat;
    if (vector.DistanceXZ(threat, state.m_vThreatSeen) > 15) { state.m_vThreatSeen = threat; state.m_fThreatStillSince = now; }
   }
   BBB_SquadPicture picture = BBB_Squad.Get(group);
   if (!picture) return;
+  // Ground to take is the host's call (BBB_Hooks.Intent; by default the waypoint, Advancing).
+  bool advancing = state.m_iIntent == BBB_EIntent.PUSH;
+  state.m_bFlanked = contact && flanked;
+  state.m_iEnemies = enemies;
+  state.m_iMen = picture.m_iConscious;
+  if (picture.m_bHasCentre && (state.m_vProgressAt.LengthSq() == 0 || vector.DistanceXZ(state.m_vProgressAt, picture.m_vCentre) >= PROGRESS_M))
+  {
+   state.m_vProgressAt = picture.m_vCentre;
+   state.m_fProgressAt = now;
+  }
   if (!contact)
   {
+   // An attacker that lost sight of the enemy goes on with its order rather than wait or search.
+   if (advancing && state.m_iTactic != NONE && state.m_iTactic != WITHDRAW && state.m_iTactic != SEARCH) StandAside(state, now, "contact lost: the order carries them on");
    if (state.m_iTactic == SEARCH)
    {
-    if (BBB_TacticDrill.Search(state, now) || now >= state.m_fUntil) { Say(group, ECommunicationType.REPORT_CLEAR, vector.Zero); PrintFormat("[BBB] TACTIC %1: search over", BBB.s_Hooks.NameOf(group)); Drop(group); }
+    if (BBB_TacticDrill.Search(state, now) || now >= state.m_fUntil) { Say(group, ECommunicationType.REPORT_CLEAR, vector.Zero); PrintFormat("[BBB] TACTIC %1: search over", BBB.s_Hooks.NameOf(group)); Drop(group, "search over"); }
     return;
    }
    float lost = now - state.m_fLastContact;
-   if (s_bSearch && lost >= SEARCH_AFTER_S && !state.m_bSearched && state.m_iTactic != WITHDRAW && picture.m_iConscious >= 2 && state.m_vLastThreat.LengthSq() > 0)
+   if (s_bSearch && !advancing && lost >= SEARCH_AFTER_S && !state.m_bSearched && state.m_iTactic != WITHDRAW && picture.m_iConscious >= 2 && state.m_vLastThreat.LengthSq() > 0)
    {
     state.m_bSearched = true;
     BBB_TacticDrill.SearchPoints(state, state.m_vLastThreat, picture.m_vCentre, state.m_aPoints);
@@ -346,7 +532,7 @@ class BBB_Tactic
      return;
     }
    }
-   if (lost > LOST_S) { Drop(group); return; }
+   if (lost > LOST_S) { Drop(group, "contact lost"); return; }
   }
   else if (state.m_iTactic == SEARCH) state.m_fUntil = now; // found again: pick afresh
   // Leader down: the acting leader takes over only after the squad reorganises.
@@ -362,8 +548,22 @@ class BBB_Tactic
   // Hysteresis breakers: an assault the squad can no longer run.
   if (state.m_iTactic == ASSAULT && now < state.m_fUntil && !assaultFits && !BaseAssault(group, picture)) state.m_iAssaultMisses++;
   else state.m_iAssaultMisses = 0;
-  if (state.m_iAssaultMisses >= 2) { state.m_iAssaultMisses = 0; Set(state, HOLD, now, s_fHoldS, "can't keep assaulting", vector.Zero); return; }
-  if ((state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now < state.m_fUntil && enemies >= picture.m_iConscious * OVERRUN) { Set(state, HOLD, now, s_fHoldS, string.Format("more enemies than thought (%1 seen, %2 of us)", enemies, picture.m_iConscious), vector.Zero); return; }
+  if (state.m_iAssaultMisses >= 2)
+  {
+   state.m_iAssaultMisses = 0;
+   if (advancing && !MustHold(picture, flanked, enemies)) StandAside(state, now, "can't keep assaulting: the order carries them on");
+   else Hold(state, now, "can't keep assaulting", advancing);
+   return;
+  }
+  if ((state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now < state.m_fUntil && enemies >= picture.m_iConscious * OVERRUN) { Hold(state, now, string.Format("more enemies than thought (%1 seen, %2 of us)", enemies, picture.m_iConscious), advancing); return; }
+  // A squad with ground to take holds only so long; then its order carries it on for a while
+  // (the host hears it needs support through Report).
+  if (advancing && state.m_iTactic == HOLD && now - state.m_fSince >= PUSH_HOLD_S)
+  {
+   state.m_fNoHoldUntil = now + PUSH_REST_S;
+   StandAside(state, now, string.Format("held %1 s with ground to take: the order carries them on", Math.Round(now - state.m_fSince)));
+   return;
+  }
   if (state.m_iTactic == WITHDRAW) state.m_iTactic = NONE; // withdrawal over: pick afresh
   // Carry out the tactic in force (stage 4).
   if (state.m_iTactic == FLANK)
@@ -387,10 +587,12 @@ class BBB_Tactic
   }
   // Only a conscious leader who isn't pinned down picks; otherwise the squad keeps its tactic.
   SCR_AIUtilityComponent deciding = LeaderUtility(group);
-  if (!deciding || (deciding.m_ThreatSystem && deciding.m_ThreatSystem.GetThreatMeasure() >= LEADER_PINNED))
+  if (!deciding || (deciding.m_ThreatSystem && deciding.m_ThreatSystem.GetSuppressionMeasure() >= LEADER_PINNED))
   {
-   if (state.m_iTactic == CONTACT || state.m_iTactic == NONE || state.m_iTactic == REORG) Set(state, HOLD, now, s_fHoldS, "leader pinned down", vector.Zero);
-   else state.m_fUntil = now + LOOK_S;
+   if (s_bStats) StatPinned(deciding);
+   if (state.m_iTactic != CONTACT && state.m_iTactic != NONE && state.m_iTactic != REORG) { state.m_fUntil = now + LOOK_S; s_iPinnedLooks++; }
+   else if (!advancing) Set(state, HOLD, now, s_fHoldS, PinnedReason(deciding), vector.Zero);
+   else StandAside(state, now, "leader down or pinned: the order carries them on");
    return;
   }
   if (assaultFits)
@@ -413,7 +615,52 @@ class BBB_Tactic
    }
    Set(state, ASSAULT, now, s_fAssaultS, string.Format("enemy %1 m, %2 seen, %3 of us", Math.Round(range), enemies, picture.m_iConscious), threat);
   }
-  else Set(state, HOLD, now, s_fHoldS, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
+  else if (!advancing) Set(state, HOLD, now, s_fHoldS, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
+  else if (!MustHold(picture, flanked, enemies)) StandAside(state, now, HoldReason(group, picture, threat, flanked, enemies) + ": the order carries them on");
+  else Hold(state, now, HoldReason(group, picture, threat, flanked, enemies), advancing);
+ }
+
+ // HOLD, but a squad with ground to take that held its fill a moment ago carries on instead.
+ protected static void Hold(BBB_TacticState state, float now, string why, bool advancing)
+ {
+  if (advancing && now < state.m_fNoHoldUntil) { StandAside(state, now, why + ": held enough, the order carries them on"); return; }
+  Set(state, HOLD, now, s_fHoldS, why, vector.Zero);
+ }
+
+ // What a host can read about a squad the tactic runs (BBB #15): null when it runs none.
+ static BBB_TacticReport Report(SCR_AIGroup group)
+ {
+  if (!Runs(group)) return null;
+  BBB_TacticState state = s_States.Get(group);
+  if (!state) return null;
+  float now = Now();
+  BBB_TacticReport report = new BBB_TacticReport();
+  report.m_iTactic = state.m_iTactic;
+  report.m_iIntent = state.m_iIntent;
+  report.m_sWhy = state.m_sWhy;
+  report.m_fSeconds = now - state.m_fSince;
+  report.m_vThreat = state.m_vLastThreat;
+  report.m_fThreatAge = now - state.m_fLastContact;
+  report.m_bGaining = (state.m_iTactic == ASSAULT || state.m_iTactic == FLANK) && now - state.m_fProgressAt < PROGRESS_S;
+  report.m_bNeedsSupport = state.m_iTactic == HOLD && state.m_iMen > 0 && (state.m_bFlanked || state.m_iMen * OUTNUMBERED <= state.m_iEnemies);
+  return report;
+ }
+
+ // Has the squad ground to take? A search and destroy or attack order, or a move order still
+ // ADVANCE_M away (patrol, defend, hold and specialist orders: no).
+ static bool Advancing(SCR_AIGroup group, vector centre)
+ {
+  AIWaypoint waypoint = group.GetCurrentWaypoint();
+  if (!waypoint || !waypoint.GetPrefabData()) return false;
+  string path = waypoint.GetPrefabData().GetPrefabName();
+  if (path.Contains("AIWaypoint_SearchAndDestroy") || path.Contains("AIWaypoint_Attack")) return true;
+  return path.Contains("AIWaypoint_Move") && vector.DistanceXZ(waypoint.GetOrigin(), centre) > ADVANCE_M;
+ }
+
+ // A reason to hold even with ground to take: flanked or outnumbered.
+ protected static bool MustHold(BBB_SquadPicture picture, bool flanked, int enemies)
+ {
+  return flanked || picture.m_iConscious * OUTNUMBERED <= enemies;
  }
 
  // What an assault needs regardless of where the enemy is: the host and orders allow fire and
@@ -426,11 +673,11 @@ class BBB_Tactic
  protected static bool CanAssault(SCR_AIGroup group, BBB_SquadPicture picture, vector threat, bool flanked, int enemies)
  {
   float range = vector.DistanceXZ(threat, picture.m_vCentre);
-  if (enemies >= picture.m_iConscious * OUTNUMBERED) return false;
+  if (picture.m_iConscious * OUTNUMBERED <= enemies) return false;
   // Close in, the squad fights it out (vanilla close combat; fire and manoeuvre keeps its own
   // 45 m floor): no hold for being pinned, flanked or few.
   if (range < ASSAULT_MIN_M) return true;
-  if (flanked || range > ASSAULT_MAX_M || picture.m_fAvgThreat >= SQUAD_PINNED) return false;
+  if (flanked || range > ASSAULT_MAX_M || picture.m_fAvgSuppression >= SQUAD_PINNED) return false;
   return BaseAssault(group, picture);
  }
 
@@ -438,8 +685,8 @@ class BBB_Tactic
  {
   float range = vector.DistanceXZ(threat, picture.m_vCentre);
   if (flanked) return "flanked";
-  if (enemies >= picture.m_iConscious * OUTNUMBERED) return string.Format("outnumbered (%1 seen, %2 of us)", enemies, picture.m_iConscious);
-  if (picture.m_fAvgThreat >= SQUAD_PINNED) return "pinned down";
+  if (picture.m_iConscious * OUTNUMBERED <= enemies) return string.Format("outnumbered (%1 seen, %2 of us)", enemies, picture.m_iConscious);
+  if (picture.m_fAvgSuppression >= SQUAD_PINNED) return "pinned down";
   if (range > ASSAULT_MAX_M) return string.Format("enemy too far (%1 m)", Math.Round(range));
   if (picture.m_iConscious < 4) return "too few to bound";
   return "orders or host keep them in place";

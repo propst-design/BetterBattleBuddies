@@ -1,7 +1,7 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','squad','tactic','coverfire','flank','search','heldguns','vanillanodes','indoorhold','armourrounds','launcherinf','launcherinfrhs','settings','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','squad','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','armourrounds','launcherinf','launcherinfrhs','settings','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
@@ -98,6 +98,8 @@ $flags.squad = '-bbbSquadTest 1 -bbbPerf 1'
 $timeouts.squad = 200
 $flags.tactic = '-bbbTacticTest 1 -bbbPerf 1'
 $timeouts.tactic = 230
+$flags.assault = '-bbbAssaultTest 1 -bbbPerf 1'
+$timeouts.assault = 290
 $flags.coverfire = '-bbbStage4Test 1 -bbbStage4Case fire -bbbPerf 1'
 $timeouts.coverfire = 230
 $flags.flank = '-bbbStage4Test 1 -bbbStage4Case flank -bbbPerf 1'

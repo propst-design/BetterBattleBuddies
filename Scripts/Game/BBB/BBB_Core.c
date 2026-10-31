@@ -9,6 +9,15 @@
 // the "vehicle settled" check for dismounts (BBB_Transport) and backing a stuck
 // vehicle out (BBB_Unstick).
 
+// What a host wants from a squad in a fight (BBB_Hooks.Intent).
+enum BBB_EIntent
+{
+ NONE,    // a player's squad: leave it alone
+ TRANSIT, // soldiers' own reactions only
+ HOLD,    // defend; assault only inside the leash
+ PUSH     // ground to take: assault and flank, hold only when outnumbered or flanked
+}
+
 // What the host mod tells BBB. The defaults suit plain vanilla groups.
 class BBB_Hooks : Managed
 {
@@ -54,6 +63,24 @@ class BBB_Hooks : Managed
  // a post's radius). While it returns true it replaces the order leash (BBB_OrderLeash.Allows)
  // and lets fire and manoeuvre run under a Defend waypoint; false: the order leash as before.
  bool HostLeash(SCR_AIGroup group, out vector centre, out float radius) { return false; }
+ // What the host wants from this squad in a fight (BBB #15): one answer for squad tactics and
+ // fire and manoeuvre together, so no squad is let plan but not move. PUSH: it has ground to
+ // take (assault and flank; holds only when outnumbered or flanked, and not for long). HOLD:
+ // defend (assault only what comes inside the leash). TRANSIT: no squad-level fighting, only
+ // the soldiers' own reactions (riding, forming up, forced moves). NONE: a player's squad.
+ // radius > 0 sets the leash (centre, radius), as HostLeash; 0 leaves the order leash.
+ // AllowSquadTactic stays a plain on/off for the tactic layer on top of this.
+ // Default: built from the older hooks and the squad's waypoint, so a host that doesn't
+ // override it keeps what it had, except that a squad allowed either now gets both.
+ BBB_EIntent Intent(SCR_AIGroup group, out vector centre, out float radius)
+ {
+  radius = 0;
+  if (!group || (!AllowSquadTactic(group) && !AllowFireManeuver(group))) return BBB_EIntent.TRANSIT;
+  if (!HostLeash(group, centre, radius)) radius = 0;
+  IEntity anchor = AnchorOf(group);
+  if (anchor && BBB_Tactic.Advancing(group, anchor.GetOrigin())) return BBB_EIntent.PUSH;
+  return BBB_EIntent.HOLD;
+ }
  // Host mod manages its own vehicle stall/unstick and tactical cargo dismount for this group.
  bool ManagesVehicleDriving(SCR_AIGroup group) { return false; }
  // Binding host orders always outrank tactical deviations. Existing driving hosts

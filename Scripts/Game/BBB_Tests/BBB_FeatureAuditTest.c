@@ -50,6 +50,9 @@ class BBB_AuditHooks : BBB_Hooks
 		return mine || m_Inner.LeaveAlone(vehicle);
 	}
 	override bool AllowFireManeuver(SCR_AIGroup group) { return m_Inner.AllowFireManeuver(group); }
+	override bool AllowSquadTactic(SCR_AIGroup group) { return m_Inner.AllowSquadTactic(group); }
+	override bool HostLeash(SCR_AIGroup group, out vector centre, out float radius) { return m_Inner.HostLeash(group, centre, radius); }
+	override BBB_EIntent Intent(SCR_AIGroup group, out vector centre, out float radius) { return m_Inner.Intent(group, centre, radius); }
 	override bool AllowRelaxedMarch(SCR_AIGroup group) { return m_Inner.AllowRelaxedMarch(group); }
 	override bool AllowMorale(SCR_AIGroup group) { return m_Inner.AllowMorale(group); }
 	override bool AllowSmoke(SCR_AIGroup group) { return m_Inner.AllowSmoke(group); }
