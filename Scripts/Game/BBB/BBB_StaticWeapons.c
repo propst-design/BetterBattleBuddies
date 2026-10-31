@@ -544,6 +544,7 @@ class BBB_StaticWeapons
 		if (!job.m_StaticWeapon || BBB.Health(job.m_StaticWeapon) <= 0) return "weapon destroyed";
 		if (BBB.PlayerOf(job.m_Gunner)) return "player took over";
 		if (!job.m_Group || BBB.HasPlayer(job.m_Group)) return "player squad";
+		if (BBB_HeldGuns.GroupOf(job.m_Gunner) != job.m_Group) return "changed squad"; // its player and host policy apply
 		if (!BBB.s_Hooks.AllowStaticWeapons(job.m_Group) || BBB.s_Hooks.LeaveAlone(job.m_StaticWeapon)) return "host policy";
 
 		SCR_AIUtilityComponent utility = UtilityOf(job.m_Gunner);

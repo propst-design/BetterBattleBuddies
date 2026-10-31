@@ -278,6 +278,15 @@ class BBB_Morale
 
 	// ---------------------------------------------------------------- group state helper
 
+	protected static void DropWithdrawal(SCR_AIGroup group, float now)
+	{
+		foreach (BBB_GroupMoraleState state : s_States)
+		{
+			if (state && state.m_Group == group && state.m_bWithdrawing)
+				EndWithdrawal(state, now, false, "left to a player, the host or a vehicle", 0);
+		}
+	}
+
 	protected static BBB_GroupMoraleState GetOrCreateState(SCR_AIGroup group, int currentCount)
 	{
 		foreach (BBB_GroupMoraleState state : s_States)
@@ -813,11 +822,15 @@ class BBB_Morale
 
 		foreach (SCR_AIGroup group : groups)
 		{
-			if (!group || BBB.HasPlayer(group) || !BBB.s_Hooks.AllowMorale(group)) continue;
-
-			// Don't manage mounted vehicle squads
-			IEntity vehicle = BBB_Transport.CrewedVehicle(group);
-			if (vehicle) continue;
+			if (!group) continue;
+			// Not ours to manage (a player's squad, the host's call, mounted): a withdrawal under way
+			// is ended, or its covering half held ground and the squad read as withdrawing for good
+			// (fire and manoeuvre, buildings, rearm, statics and launchers all stand back for that).
+			if (BBB.HasPlayer(group) || !BBB.s_Hooks.AllowMorale(group) || BBB_Transport.CrewedVehicle(group))
+			{
+				DropWithdrawal(group, now);
+				continue;
+			}
 
 			array<AIAgent> agents = {};
 			BBB.s_Hooks.GetMembers(group, agents);
@@ -873,7 +886,8 @@ class BBB_Morale
 		// Restore AI for surrendered soldiers
 		foreach (BBB_SurrenderState ss : s_Surrendered)
 		{
-			if (ss && ss.m_Soldier && ss.m_bWasActivated && BBB.IsAlive(ss.m_Soldier))
+			// Never switch on a body a player (or Game Master) has taken over meanwhile
+			if (ss && ss.m_Soldier && ss.m_bWasActivated && BBB.IsAlive(ss.m_Soldier) && !BBB.PlayerOf(ss.m_Soldier))
 			{
 				AIControlComponent ai = AIControlComponent.Cast(ss.m_Soldier.FindComponent(AIControlComponent));
 				if (ai && !ai.IsAIActivated()) ai.ActivateAI();
