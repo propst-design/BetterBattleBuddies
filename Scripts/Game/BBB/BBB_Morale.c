@@ -566,6 +566,8 @@ class BBB_Morale
 			state.m_bWithdrawing = false;
 			CancelMoves(state);
 			state.m_sEndReason = "no one able to move";
+			// Cooldown like any ended withdrawal: else a squad held by orders "broke" again every tick.
+			state.m_fNextWithdrawAllowed = GetGame().GetWorld().GetWorldTime() / 1000.0 + WITHDRAW_COOLDOWN_S;
 			return;
 		}
 		vector boundStart;
