@@ -14,6 +14,8 @@
 - The thinking panel no longer says a squad dismounted under fire, or bailed out of a stopped vehicle, every second when nobody actually got out.
 - The "Smoke on one spot cooldown" setting now works: soldiers wait that long before smoking the same place again (before, any spot could be smoked again as soon as the last cloud cleared).
 - A gate that can't be opened from the seat is handled the game's way again (a crewman gets out and opens it), instead of the vehicle waiting at a shut gate.
+- Soldiers who change squads (a Game Master regroup, a merge, a recruit) no longer carry the old squad's state with them: a man moved out of a holding squad advances again, a gunner leaves the old squad's static gun, and a squad that a player takes over during a fall-back stops falling back instead of being stuck half-way.
+- Turret gunners under a player or Game Master order, in a player's squad, or in a vehicle the host mod leaves alone no longer fire bursts at a heard threat on their own.
 - Soldiers looking around when BBB stops (a host mod turning it off mid-mission) turn their heads back instead of staying in free-look.
 
 ## 0.1.7 — released
