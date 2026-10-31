@@ -244,7 +244,7 @@ class BBB_Tactic
   {
    if (!agent) continue;
    SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
-   if (utility) utility.m_bBBBTacticHold = hold;
+   if (utility) utility.BBBSetTacticHold(hold, state.m_Group);
   }
  }
 
@@ -726,4 +726,22 @@ class BBB_Tactic
 modded class SCR_AIUtilityComponent
 {
  bool m_bBBBTacticHold; // squad tactic HOLD / REORG / contact pause: fight from here, don't advance
+ protected AIGroup m_BBBTacticHoldGroup; // the squad that set it: a man who left it is not held
+
+ void BBBSetTacticHold(bool hold, AIGroup group)
+ {
+  m_bBBBTacticHold = hold;
+  m_BBBTacticHoldGroup = group;
+ }
+
+ // Resets are per current member: a soldier moved to another squad mid-hold kept the flag and
+ // never advanced again. A hold set by another squad lapses.
+ bool BBBTacticHolds()
+ {
+  if (!m_bBBBTacticHold) return false;
+  AIAgent agent = GetAIAgent();
+  if (agent && agent.GetParentGroup() == m_BBBTacticHoldGroup) return true;
+  m_bBBBTacticHold = false;
+  return false;
+ }
 }

@@ -307,6 +307,8 @@ class BBB_Medic
 
   SCR_AIGroup group = GroupOf(healer);
   if (!group) return false;
+  // Same policy as squad smoke (BBB_Smoke.TryDeploySmoke): the host's veto, never a player's squad.
+  if (BBB.HasPlayer(group) || (BBB.s_Hooks && !BBB.s_Hooks.AllowSmoke(group))) return false;
 
   vector casPos = casualty.GetOrigin();
   vector enemyPos = vector.Zero;
@@ -590,7 +592,8 @@ modded class SCR_AIMedicHealBehavior
    BBB_Medic.MarkHeld(casualty);
    return 0;
   }
-  if (BBB_Drag.Consider(m_Utility, healer, casualty, EvaluatePriorityLevel())) return 0;
+  // A Game Master's explicit heal order isn't turned into a drag either.
+  if (EvaluatePriorityLevel() < PRIORITY_LEVEL_GAMEMASTER && BBB_Drag.Consider(m_Utility, healer, casualty, EvaluatePriorityLevel())) return 0;
   if (!fullOn && !smokeOn)
   {
    // Vanilla healing (off, or the test's vanilla side): on his way while this runs.

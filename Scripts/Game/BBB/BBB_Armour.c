@@ -641,7 +641,12 @@ class BBB_Armour
  static void Stop()
  {
   s_bAntiArmorWatching = false;
-  if (GetGame()) GetGame().GetCallqueue().Remove(TickAntiArmor);
+  if (GetGame())
+  {
+   GetGame().GetCallqueue().Remove(TickAntiArmor);
+   GetGame().GetCallqueue().Remove(CloseRound); // an open round would judge a deleted vehicle as pierced
+  }
+  s_aRounds.Clear();
   foreach (BBB_AntiArmorJob job : s_aAntiArmorJobs)
    ReleaseAntiArmorJob(job);
   s_aAntiArmorJobs.Clear();

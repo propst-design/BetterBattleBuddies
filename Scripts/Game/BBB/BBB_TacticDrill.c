@@ -268,7 +268,7 @@ class BBB_TacticDrill
   foreach (int i, SCR_AIUtilityComponent utility : members)
   {
    bool looking = i % 2 != state.m_iFireHalf;
-   utility.m_bBBBTacticHold = !looking; // the watching half stays put
+   utility.BBBSetTacticHold(!looking, state.m_Group); // the watching half stays put
    if (!looking || HasLook(state, utility)) continue;
    SCR_AIMoveAndInvestigateBehavior look = new SCR_AIMoveAndInvestigateBehavior(utility, null, target, radius: POINT_M, isDangerous: true, duration: 4);
    utility.AddAction(look);

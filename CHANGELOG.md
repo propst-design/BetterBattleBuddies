@@ -8,6 +8,15 @@
 - Lighter on the server: gunner replacement checks whether a turret needs a gunner before anything else, and the door, weapon-lowering and head-scanning checks skip work for soldiers they can't affect. Checking whether a soldier is a player no longer walks the whole player list, which cost more the fuller the server.
 - Fixed a script error when a soldier was removed while waiting for a window to fight from (seen in a long AC: Actual battle).
 - Soldiers told to hold fire no longer throw hand grenades. Every other BBB fighting behaviour already respected hold fire, but the grenade throw didn't, so a squad waiting in ambush, or one a Game Master or player had set to hold fire, could give itself away with a frag.
+- Squads now lose heart when they take losses. Morale was meant to count casualties and empty magazines, but the sums rounded to zero while anyone was still alive, so a squad down to two men of eight fought on as if fresh. Heavy losses now push a squad towards falling back or surrendering, as intended (-bbbMorale 0 turns morale off).
+- Player and Game Master orders are respected in more places: a soldier under an order is no longer pulled into a vehicle's empty turret, and a Game Master's heal order is carried out instead of being turned into a drag to cover. A medic's covering smoke follows the same rules as squad smoke: never from a player's squad, and not when the host mod forbids smoke.
+- A soldier who is dragging a casualty, running to treat one or busy with another job is no longer sent to man an empty held gun.
+- A vehicle being backed out of a dead end when BBB stops (a host mod turning it off, a mission ending) gets its driver's AI back instead of sitting parked for good, and no longer switches on a driver that something else had parked.
+- The thinking panel no longer says a squad dismounted under fire, or bailed out of a stopped vehicle, every second when nobody actually got out.
+- The "Smoke on one spot cooldown" setting now works: soldiers wait that long before smoking the same place again (before, any spot could be smoked again as soon as the last cloud cleared).
+- A gate that can't be opened from the seat is handled the game's way again (a crewman gets out and opens it), instead of the vehicle waiting at a shut gate.
+- Soldiers who change squads (a Game Master regroup, a merge, a recruit) no longer carry the old squad's state with them: a man moved out of a holding squad advances again, a gunner leaves the old squad's static gun, and a squad that a player takes over during a fall-back stops falling back instead of being stuck half-way.
+- Turret gunners under a player or Game Master order, in a player's squad, or in a vehicle the host mod leaves alone no longer fire bursts at a heard threat on their own.
 - Soldiers looking around when BBB stops (a host mod turning it off mid-mission) turn their heads back instead of staying in free-look.
 
 ## 0.1.7 — released

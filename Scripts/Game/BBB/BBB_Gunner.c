@@ -75,6 +75,11 @@ class BBB_Gunner
   if (utility.m_CombatComponent && utility.m_CombatComponent.GetCurrentTarget()) return;
   if (utility.m_CombatComponent && utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) return;
   if (BBB.PlayerOf(gunner)) return;
+  // Same gates as the other vehicle features: the host's excluded vehicles (a player driving
+  // with an AI gunner), a player's squad, and a soldier under a player/GM order.
+  IEntity vehicle = BBB_Transport.VehicleOf(gunner);
+  if (vehicle && BBB.s_Hooks.LeaveAlone(vehicle)) return;
+  if (BBB.HasPlayer(BBB_HeldGuns.GroupOf(gunner)) || BBB_OrderIntent.Blocks(utility)) return;
 
   vector me = gunner.GetOrigin();
   vector heard = utility.m_SectorThreatFilter.GetSectorPos(sectorId);

@@ -269,7 +269,8 @@ class BBB_Smoke
 		{
 			BBB_SmokeCloud cloud = s_aClouds[i];
 			if (!cloud) continue;
-			if (nowMs <= cloud.m_fExpireMs)
+			// Still smoking, or thrown there less than the spot cooldown ago (-bbbSmokeTargetCooldown)
+			if (nowMs <= cloud.m_fExpireMs || nowMs - cloud.m_fCreatedMs < s_fCooldownTargetS * 1000.0)
 			{
 				if (vector.DistanceXZ(smokePos, cloud.m_vPosition) < (cloud.m_fRadius * 1.5))
 				{
@@ -456,7 +457,8 @@ class BBB_Smoke
 		for (int i = s_aClouds.Count() - 1; i >= 0; i--)
 		{
 			BBB_SmokeCloud cloud = s_aClouds[i];
-			if (!cloud || nowMs > cloud.m_fExpireMs)
+			// Kept past its smoke for the spot cooldown; the line-of-sight check reads only live smoke.
+			if (!cloud || (nowMs > cloud.m_fExpireMs && nowMs - cloud.m_fCreatedMs >= s_fCooldownTargetS * 1000.0))
 			{
 				s_aClouds.RemoveOrdered(i);
 			}
