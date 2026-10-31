@@ -832,6 +832,8 @@ class BBB_VehicleHelpers : Managed
   }
   if (!vehicle || BBB.s_Hooks.LeaveAlone(vehicle)) return;
   if (!CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent))) return;
+  // A Game Master's order has primacy (Jacob, 31 Oct): he sent them driving, they stay aboard.
+  if (BBB_OrderIntent.GameMasterOrder(group)) return;
 
   bool hitRecently = BBB_Transport.VehicleHitRecently(vehicle, 6000);
   bool underFire = hitRecently || KnownEnemiesNear(group, vehicle.GetOrigin(), 250) > 0;
@@ -927,7 +929,7 @@ class BBB_VehicleHelpers : Managed
   bool fightingVehicle = HasTurret(vehicle);
   bool armed = HasGunner(vehicle);
 
-  if (underFire && !fightingVehicle && stalled >= STALL_SECONDS_HELPLESS)
+  if (underFire && !fightingVehicle && stalled >= STALL_SECONDS_HELPLESS && !BBB_OrderIntent.GameMasterOrder(group))
   {
    if (DismountGroupFromVehicle(group, vehicle, false) > 0)
    {
