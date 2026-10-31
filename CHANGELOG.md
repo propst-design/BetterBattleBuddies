@@ -7,6 +7,11 @@
 - Better Battle Buddies now restarts cleanly for every mission. Without a host mod (Conflict, Game Master, scenario missions), a server that restarted or rotated its scenario, or the next mission in singleplayer, kept running BBB on the previous mission's state: illumination flares stayed off and horizon scanning skipped most groups for as long as the previous mission had lasted, and a new preset's vehicle and order settings weren't read. BBB now stops when a mission ends and starts fresh with the next one.
 - Lighter on the server: gunner replacement checks whether a turret needs a gunner before anything else, and the door, weapon-lowering and head-scanning checks skip work for soldiers they can't affect. Checking whether a soldier is a player no longer walks the whole player list, which cost more the fuller the server.
 - Fixed a script error when a soldier was removed while waiting for a window to fight from (seen in a long AC: Actual battle).
+- Squads now lose heart when they take losses. Morale was meant to count casualties and empty magazines, but the sums rounded to zero while anyone was still alive, so a squad down to two men of eight fought on as if fresh. Heavy losses now push a squad towards falling back or surrendering, as intended (-bbbMorale 0 turns morale off).
+- Player and Game Master orders are respected in more places: a soldier under an order is no longer pulled into a vehicle's empty turret, and a Game Master's heal order is carried out instead of being turned into a drag to cover. A medic's covering smoke follows the same rules as squad smoke: never from a player's squad, and not when the host mod forbids smoke.
+- A soldier who is dragging a casualty, running to treat one or busy with another job is no longer sent to man an empty held gun.
+- A vehicle being backed out of a dead end when BBB stops (a host mod turning it off, a mission ending) gets its driver's AI back instead of sitting parked for good, and no longer switches on a driver that something else had parked.
+- The thinking panel no longer says a squad dismounted under fire, or bailed out of a stopped vehicle, every second when nobody actually got out.
 - Soldiers looking around when BBB stops (a host mod turning it off mid-mission) turn their heads back instead of staying in free-look.
 
 ## 0.1.7 — released
