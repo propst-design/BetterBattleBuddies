@@ -121,6 +121,7 @@ class BBB
   BBB_Buildings.Read();
   BBB_ArmorReaction.Read();
   BBB_ExposedFire.Read();
+  BBB_Cover.Read();
   BBB_RoadExit.Read();
   BBB_Think.Read();
   BBB_DoorUnstick.Read();

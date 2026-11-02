@@ -111,6 +111,7 @@ Server owners can disable features individually:
 | `-bbbArmorReaction 0` | Fitted smoke and guarded wheeled-vehicle reversal against launcher fire |
 | `-bbbCommanderCrew 0` | Treating turret-linked commander positions as crew |
 | `-bbbExposedFire 0` | Continued spotting and stronger return fire when suppressed without cover |
+| `-bbbTrueCover 0` | Cover only counts when it is between the soldier and the enemy he knows about |
 | `-bbbShoreRoutes 0` | Foot routes round water keeping off low shore ground |
 
 Indoor movement uses native cover and navigation, abandons failed routes and does

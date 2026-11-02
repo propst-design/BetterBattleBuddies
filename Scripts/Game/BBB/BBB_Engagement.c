@@ -131,7 +131,7 @@ modded class SCR_AICombatMoveLogic_Attack
 	{
 		// Only delays ordinary repositioning. The base node evaluates danger,
 		// withdrawal, unusable cover, reloading and friendly-fire avoidance first.
-		if (BBB_Engagement.Eligible(m_Utility, m_CombatComp, m_Target) && !m_State.IsExecutingRequest() && !m_State.m_bInCover && m_State.m_fTimerStopped_s < BBB_Engagement.OPENING_FIRE_S)
+		if (BBB_Engagement.Eligible(m_Utility, m_CombatComp, m_Target) && !m_State.IsExecutingRequest() && !BBB_Cover.InCover(m_Utility) && m_State.m_fTimerStopped_s < BBB_Engagement.OPENING_FIRE_S)
 			return false;
 		return super.MoveToNextPosCondition();
 	}

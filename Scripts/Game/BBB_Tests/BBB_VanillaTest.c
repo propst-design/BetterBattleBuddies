@@ -272,6 +272,92 @@ class BBB_VanillaTest
   return ok;
  }
 
+ // BBB #27: cover counts only when it is between the man and his known threat. A sandbag wall
+ // is spawned beside a real soldier: with the threat beyond the wall he is covered, with the
+ // threat behind him (he stands on the enemy's side of the wall) he is not, leaves that cover
+ // once and then has it released. Geometry checks the far-back control (cover must be close).
+ static const ResourceName SANDBAG_WALL = "{BE16EE8FAA315FE2}Prefabs/Props/Military/Sandbags/Sandbag_01_long_high_burlap.et";
+ static IEntity SpawnWall(vector at)
+ {
+  Resource resource = Resource.Load(SANDBAG_WALL);
+  if (!resource.IsValid()) return null;
+  EntitySpawnParams parameters = new EntitySpawnParams();
+  parameters.TransformMode = ETransformMode.WORLD;
+  parameters.Transform[3] = at;
+  return GetGame().SpawnEntityPrefab(resource, GetGame().GetWorld(), parameters);
+ }
+
+ static bool TestTrueCover(SCR_AIGroup group)
+ {
+  array<AIAgent> agents = {};
+  if (group) group.GetAgents(agents);
+  if (agents.IsEmpty()) return false;
+  AIAgent agent = agents[agents.Count() - 1];
+  if (!agent) return false;
+  SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+  if (!utility || !utility.m_CombatMoveState || !utility.m_OwnerEntity) return false;
+  SCR_AICombatMoveState state = utility.m_CombatMoveState;
+  vector man = utility.m_OwnerEntity.GetOrigin();
+
+  // Find the wall's long axis on a probe spawn, then place it with its long face 0.6 m in front of him.
+  IEntity probe = SpawnWall(BBB.Ground(man + Vector(0, 0, 40)));
+  if (!probe) { Print("[BBB] TRUECOVER regression ok=false (no sandbag prefab)"); return false; }
+  vector mins, maxs;
+  probe.GetBounds(mins, maxs);
+  SCR_EntityHelper.DeleteEntityAndChildren(probe);
+  float lengthX = maxs[0] - mins[0];
+  float lengthZ = maxs[2] - mins[2];
+  float height = maxs[1] - mins[1];
+  // Thin across, long along: the man stands off the wall's long face.
+  bool longX = lengthX >= lengthZ;
+  float half = lengthZ * 0.5;
+  vector across = Vector(0, 0, 1);
+  if (!longX) { half = lengthX * 0.5; across = Vector(1, 0, 0); }
+  vector centreLocal = (mins + maxs) * 0.5;
+  centreLocal[1] = 0;
+  vector wallAt = BBB.Ground(man + across * (half + 0.6) - centreLocal);
+  IEntity wall = SpawnWall(wallAt);
+  if (!wall) return false;
+
+  vector beyond = man + across * 60;   // threat on the far side of the wall: he is behind it
+  vector behind = man - across * 60;   // threat behind him: he stands on the enemy's side
+  bool savedOn = BBB_Cover.s_bOn;
+  bool savedCover = state.m_bInCover;
+  BBB_Cover.Read();
+  BBB_Cover.s_bOn = true;
+  bool indoors = BBB_Buildings.BuildingAt(utility) != null;
+
+  bool geometryOK = BBB_Cover.Shields(man, ECharacterStance.CROUCH, beyond) && BBB_Cover.Shields(man, ECharacterStance.PRONE, beyond)
+   && !BBB_Cover.Shields(man, ECharacterStance.CROUCH, behind) && !BBB_Cover.Shields(man - across * 10, ECharacterStance.CROUCH, beyond);
+
+  state.m_bInCover = true;
+  state.m_fBBBCoverUntil = 0;
+  state.m_fBBBCoverLeftAt = 0;
+  bool behindOK = BBB_Cover.Faces(utility, beyond);
+  bool frontOK = !BBB_Cover.Faces(utility, behind);
+  bool keepOK = !BBB_Cover.Leave(utility, state, beyond) && state.m_bInCover;
+  int left = BBB_Cover.s_iLeft;
+  int released = BBB_Cover.s_iReleased;
+  bool leaveOK = BBB_Cover.Leave(utility, state, behind) && BBB_Cover.s_iLeft == left + 1 && state.m_bInCover;
+  bool releaseOK = !BBB_Cover.Leave(utility, state, behind) && BBB_Cover.s_iReleased == released + 1 && !state.m_bInCover;
+
+  state.m_bInCover = true;
+  state.m_fBBBCoverUntil = 0;
+  BBB_Cover.s_bOn = false;
+  bool offOK = BBB_Cover.Faces(utility, behind);
+  BBB_Cover.s_bOn = savedOn;
+
+  state.m_bInCover = savedCover;
+  state.m_fBBBCoverUntil = 0;
+  state.m_fBBBCoverLeftAt = 0;
+  state.m_bBBBCoverFaces = true;
+  SCR_EntityHelper.DeleteEntityAndChildren(wall);
+  bool ok = !indoors && height > BBB_Cover.TORSO && geometryOK && behindOK && frontOK && keepOK && leaveOK && releaseOK && offOK;
+  PrintFormat("[BBB] TRUECOVER regression ok=%1 wallHeight=%2 indoors=%3 geometry=%4 behindWall=%5 enemySideExposed=%6 keepsRealCover=%7 leaves=%8 thenReleased=%9", ok, height, indoors, geometryOK, behindOK, frontOK, keepOK, leaveOK, releaseOK);
+  PrintFormat("[BBB] TRUECOVER off=%1 (off: vanilla flag trusted)", offOK);
+  return ok;
+ }
+
  static bool TestAntiArmor(SCR_AIGroup group, IEntity vehicle)
  {
   if (!group || !vehicle) return false;
@@ -582,6 +668,7 @@ class BBB_VanillaTest
  static bool s_bThreatOK;
  static bool s_bAntiArmorOK;
  static bool s_bExposedFireOK;
+ static bool s_bTrueCoverOK;
  static bool s_bRearmOK;
  static int s_iFramesCounted;
  static IEntity s_RearmGroup;
@@ -777,7 +864,7 @@ class BBB_VanillaTest
 
   bool found = mine != null;
   string verdict = "FAIL";
-  if (BBB.IsStarted() && BBB_VanillaHooks.Cast(BBB.s_Hooks) && found && s_iFramesCounted > 30 && s_bSelectorOK && s_bThreatOK && s_bExposedFireOK && turretOK && s_bAntiArmorOK && s_bRearmOK && anchorOK) verdict = "PASS";
+  if (BBB.IsStarted() && BBB_VanillaHooks.Cast(BBB.s_Hooks) && found && s_iFramesCounted > 30 && s_bSelectorOK && s_bThreatOK && s_bExposedFireOK && s_bTrueCoverOK && turretOK && s_bAntiArmorOK && s_bRearmOK && anchorOK) verdict = "PASS";
   PrintFormat("[BBB] VANILLATEST %1", verdict);
   PrintFormat("[ACR] VERDICT %1 test=bbbvanilla started=%2 found=%3 frames=%4", verdict, BBB.IsStarted(), found, s_iFramesCounted);
   if (s_SpawnedTruck) SCR_EntityHelper.DeleteEntityAndChildren(s_SpawnedTruck);
@@ -801,6 +888,7 @@ class BBB_VanillaTest
   s_bSelectorOK = TestSelector(mine);
   s_bThreatOK = TestThreat(mine);
   s_bExposedFireOK = TestExposedFire(mine);
+  s_bTrueCoverOK = TestTrueCover(mine);
   s_bRearmOK = TestRearm(SCR_AIGroup.Cast(s_RearmGroup));
   KnockOutLeader(SCR_AIGroup.Cast(s_AnchorGroup));
   if (s_RearmGroup) SCR_EntityHelper.DeleteEntityAndChildren(s_RearmGroup);

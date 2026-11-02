@@ -291,7 +291,8 @@ class BBB_Think
    lines.Insert(string.Format("threat: %1 (%2)", typename.EnumToString(EAIThreatState, utility.m_ThreatSystem.GetState()), threat.ToString(4, 2)));
   }
   string cover = "no";
-  if (utility.m_CombatMoveState && utility.m_CombatMoveState.m_bInCover) cover = "yes";
+  if (BBB_Cover.InCover(utility)) cover = "yes";
+  else if (utility.m_CombatMoveState && utility.m_CombatMoveState.m_bInCover) cover = "no (his cover doesn't face the enemy)";
   string order = "no";
   if (BBB_OrderIntent.Held(utility)) order = "YES (BBB stands back)";
   lines.Insert(string.Format("in cover: %1   player order: %2", cover, order));
