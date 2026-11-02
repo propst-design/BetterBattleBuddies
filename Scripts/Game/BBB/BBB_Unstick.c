@@ -99,9 +99,11 @@ class BBB_Unstick : Managed
   // A player who takes the driver over (a Game Master possessing him) or a driver who changed
   // seats ends it: inputs written every frame would steer the car under the player.
   bool alive = vehicle != null && m_Driver != null && BBB.IsAlive(m_Driver) && BBB_Transport.VehicleOf(m_Driver) == vehicle && !BBB.PlayerOf(m_Driver) && BBB.DriverOf(vehicle) == m_Driver;
+  // The car even when it ends that way: End lets go of the throttle, wheel and reverse gear once,
+  // or a player taking the wheel would find it still backing out.
   CarControllerComponent car;
-  if (alive) car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
-  if (!car || !car.GetSimulation() || elapsed > TOTAL_MS)
+  if (vehicle) car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
+  if (!alive || !car || !car.GetSimulation() || elapsed > TOTAL_MS)
   {
    End(car);
    return false;

@@ -8,33 +8,49 @@
 // empty for REMOUNT_S is manned again by the group's nearest soldier on foot within
 // REMOUNT_REACH. BBB's own static crewing doesn't let a held gun's gunner go when its sector
 // goes quiet. Vehicles keep their rules. -bbbHoldGuns 0 restores vanilla.
+// Winchester (ACA #154, -bbbGunWinchester 0 off): vanilla never gets an AI gunner off a static gun
+// that is out of ammo, so held gunners sat on dead guns instead of fighting with their rifles. A
+// held gun with no ammo is not held (no hold, no re-man), and an AI gunner on any static gun of a
+// BBB group (held or not, ACA's or a Game Master's) that has been dry for WINCHESTER_S gets off
+// with vanilla's get-out and fights on foot. Left alone: players, mortars, LeaveAlone guns, BBB's own
+// static crewing (it releases its gunner on "out of ammo" itself), player/GM-priority orders and a
+// group on a boarding waypoint (a GM's "get in" would only put him back on).
 class BBB_HeldGuns
 {
  static const float FRESH_S = 10;
  static const float CLOSE_M = 60;
  static const float REMOUNT_S = 8;
  static const float REMOUNT_REACH = 40;
+ static const float WINCHESTER_S = 3;
+ static const int WINCHESTER_EVERY = 2; // groups looked at for dry gunners every 2nd tick (staggered)
  static bool s_bOn = true;
+ static bool s_bWinchester = true;
  static int s_iRead;
  static int s_iKept;          // tests read these
  static int s_iRemounted;
+ static int s_iWinchester;
+ protected static int s_iTicks;
  protected static ref map<IEntity, float> s_mEmptySince = new map<IEntity, float>();
  protected static ref map<IEntity, float> s_mLogged = new map<IEntity, float>();
+ protected static ref map<IEntity, float> s_mDrySince = new map<IEntity, float>(); // gunner -> first seen on a dry gun
 
  static void Read()
  {
   if (!BBB_Settings.Due(s_iRead)) return;
   string value;
   if (BBB_Settings.Get("bbbHoldGuns", value)) s_bOn = value != "0";
-  PrintFormat("[BBB] HELD GUNS enabled=%1 close=%2m fresh=%3s remount=%4s", s_bOn, CLOSE_M, FRESH_S, REMOUNT_S);
+  if (BBB_Settings.Get("bbbGunWinchester", value)) s_bWinchester = value != "0";
+  PrintFormat("[BBB] HELD GUNS enabled=%1 close=%2m fresh=%3s remount=%4s winchester=%5", s_bOn, CLOSE_M, FRESH_S, REMOUNT_S, s_bWinchester);
  }
 
  static void Stop()
  {
   s_mEmptySince.Clear();
   s_mLogged.Clear();
+  s_mDrySince.Clear();
   s_iKept = 0;
   s_iRemounted = 0;
+  s_iWinchester = 0;
  }
 
  static SCR_AIGroup GroupOf(IEntity soldier)
@@ -70,6 +86,8 @@ class BBB_HeldGuns
  static bool Keep(IEntity gunner, IEntity gun)
  {
   if (!gunner || BBB.PlayerOf(gunner) != 0 || !Holds(gunner, gun) || FreshClose(gunner)) return false;
+  // A dry gun isn't held: he gets off it (Winchester) rather than sitting on it.
+  if (s_bWinchester && Dry(GunSeat(gun))) return false;
   s_iKept++;
   float now = GetGame().GetWorld().GetWorldTime();
   float logged;
@@ -96,14 +114,18 @@ class BBB_HeldGuns
  static void Tick()
  {
   Read();
-  if (!s_bOn) return;
+  if (!s_bOn && !s_bWinchester) return;
   float now = GetGame().GetWorld().GetWorldTime();
+  s_iTicks++;
+  if (s_iTicks % 60 == 0) PruneDry();
   array<SCR_AIGroup> groups = {};
   BBB.s_Hooks.GetGroups(groups);
   array<IEntity> guns = {};
-  foreach (SCR_AIGroup group : groups)
+  foreach (int index, SCR_AIGroup group : groups)
   {
    if (!group || BBB.HasPlayer(group)) continue;
+   if (s_bWinchester && (index + s_iTicks) % WINCHESTER_EVERY == 0) Winchester(group, now);
+   if (!s_bOn) continue;
    BBB.s_Hooks.GetHeldGuns(group, guns);
    foreach (IEntity gun : guns)
    {
@@ -139,6 +161,89 @@ class BBB_HeldGuns
     BBB_Think.Note(man, "Static", "mans the held gun again");
    }
   }
+ }
+
+ // A gun's seat with no round loaded or stowed. TurretHasAmmo is also false for a locked seat (a
+ // host's locked gun is not a dry one) and for a mortar (shells are loaded by hand from the crew's
+ // kit, the tube never holds a magazine): neither counts.
+ static bool Dry(BaseCompartmentSlot seat)
+ {
+  if (!seat || seat.IsGetInLocked()) return false;
+  TurretControllerComponent controller = BBB_VehicleHelpers.TurretControllerOf(seat);
+  if (!controller || !controller.GetWeaponManager()) return false;
+  array<BaseWeaponComponent> weapons = {};
+  controller.GetWeaponManager().GetWeapons(weapons);
+  if (weapons.IsEmpty()) return false;
+  array<BaseMuzzleComponent> muzzles = {};
+  foreach (BaseWeaponComponent weapon : weapons)
+  {
+   weapon.GetMuzzlesList(muzzles);
+   foreach (BaseMuzzleComponent muzzle : muzzles)
+    if (SCR_MortarMuzzleComponent.Cast(muzzle)) return false;
+  }
+  return !BBB_VehicleHelpers.TurretHasAmmo(seat);
+ }
+
+ // The static gun (never a vehicle) this soldier sits in as gunner, and its seat.
+ static IEntity StaticGunOf(ChimeraCharacter man, out BaseCompartmentSlot seat)
+ {
+  seat = null;
+  if (!man || !man.IsInVehicle()) return null;
+  CompartmentAccessComponent access = man.GetCompartmentAccessComponent();
+  if (!access) return null;
+  BaseCompartmentSlot slot = access.GetCompartment();
+  if (!slot || slot.GetType() != ECompartmentType.TURRET) return null;
+  IEntity gun = slot.GetVehicle();
+  if (!gun) gun = slot.GetOwner();
+  if (!gun || Vehicle.Cast(gun) || Vehicle.Cast(slot.GetOwner())) return null;
+  seat = slot;
+  return gun;
+ }
+
+ // Winchester: this group's AI gunners on static guns dry for WINCHESTER_S get off and fight on foot.
+ static void Winchester(SCR_AIGroup group, float now)
+ {
+  array<AIAgent> agents = {};
+  BBB.s_Hooks.GetMembers(group, agents);
+  foreach (AIAgent agent : agents)
+  {
+   if (!agent) continue;
+   ChimeraCharacter man = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (!man) continue;
+   BaseCompartmentSlot seat;
+   IEntity gun = StaticGunOf(man, seat);
+   if (!gun || !BBB.IsAlive(man) || BBB.PlayerOf(man) != 0 || !Dry(seat))
+   {
+    s_mDrySince.Remove(man);
+    continue;
+   }
+   CompartmentAccessComponent access = man.GetCompartmentAccessComponent();
+   if (access.IsGettingIn() || access.IsGettingOut() || !BBB_VehicleHelpers.IsAble(man)) continue;
+   if (BBB.s_Hooks.LeaveAlone(gun) || BBB_StaticWeapons.IsClaimed(gun)) continue;
+   float since;
+   if (!s_mDrySince.Find(man, since))
+   {
+    s_mDrySince.Set(man, now);
+    continue;
+   }
+   if (now - since < WINCHESTER_S * 1000) continue;
+   SCR_AIUtilityComponent utility = BBB_StaticWeapons.UtilityOf(man);
+   if (!utility || utility.FindActionOfType(SCR_AIGetOutVehicle)) continue;
+   if (SCR_BoardingWaypoint.Cast(group.GetCurrentWaypoint()) || BBB_OrderIntent.Blocks(utility)) continue;
+   utility.AddAction(new SCR_AIGetOutVehicle(utility, null, gun, 0,
+    SCR_AIActionBase.PRIORITY_BEHAVIOR_GET_OUT_VEHICLE_HIGH_PRIORITY, SCR_AIActionBase.PRIORITY_LEVEL_NORMAL));
+   s_mDrySince.Remove(man);
+   s_iWinchester++;
+   PrintFormat("[BBB] HELD GUN %1: gun out of ammo (Winchester), the gunner gets off and fights on foot", BBB.s_Hooks.NameOf(group));
+   BBB_Think.Note(man, "Static", "gun out of ammo: gets off, fights on foot");
+  }
+ }
+
+ // Deleted soldiers leave null keys behind (pruned by index).
+ protected static void PruneDry()
+ {
+  for (int i = s_mDrySince.Count() - 1; i >= 0; i--)
+   if (!s_mDrySince.GetKey(i)) s_mDrySince.RemoveElement(i);
  }
 
  protected static ChimeraCharacter NearestOnFoot(SCR_AIGroup group, IEntity gun)

@@ -32,7 +32,7 @@ class BBB_CrewStaysTest : BBB_AimTest
  static ref BBB_CrewStaysTest s_CrewTest;
  static const ResourceName LAV = "{0FBF8F010F81A4E5}Prefabs/Vehicles/Wheeled/LAV25/LAV25.et";
  static const ResourceName WP_MOVE = "{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et";
- static const int EXPECTED = 16;
+ static const int EXPECTED = 17;
  protected int m_iChecks;
  protected int m_iFailures;
  protected ref BBB_CrewStaysLane m_A = new BBB_CrewStaysLane();
@@ -242,7 +242,28 @@ class BBB_CrewStaysTest : BBB_AimTest
   foreach (ChimeraCharacter man : m_B.m_aCrew)
    if (!Seated(man, m_B.m_Lav) || !BBB.IsAlive(man)) still = false;
   Check("on-crew-seated-at-end", still, "");
+  UnstickLetsGo();
   StartPlough();
+ }
+
+ // An unstick that ends because its driver is no longer at the wheel (lane A's driver got out)
+ // still lets go of the inputs: no reverse gear left in for whoever drives next.
+ protected void UnstickLetsGo()
+ {
+  CarControllerComponent car = CarControllerComponent.Cast(m_A.m_Lav.FindComponent(CarControllerComponent));
+  ChimeraCharacter driver = m_A.m_aCrew[0];
+  if (!car || !car.GetSimulation() || !driver || Seated(driver, m_A.m_Lav))
+  {
+   Check("unstick-driver-gone-lets-go", false, string.Format("car %1, driver out %2", car != null, driver && !Seated(driver, m_A.m_Lav)));
+   return;
+  }
+  VehicleWheeledSimulation sim = car.GetSimulation();
+  int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
+  sim.SetGear(neutral - 1);
+  int before = sim.GetGear();
+  BBB_Unstick.Begin(m_A.m_Lav, driver, 0.5, null);
+  BBB_Unstick.FrameAll();
+  Check("unstick-driver-gone-lets-go", before == neutral - 1 && sim.GetGear() == neutral + 1, string.Format("gear %1 -> %2 (neutral %3)", before, sim.GetGear(), neutral));
  }
 
  protected void StartPlough()

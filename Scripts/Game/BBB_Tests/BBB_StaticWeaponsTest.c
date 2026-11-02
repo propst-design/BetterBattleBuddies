@@ -132,6 +132,12 @@ class BBB_StaticWeaponsTest : BBB_AimTest
 					if (scrWp) scrWp.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
 					m_SquadUS.AddWaypoint(wp);
 					Check("player-order-blocks", BBB_OrderIntent.Blocks(firstUtil) || !BBB_StaticWeapons.IsFitGunner(ChimeraCharacter.Cast(firstEnt), firstUtil));
+					// A gunner released under that order is handed back: no forced get-out 8 s later.
+					bool orderHeld = BBB_OrderIntent.Held(firstUtil);
+					Check("handback-under-order", orderHeld && BBB_StaticWeapons.HandedBack(ChimeraCharacter.Cast(firstEnt), m_TestTurretVeh));
+					m_SquadUS.RemoveWaypoint(wp);
+					SCR_EntityHelper.DeleteEntityAndChildren(wp);
+					Check("no-handback-without-order", !BBB_OrderIntent.Held(firstUtil) && !BBB_StaticWeapons.HandedBack(ChimeraCharacter.Cast(firstEnt), m_TestTurretVeh));
 				}
 				else
 				{
@@ -173,12 +179,12 @@ class BBB_StaticWeaponsTest : BBB_AimTest
 	protected void FinishTest()
 	{
 		string verdict = "FAIL";
-		if (m_iFailures == 0 && m_iChecks >= 16)
+		if (m_iFailures == 0 && m_iChecks >= 18)
 		{
 			verdict = "PASS";
 		}
 		PrintFormat("[BBB] STATICTEST FINISHED checks=%1 failures=%2", m_iChecks, m_iFailures);
-		PrintFormat("[ACR] VERDICT %1 test=bbbstaticweapons passed=%2 failed=%3 expected=16", verdict, m_iChecks - m_iFailures, m_iFailures);
+		PrintFormat("[ACR] VERDICT %1 test=bbbstaticweapons passed=%2 failed=%3 expected=18", verdict, m_iChecks - m_iFailures, m_iFailures);
 		Print("[ACR] TEST COMPLETE");
 	}
 }

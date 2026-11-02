@@ -506,6 +506,19 @@ class BBB_StaticWeapons
 		BBB_Think.Note(job.m_Gunner, "Static", "released the static weapon: " + reason);
 	}
 
+	// A released gunner who is someone else's to command now: in a player's squad, under a player or
+	// GM order, or on a gun his (new) squad holds. BBB only crewed the gun; it never pulls such a man
+	// out by force. The native get-out it queued still runs if nothing outranks it.
+	static bool HandedBack(ChimeraCharacter gunner, IEntity gun)
+	{
+		if (!gunner) return false;
+		SCR_AIGroup group = BBB_HeldGuns.GroupOf(gunner);
+		if (group && BBB.HasPlayer(group)) return true;
+		SCR_AIUtilityComponent utility = UtilityOf(gunner);
+		if (utility && BBB_OrderIntent.Blocks(utility)) return true;
+		return BBB_HeldGuns.Holds(gunner, gun);
+	}
+
 	protected static void ForceOutIfStillSeated(ChimeraCharacter gunner, BaseCompartmentSlot slot)
 	{
 		if (!gunner || !slot || !BBB.IsAlive(gunner) || BBB.PlayerOf(gunner)) return;
@@ -514,6 +527,9 @@ class BBB_StaticWeapons
 		{
 			if (job && job.m_Gunner == gunner) return; // crewed again since
 		}
+		IEntity gun = slot.GetVehicle();
+		if (!gun) gun = slot.GetOwner();
+		if (HandedBack(gunner, gun)) return;
 		CompartmentAccessComponent acc = gunner.GetCompartmentAccessComponent();
 		if (acc && !acc.IsGettingOut()) acc.GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
 	}

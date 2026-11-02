@@ -354,6 +354,7 @@ class BBB_Settings
   Num(g, "bbbStaticArc", 60, 15, 180, 5, "Static gun arc (degrees)", "How far off the gun's facing the enemy can be.");
   Num(g, "bbbStaticQuiet", 15, 5, 120, 1, "Leave the gun after quiet (s)", "How long a gunner waits after the last contact before leaving the gun.");
   On(g, "bbbHoldGuns", "Held guns", "Gunners stay on static guns a host mod marks as held.");
+  On(g, "bbbGunWinchester", "Off a dry gun", "A gunner whose static gun is out of ammo gets off and fights on foot.");
 
   g = "Vehicles and crews";
   On(g, "bbbArmour", "Armour learning", "Soldiers learn which rounds can't hurt which vehicles and stop wasting ammo on them.");

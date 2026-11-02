@@ -158,6 +158,7 @@ class BBB
   BBB_Smoke.Stop();
   BBB_StaticWeapons.Stop();
   BBB_HeldGuns.Stop();
+  BBB_CrewStays.Stop();
   BBB_Grenades.Stop();
   BBB_LauncherUse.Stop();
   BBB_Flares.Stop();

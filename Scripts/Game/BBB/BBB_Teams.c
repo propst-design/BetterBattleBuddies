@@ -194,6 +194,15 @@ class BBB_Teams
   return !s_aVanilla.Contains(soldier);
  }
 
+ // The assistant is his own to send: on foot and AI-driven, no player/GM order, his squad not
+ // withdrawing, not dragging, treating or rearming.
+ static bool Free(BBB_Pair pair, SCR_AIUtilityComponent utility)
+ {
+  ChimeraCharacter assistant = pair.m_Assistant;
+  if (!assistant || !utility || !Usable(assistant) || BBB_OrderIntent.Blocks(utility) || BBB_Morale.IsWithdrawing(pair.m_Group)) return false;
+  return !BBB_Drag.Busy(assistant) && !BBB_Medic.s_mGoingTo.Contains(assistant) && !BBB_Rearm.InRearmAction(assistant);
+ }
+
  static bool Active(SCR_AIMoveIndividuallyBehavior move)
  {
   return move && !move.GetRemoveAction() && move.GetActionState() != EAIActionState.FAILED && move.GetActionState() != EAIActionState.COMPLETED;
@@ -224,7 +233,11 @@ class BBB_Teams
   if (!s_bOn || !gunner) return false;
   foreach (BBB_Pair pair : s_aPairs)
   {
-   if (pair.m_Gunner != gunner || !pair.m_Assistant || !Usable(pair.m_Assistant)) continue;
+   if (pair.m_Gunner != gunner || !pair.m_Assistant) continue;
+   // Only an assistant who can actually come: one under an order, withdrawing, dragging or
+   // treating someone, or taken for a higher job would leave his gunner waiting on nobody.
+   if (!Free(pair, BBB_StaticWeapons.UtilityOf(pair.m_Assistant))) return false;
+   if (pair.m_iJob != SUPPLY && !BBB_Claims.Can(pair.m_Assistant, BBB_Claims.REARM)) return false;
    if (Now() < pair.m_fNextSupply) return false;
    SCR_InventoryStorageManagerComponent inv = SCR_InventoryStorageManagerComponent.Cast(gunner.FindComponent(SCR_InventoryStorageManagerComponent));
    if (!pair.m_GunMuzzle || !inv || inv.GetMagazineCountByMuzzle(pair.m_Gunner, pair.m_GunMuzzle) >= pair.m_iFullAt) return false;
@@ -356,9 +369,7 @@ class BBB_Teams
   ChimeraCharacter assistant = pair.m_Assistant;
   if (!assistant || !BBB.IsAlive(assistant)) { Drop(index); return; }
   SCR_AIUtilityComponent utility = BBB_StaticWeapons.UtilityOf(assistant);
-  bool free = Usable(assistant) && utility && !BBB_OrderIntent.Blocks(utility) && !BBB_Morale.IsWithdrawing(pair.m_Group);
-  free = free && !BBB_Drag.Busy(assistant) && !BBB_Medic.s_mGoingTo.Contains(assistant) && !BBB_Rearm.InRearmAction(assistant);
-  if (!free) { EndJob(pair); return; }
+  if (!Free(pair, utility)) { EndJob(pair); return; }
   if (!pair.m_Gunner || !BBB.IsAlive(pair.m_Gunner))
   {
    if (!PickUp(pair, utility, now)) Drop(index);
