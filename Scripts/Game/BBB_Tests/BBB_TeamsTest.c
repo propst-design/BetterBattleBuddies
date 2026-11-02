@@ -16,7 +16,7 @@ class BBB_TeamsTestHooks : BBB_Hooks
 class BBB_TeamsTest : BBB_AimTest
 {
  static ref BBB_TeamsTest s_Teams;
- static const int EXPECTED = 13;
+ static const int EXPECTED = 14;
  static const ResourceName TEAM_USSR_MG = "{A2F75E45C66B1C0A}Prefabs/Groups/OPFOR/Group_USSR_MachineGunTeam.et";
  ref BBB_TeamsTestHooks m_Hooks;
  ref BBB_Hooks m_SavedHooks;
@@ -260,6 +260,11 @@ class BBB_TeamsTest : BBB_AimTest
    }
    PrintFormat("[BBB] TEAMSTEST stripped: MG spare A %1 B %2, AT spare A %3 B %4, MG mate stock A %5 B %6, AT mate stock A %7", Spare(m_MgGunner[0]), Spare(m_MgGunner[1]), Spare(m_AtGunner[0]), Spare(m_AtGunner[1]), m_MateStock[0], m_MateStock[1], StockOf(m_AtMate[0], m_AtWell[0]));
    TeamCheck("rearm-leaves-gunner-to-his-assistant", BBB_Teams.Supplies(m_MgGunner[0]) && !BBB_Teams.Supplies(m_MgGunner[1]));
+   // An assistant busy treating someone can't come: the gunner looks after himself meanwhile.
+   BBB_Medic.s_mGoingTo.Set(m_MgMate[0], m_MgGunner[1]);
+   bool heldBack = !BBB_Teams.Supplies(m_MgGunner[0]);
+   BBB_Medic.s_mGoingTo.Remove(m_MgMate[0]);
+   TeamCheck("busy-assistant-gunner-not-left-waiting", heldBack && BBB_Teams.Supplies(m_MgGunner[0]));
    Next(2);
    return;
   }
