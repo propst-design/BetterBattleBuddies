@@ -23,12 +23,12 @@ class BBB_ExposedFire
 		PrintFormat("[BBB] EXPOSED FIRE on=%1", s_bOn);
 	}
 
-	// Pinned (THREATENED), on foot, conscious, AI, and not in cover.
+	// Pinned (THREATENED), on foot, conscious, AI, and not in cover that faces his enemy (BBB_Cover).
 	static bool Exposed(SCR_AIUtilityComponent utility)
 	{
 		Read();
 		if (!s_bOn || !utility || !utility.m_ThreatSystem || !utility.m_AIInfo || !utility.m_CombatMoveState) return false;
-		if (utility.m_ThreatSystem.GetState() != EAIThreatState.THREATENED || utility.m_CombatMoveState.m_bInCover) return false;
+		if (utility.m_ThreatSystem.GetState() != EAIThreatState.THREATENED || BBB_Cover.InCover(utility)) return false;
 		if (utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || utility.m_AIInfo.HasUnitState(EUnitState.UNCONSCIOUS)) return false;
 		return BBB.PlayerOf(utility.m_OwnerEntity) == 0;
 	}

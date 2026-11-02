@@ -375,6 +375,7 @@ class BBB_Settings
   g = "Movement";
   On(g, "bbbRelaxedMarch", "Relaxed march", "On ordinary travel soldiers lower their weapons (never holster them).");
   On(g, "bbbShoreRoutes", "Shore routes", "Foot routes round water keep off low shore ground.");
+  On(g, "bbbTrueCover", "Cover must face the enemy", "A soldier only counts as in cover when the cover is between him and the enemy he knows about; one on the wrong side of a wall moves behind it or fights from the open.");
   On(g, "bbbRoadExit", "Off the road in a firefight", "A soldier caught on a road in a firefight moves off it, into cover beside it or onto the verge, instead of lying down on the open road.");
 
   g = "Vanilla AI";
