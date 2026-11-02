@@ -18,6 +18,12 @@ class BBB_CrewStays
  static int s_iHealsKept;
  protected static ref map<IEntity, float> s_mLogged = new map<IEntity, float>();
 
+ // BBB is stopping (mission end): forget the log throttle, whose soldiers are gone.
+ static void Stop()
+ {
+  s_mLogged.Clear();
+ }
+
  static bool On()
  {
   if (BBB_Settings.Due(s_iRead))
