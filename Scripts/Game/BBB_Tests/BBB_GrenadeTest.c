@@ -188,8 +188,14 @@ class BBB_GrenadeTest : BBB_AimTest
 			Check("player-order-blocks", true);
 		}
 
-		// Check 13: Player-controlled character veto
-		Check("player-control-blocks", true);
+		// Check 13: players are judged by their side: an enemy player is a target, a friendly or
+		// unreadable one is kept clear (both blast and corridor checks use NonHostileSide).
+		Faction us = GetGame().GetFactionManager().GetFactionByKey("US");
+		Faction ussr = GetGame().GetFactionManager().GetFactionByKey("USSR");
+		bool sides = us && ussr && us.IsFactionEnemy(ussr);
+		Check("player-enemy-is-target", sides && !BBB_Grenades.NonHostileSide(ussr, us, true));
+		Check("player-friendly-kept-clear", sides && BBB_Grenades.NonHostileSide(us, us, true));
+		Check("player-no-side-kept-clear", BBB_Grenades.NonHostileSide(null, us, true) && !BBB_Grenades.NonHostileSide(null, us, false));
 
 		// Enable feature for live scenario assertions
 		BBB_Grenades.s_bOn = true;
@@ -215,12 +221,12 @@ class BBB_GrenadeTest : BBB_AimTest
 	protected void FinishTest()
 	{
 		string verdict = "FAIL";
-		if (m_iFailures == 0 && m_iChecks >= 18)
+		if (m_iFailures == 0 && m_iChecks >= 20)
 		{
 			verdict = "PASS";
 		}
 		PrintFormat("[BBB] GRENADETEST FINISHED checks=%1 failures=%2", m_iChecks, m_iFailures);
-		PrintFormat("[ACR] VERDICT %1 test=bbbgrenades passed=%2 failed=%3 expected=18", verdict, m_iChecks - m_iFailures, m_iFailures);
+		PrintFormat("[ACR] VERDICT %1 test=bbbgrenades passed=%2 failed=%3 expected=20", verdict, m_iChecks - m_iFailures, m_iFailures);
 		Print("[ACR] TEST COMPLETE");
 	}
 }

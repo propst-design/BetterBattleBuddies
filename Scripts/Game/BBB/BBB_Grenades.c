@@ -147,6 +147,27 @@ class BBB_Grenades
 
 	// ---------------------------------------------------------------- friendly clearance checks
 
+	// Whether a soldier near a blast or a throw line must be kept clear of it: anyone not hostile to
+	// the thrower's side. A player is judged by his side like anyone else (an enemy player is a
+	// target, not a friend); only a player whose side can't be read is kept clear, to be safe.
+	static bool NonHostile(ChimeraCharacter ch, Faction throwerFac)
+	{
+		Faction f;
+		FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(ch.FindComponent(FactionAffiliationComponent));
+		if (aff)
+		{
+			f = aff.GetAffiliatedFaction();
+			if (!f) f = aff.GetDefaultAffiliatedFaction();
+		}
+		return NonHostileSide(f, throwerFac, BBB.PlayerOf(ch) != 0);
+	}
+
+	static bool NonHostileSide(Faction f, Faction throwerFac, bool player)
+	{
+		if (f && throwerFac) return !throwerFac.IsFactionEnemy(f);
+		return player;
+	}
+
 	// Check if any friendly unit is within blast radius of the target landing position
 	static bool IsBlastAreaClearOfFriendlies(vector landingPos, SCR_AIGroup throwingGroup, float safetyDist)
 	{
@@ -176,27 +197,7 @@ class BBB_Grenades
 			ChimeraCharacter ch = ChimeraCharacter.Cast(ent);
 			if (!ch || !BBB.IsAlive(ch)) continue;
 
-			// If player-controlled, apply strict safety
-			if (BBB.PlayerOf(ch))
-			{
-				if (vector.DistanceXZ(ch.GetOrigin(), landingPos) < safetyDist) return false;
-			}
-
-			// Check faction friendliness
-			FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(ch.FindComponent(FactionAffiliationComponent));
-			if (aff)
-			{
-				Faction f = aff.GetAffiliatedFaction();
-				if (!f) f = aff.GetDefaultAffiliatedFaction();
-				if (f && throwerFac)
-				{
-					// If friendly or neutral to thrower faction
-					if (!throwerFac.IsFactionEnemy(f))
-					{
-						if (vector.DistanceXZ(ch.GetOrigin(), landingPos) < safetyDist) return false;
-					}
-				}
-			}
+			if (NonHostile(ch, throwerFac) && vector.DistanceXZ(ch.GetOrigin(), landingPos) < safetyDist) return false;
 		}
 
 		return true;
@@ -229,15 +230,7 @@ class BBB_Grenades
 		{
 			ChimeraCharacter ch = ChimeraCharacter.Cast(ent);
 			if (!ch || ch == thrower || !BBB.IsAlive(ch)) continue;
-			bool ally = BBB.PlayerOf(ch) != 0;
-			FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(ch.FindComponent(FactionAffiliationComponent));
-			if (!ally && aff && throwerFac)
-			{
-				Faction f = aff.GetAffiliatedFaction();
-				if (!f) f = aff.GetDefaultAffiliatedFaction();
-				ally = f && !throwerFac.IsFactionEnemy(f);
-			}
-			if (ally && LineIntersectsSphere(throwerPos, landingPos, ch.GetOrigin(), s_fThrowCorridorRadiusM)) return false;
+			if (NonHostile(ch, throwerFac) && LineIntersectsSphere(throwerPos, landingPos, ch.GetOrigin(), s_fThrowCorridorRadiusM)) return false;
 		}
 
 		return true;
