@@ -16,16 +16,21 @@ class BBB_HeldGunsTestHooks : BBB_Hooks
 // B's gunner is released and A's stays seated. Vanilla's dismount check for a threat behind A
 // (outside its arc) is overruled with no enemy close, and stands with the option off or with A
 // unlisted. A's gunner is taken off: someone mans A again. An armed Humvee in the list is never
-// held. An enemy team 35 m in front of A (holding its fire): a fresh close enemy lets the gunner
-// get out. Fire and manoeuvre, buildings, morale, grenades, smoke, flares, radio relay and squad
+// held. Winchester (ACA #154): B is manned again by vanilla's get-in (unheld, as a Game Master's
+// gun would be), then A and B are fired dry: both gunners get off and stay off (no re-man of a dry
+// gun, the dry held gun isn't kept), and A refilled is manned again; a mortar (no magazine, hand
+// loaded) never counts as dry. An enemy team 35 m in front of
+// A (holding its fire): a fresh close enemy lets the gunner get out. Fire and manoeuvre, buildings, morale, grenades, smoke, flares, radio relay and squad
 // tactics are off so only the gun jobs act.
-// Not covered: a host's own list (ACA's checkpoint and Fortify guns), multiplayer.
+// Not covered: a host's own list (ACA's checkpoint and Fortify guns), a GM-placed group, a gun
+// really fired dry in a fight (the test empties it), multiplayer.
 class BBB_HeldGunsTest : BBB_AimTest
 {
  static ref BBB_HeldGunsTest s_HeldTest;
  static const ResourceName MG = "{887DB60486A18575}Prefabs/Weapons/Tripods/Tripod_M122_MG_M60.et";
  static const ResourceName ARMED_M2HB = "{3EA6F47D95867114}Prefabs/Vehicles/Wheeled/M998/M1025_armed_M2HB.et";
- static const int EXPECTED = 10;
+ static const ResourceName MORTAR = "{8094D99689ABE241}Prefabs/Weapons/Mortars/M252/Mortar_M252.et";
+ static const int EXPECTED = 17;
  protected ref BBB_HeldGunsTestHooks m_Hooks;
  protected ref BBB_Hooks m_SavedHooks;
  protected int m_iChecks;
@@ -42,6 +47,9 @@ class BBB_HeldGunsTest : BBB_AimTest
  protected ChimeraCharacter m_ManB;
  protected bool m_bALeft;
  protected int m_iReleasedBefore;
+ protected int m_iRemountedBefore;
+ protected ChimeraCharacter m_DryA;
+ protected ChimeraCharacter m_DryB;
 
  static void MaybeStartHeld()
  {
@@ -92,6 +100,10 @@ class BBB_HeldGunsTest : BBB_AimTest
    Finish();
    return;
   }
+  IEntity mortar = Spawn(MORTAR, m_vBase + Vector(20, 0, -10), "0 0 1");
+  BaseCompartmentSlot mortarSeat = BBB_HeldGuns.GunSeat(mortar);
+  Check("mortar-not-dry", mortarSeat && !BBB_VehicleHelpers.TurretHasAmmo(mortarSeat) && !BBB_HeldGuns.Dry(mortarSeat), string.Format("seat %1, magazine ammo %2, dry %3", mortarSeat != null, mortarSeat && BBB_VehicleHelpers.TurretHasAmmo(mortarSeat), mortarSeat && BBB_HeldGuns.Dry(mortarSeat)));
+  if (mortar) SCR_EntityHelper.DeleteEntityAndChildren(mortar);
   m_Hooks.m_Groups.Insert(m_Team);
   m_Hooks.m_Held.Insert(m_GunA);
   GetGame().GetCallqueue().CallLater(Prepare, 4000);
@@ -184,6 +196,61 @@ class BBB_HeldGunsTest : BBB_AimTest
    bool manned = gunner && SeatedIn(gunner, m_GunA);
    if (m_iWait < 3 || (!manned && m_iWait < 30)) return;
    Check("remanned", manned && BBB_HeldGuns.s_iRemounted >= 1, string.Format("manned %1 after %2 s, re-man orders %3, same man %4", manned, m_iWait, BBB_HeldGuns.s_iRemounted, gunner == m_ManA));
+   // B (unheld) is manned with vanilla's own get-in, as a GM's crewed gun would be.
+   SCR_AIUtilityComponent utilityB = BBB_StaticWeapons.UtilityOf(m_ManB);
+   BaseCompartmentSlot seatB = BBB_HeldGuns.GunSeat(m_GunB);
+   if (utilityB && seatB) utilityB.AddAction(new SCR_AIGetInVehicle(utilityB, null, m_GunB, seatB, EAICompartmentType.Turret));
+   NextPhase();
+   return;
+  }
+
+  if (m_iPhase == 3)
+  {
+   // Both guns fired dry.
+   bool bManned = SeatedIn(m_ManB, m_GunB);
+   if (!bManned && m_iWait < 30) return;
+   m_DryA = Occupant(m_GunA);
+   m_DryB = Occupant(m_GunB);
+   Drain(m_GunA);
+   Drain(m_GunB);
+   bool dry = BBB_HeldGuns.Dry(BBB_HeldGuns.GunSeat(m_GunA)) && BBB_HeldGuns.Dry(BBB_HeldGuns.GunSeat(m_GunB));
+   Check("drained", m_DryA && bManned && dry, string.Format("A gunner %1, B manned %2 after %3 s, both dry %4", m_DryA != null, bManned, m_iWait, dry));
+   NextPhase();
+   return;
+  }
+
+  if (m_iPhase == 4)
+  {
+   bool aOff = m_DryA && !m_DryA.IsInVehicle() && Occupant(m_GunA) == null;
+   bool bOff = m_DryB && !m_DryB.IsInVehicle() && Occupant(m_GunB) == null;
+   if (!(aOff && bOff) && m_iWait < 20) return;
+   float aDistance = -1;
+   if (m_DryA) aDistance = vector.Distance(m_DryA.GetOrigin(), m_GunA.GetOrigin());
+   Check("winchester-held-off", aOff && BBB.IsAlive(m_DryA) && aDistance < 40 && BBB_HeldGuns.s_iWinchester >= 1, string.Format("off %1 after %2 s, %3 m from the gun, winchester %4", aOff, m_iWait, Math.Round(aDistance), BBB_HeldGuns.s_iWinchester));
+   Check("winchester-unheld-off", bOff && BBB_HeldGuns.s_iWinchester >= 2, string.Format("off %1, winchester %2", bOff, BBB_HeldGuns.s_iWinchester));
+   Check("dry-not-kept", m_DryA && !BBB_HeldGuns.Keep(m_DryA, m_GunA), "vanilla's dismount on the dry held gun stands");
+   m_iRemountedBefore = BBB_HeldGuns.s_iRemounted;
+   NextPhase();
+   return;
+  }
+
+  if (m_iPhase == 5)
+  {
+   // Past REMOUNT_S: nobody is put back on a dry gun, held or not.
+   if (BBB_HeldGuns.REMOUNT_S + 6 > m_iWait) return;
+   bool empty = Occupant(m_GunA) == null && Occupant(m_GunB) == null;
+   Check("dry-not-remanned", empty && BBB_HeldGuns.s_iRemounted == m_iRemountedBefore, string.Format("empty %1 after %2 s, re-man orders %3 -> %4", empty, m_iWait, m_iRemountedBefore, BBB_HeldGuns.s_iRemounted));
+   Refill(m_GunA);
+   NextPhase();
+   return;
+  }
+
+  if (m_iPhase == 6)
+  {
+   ChimeraCharacter gunner = Occupant(m_GunA);
+   bool manned = gunner && SeatedIn(gunner, m_GunA);
+   if (!manned && m_iWait < 30) return;
+   Check("refilled-remanned", manned && BBB_HeldGuns.s_iRemounted > m_iRemountedBefore, string.Format("manned %1 after %2 s, re-man orders %3", manned, m_iWait, BBB_HeldGuns.s_iRemounted));
    // An enemy team 35 m in front of A, holding its fire.
    vector front = m_GunA.GetOrigin() + m_GunA.GetTransformAxis(2) * 35;
    m_Enemy = SCR_AIGroup.Cast(Spawn(TEAM_USSR, front, "0 0 -1"));
@@ -197,7 +264,7 @@ class BBB_HeldGunsTest : BBB_AimTest
    return;
   }
 
-  if (m_iPhase == 3)
+  if (m_iPhase == 7)
   {
    ChimeraCharacter gunner = Occupant(m_GunA);
    bool fresh = gunner && BBB_HeldGuns.FreshClose(gunner);
@@ -205,6 +272,53 @@ class BBB_HeldGunsTest : BBB_AimTest
    Check("fresh-close-lets-go", fresh && !BBB_HeldGuns.Keep(gunner, m_GunA), string.Format("gunner %1, enemy %2, fresh close %3 after %4 s", gunner != null, m_Enemy != null, fresh, m_iWait));
    Finish();
   }
+ }
+
+ // The gun's loaded rounds, chambered rounds and stowed magazines all gone.
+ protected void Drain(IEntity gun)
+ {
+  TurretControllerComponent controller = BBB_VehicleHelpers.TurretControllerOf(BBB_HeldGuns.GunSeat(gun));
+  if (!controller || !controller.GetWeaponManager()) return;
+  array<IEntity> weapons = {};
+  controller.GetWeaponManager().GetWeaponsList(weapons);
+  foreach (IEntity weaponEntity : weapons)
+  {
+   BaseWeaponComponent weapon = BaseWeaponComponent.Cast(weaponEntity.FindComponent(BaseWeaponComponent));
+   if (!weapon) continue;
+   if (weapon.GetCurrentMagazine()) weapon.GetCurrentMagazine().SetAmmoCount(0);
+   array<BaseMuzzleComponent> muzzles = {};
+   weapon.GetMuzzlesList(muzzles);
+   foreach (BaseMuzzleComponent muzzle : muzzles)
+    for (int b = 0; b < muzzle.GetBarrelsCount(); b++) muzzle.ClearChamber(b);
+  }
+  InventoryStorageManagerComponent inventory = InventoryStorageManagerComponent.Cast(controller.GetOwner().FindComponent(InventoryStorageManagerComponent));
+  if (!inventory) return;
+  BaseWeaponComponent loadedIn = controller.GetWeaponManager().GetCurrentWeapon();
+  IEntity loaded;
+  if (loadedIn && loadedIn.GetCurrentMagazine()) loaded = loadedIn.GetCurrentMagazine().GetOwner();
+  array<IEntity> items = {};
+  inventory.GetItems(items);
+  foreach (IEntity item : items)
+  {
+   if (item == loaded || !item.FindComponent(BaseMagazineComponent)) continue;
+   if (!inventory.TryDeleteItem(item)) SCR_EntityHelper.DeleteEntityAndChildren(item);
+  }
+  BaseWeaponComponent current = controller.GetWeaponManager().GetCurrentWeapon();
+  int magAmmo = -1;
+  int muzzleAmmo = -1;
+  if (current && current.GetCurrentMagazine()) magAmmo = current.GetCurrentMagazine().GetAmmoCount();
+  if (current && current.GetCurrentMuzzle()) muzzleAmmo = current.GetCurrentMuzzle().GetAmmoCount();
+  int stowed = -1;
+  if (current) stowed = inventory.GetMagazineCountByWeapon(current);
+  PrintFormat("[BBB] HELDGUNSTEST drained %1: weapons %2, magazine %3, muzzle %4, stowed %5, locked %6", gun, weapons.Count(), magAmmo, muzzleAmmo, stowed, BBB_HeldGuns.GunSeat(gun).IsGetInLocked());
+ }
+
+ protected void Refill(IEntity gun)
+ {
+  TurretControllerComponent controller = BBB_VehicleHelpers.TurretControllerOf(BBB_HeldGuns.GunSeat(gun));
+  if (!controller || !controller.GetWeaponManager()) return;
+  BaseWeaponComponent weapon = controller.GetWeaponManager().GetCurrentWeapon();
+  if (weapon && weapon.GetCurrentMagazine()) weapon.GetCurrentMagazine().SetAmmoCount(weapon.GetCurrentMagazine().GetMaxAmmoCount());
  }
 
  // Vanilla's own dismount check for a point 80 m behind gun A (outside its arc), no enemy near.
@@ -238,7 +352,7 @@ class BBB_HeldGunsTest : BBB_AimTest
  override protected void Finish()
  {
   GetGame().GetCallqueue().Remove(Poll);
-  PrintFormat("[BBB] HELDGUNSTEST kept=%1 remounted=%2 static crewed=%3 released=%4", BBB_HeldGuns.s_iKept, BBB_HeldGuns.s_iRemounted, BBB_StaticWeapons.s_iWeaponsCrewed, BBB_StaticWeapons.s_iWeaponsReleased);
+  PrintFormat("[BBB] HELDGUNSTEST kept=%1 remounted=%2 winchester=%5 static crewed=%3 released=%4", BBB_HeldGuns.s_iKept, BBB_HeldGuns.s_iRemounted, BBB_StaticWeapons.s_iWeaponsCrewed, BBB_StaticWeapons.s_iWeaponsReleased, BBB_HeldGuns.s_iWinchester);
   if (m_SavedHooks) BBB.s_Hooks = m_SavedHooks;
   string verdict = "FAIL";
   if (m_iFailures == 0 && m_iChecks == EXPECTED) verdict = "PASS";
