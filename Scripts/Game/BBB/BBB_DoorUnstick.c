@@ -32,10 +32,18 @@ class BBB_DoorUnstick
  static int s_iSwings;  // doors swung
  static int s_iFreed;   // soldiers who moved again after a swing
  protected static int s_iTick;
- protected static ref map<IEntity, ref BBB_DoorStall> s_Stalls = new map<IEntity, ref BBB_DoorStall>();
- protected static ref array<SCR_AIGroup> s_Groups = {};
- protected static ref array<AIAgent> s_Agents = {};
- protected static ref array<vector> s_Path = {};
+ protected static ref map<IEntity, ref BBB_DoorStall> s_Stalls;
+ protected static ref array<SCR_AIGroup> s_Groups;
+ protected static ref array<AIAgent> s_Agents;
+ protected static ref array<vector> s_Path;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Stalls = new map<IEntity, ref BBB_DoorStall>();
+  s_Groups = {};
+  s_Agents = {};
+  s_Path = {};
+ }
  protected static vector s_vQuery;
  protected static BaseDoorComponent s_Best;
  protected static float s_fBest;

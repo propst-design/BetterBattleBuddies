@@ -32,12 +32,22 @@ class BBB_Rearm
  static const int TARGET_MAGAZINE_COUNT = 4;
  static const int CRITICAL_MAGAZINE_COUNT = 2;
 
- protected static ref map<IEntity, float> s_mNextRearmCheck = new map<IEntity, float>();
- protected static ref map<IEntity, IEntity> s_mTargetCorpse = new map<IEntity, IEntity>();
- protected static ref map<ChimeraCharacter, ref SCR_AIMoveIndividuallyBehavior> s_mRearmAction = new map<ChimeraCharacter, ref SCR_AIMoveIndividuallyBehavior>();
- protected static ref map<ChimeraCharacter, float> s_mTripStarted = new map<ChimeraCharacter, float>();
- protected static ref array<ref BBB_RearmFailure> s_aFailures = {};
- protected static ref array<IEntity> s_aQueryCorpseHits = {};
+ protected static ref map<IEntity, float> s_mNextRearmCheck;
+ protected static ref map<IEntity, IEntity> s_mTargetCorpse;
+ protected static ref map<ChimeraCharacter, ref SCR_AIMoveIndividuallyBehavior> s_mRearmAction;
+ protected static ref map<ChimeraCharacter, float> s_mTripStarted;
+ protected static ref array<ref BBB_RearmFailure> s_aFailures;
+ protected static ref array<IEntity> s_aQueryCorpseHits;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_mNextRearmCheck = new map<IEntity, float>();
+  s_mTargetCorpse = new map<IEntity, IEntity>();
+  s_mRearmAction = new map<ChimeraCharacter, ref SCR_AIMoveIndividuallyBehavior>();
+  s_mTripStarted = new map<ChimeraCharacter, float>();
+  s_aFailures = {};
+  s_aQueryCorpseHits = {};
+ }
 
  static void Read()
  {

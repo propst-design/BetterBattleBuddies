@@ -67,27 +67,39 @@ class BBB_Armour
  // A "useless" verdict stops the fire that could correct it, so it lapses: after this long the
  // pair is judged afresh from new rounds (a damaged hull, a different variant, a lucky angle).
  static const float VERDICT_MS = 300000;
- static ref array<ref BBB_ArmourRound> s_aRounds = {};
- static ref array<HitZone> s_aZones = {};
+ static ref array<ref BBB_ArmourRound> s_aRounds;
+ static ref array<HitZone> s_aZones;
  static const float AA_THREAT_RANGE_M = 450.0;
  static const float AA_CLOSE_RANGE_M = 120.0;
  static const float AA_DURATION_MIN_S = 8.0;
  static const float AA_DURATION_MAX_S = 14.0;
  static const int AA_WATCH_MS = 250;
  static const float AA_SEEN_S = 10.0; // only armour seen this recently makes men go low
- static ref map<string, ref BBB_ArmourStat> s_Stats = new map<string, ref BBB_ArmourStat>();
- static ref array<ref BBB_AntiArmorJob> s_aAntiArmorJobs = {};
+ static ref map<string, ref BBB_ArmourStat> s_Stats;
+ static ref array<ref BBB_AntiArmorJob> s_aAntiArmorJobs;
  static bool s_bAntiArmorWatching;
  static int s_iSteered;     // tests read these
  static int s_iHeld;
  static int s_iScattered;
  static int s_iATIsolated;
- static ref array<IEntity> s_aVanilla = {}; // test only: soldiers who keep vanilla picks
+ static ref array<IEntity> s_aVanilla; // test only: soldiers who keep vanilla picks
  static bool s_bDiag;                       // test only: log what the shooter was doing
  static IEntity s_Watch;                    // test only: every hit on this vehicle, by type and source
- static ref map<string, int> s_mWatchHits = new map<string, int>();
- static ref map<string, float> s_mWatchDamage = new map<string, float>();
- static ref map<string, int> s_mDiag = new map<string, int>();
+ static ref map<string, int> s_mWatchHits;
+ static ref map<string, float> s_mWatchDamage;
+ static ref map<string, int> s_mDiag;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aRounds = {};
+  s_aZones = {};
+  s_Stats = new map<string, ref BBB_ArmourStat>();
+  s_aAntiArmorJobs = {};
+  s_aVanilla = {};
+  s_mWatchHits = new map<string, int>();
+  s_mWatchDamage = new map<string, float>();
+  s_mDiag = new map<string, int>();
+ }
 
  static void Read()
  {

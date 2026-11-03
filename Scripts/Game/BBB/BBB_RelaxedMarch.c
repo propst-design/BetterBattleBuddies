@@ -5,8 +5,14 @@ class BBB_RelaxedMarch
 	static int s_iRead;
 	static bool s_bOn = true;
 	static const float QUIET_MS = 15000;
-	protected static ref BBB_VanillaHooks s_WorldGroups = new BBB_VanillaHooks();
-	protected static ref array<SCR_AIGroup> s_aHostGroups = {};
+	protected static ref BBB_VanillaHooks s_WorldGroups;
+	protected static ref array<SCR_AIGroup> s_aHostGroups;
+	// Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+	static void BBB_InitStatics()
+	{
+		s_WorldGroups = new BBB_VanillaHooks();
+		s_aHostGroups = {};
+	}
 
 	static void Read()
 	{

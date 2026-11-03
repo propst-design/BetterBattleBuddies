@@ -39,7 +39,12 @@ class BBB_DriverAlignment
  static const float MAX_TURN_DEG = 20;
  static const float MAX_TRAVEL_M = 2.5;
  static const float MAX_RUN_MS = 8000;
- static ref array<ref BBB_DriverAlignmentState> s_States = {};
+ static ref array<ref BBB_DriverAlignmentState> s_States;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_States = {};
+ }
  static int s_iStarted;
  static int s_iCancelled;
  protected static IEntity s_TraceVehicle;

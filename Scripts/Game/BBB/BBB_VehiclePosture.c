@@ -113,7 +113,12 @@ class BBB_CrewTurnout
  static bool s_bOn;
  static const float QUIET_MS = 30000;
  static const float THREAT_RADIUS = 600;
- static ref array<ref BBB_CrewTurnoutState> s_States = {};
+ static ref array<ref BBB_CrewTurnoutState> s_States;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_States = {};
+ }
  static int s_iRequestsOut;
  static int s_iRequestsIn;
 

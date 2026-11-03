@@ -51,16 +51,24 @@ class BBB_StaticWeapons
 	static const float WEAPON_RETRY_MS = 60000.0;
 
 	// Active crewed jobs
-	protected static ref array<ref BBB_StaticGunnerJob> s_aJobs = new array<ref BBB_StaticGunnerJob>();
+	protected static ref array<ref BBB_StaticGunnerJob> s_aJobs;
 
 	// Per-group evaluation throttle: Group -> next allowed check time in ms
-	protected static ref map<SCR_AIGroup, float> s_mNextCheck = new map<SCR_AIGroup, float>();
+	protected static ref map<SCR_AIGroup, float> s_mNextCheck;
 
 	// Weapon -> earliest time it may be crewed again after a release or failed boarding
-	protected static ref map<IEntity, float> s_mWeaponRetry = new map<IEntity, float>();
+	protected static ref map<IEntity, float> s_mWeaponRetry;
 
 	// Scratch query buffer
-	protected static ref array<IEntity> s_aQueriedEntities = new array<IEntity>();
+	protected static ref array<IEntity> s_aQueriedEntities;
+	// Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+	static void BBB_InitStatics()
+	{
+		s_aJobs = new array<ref BBB_StaticGunnerJob>();
+		s_mNextCheck = new map<SCR_AIGroup, float>();
+		s_mWeaponRetry = new map<IEntity, float>();
+		s_aQueriedEntities = new array<IEntity>();
+	}
 
 	// Performance and test counters
 	static int s_iBoardingRequests;

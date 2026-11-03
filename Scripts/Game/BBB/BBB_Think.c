@@ -35,7 +35,12 @@ class BBB_Think
  static const float PICK_MS = 400;
  static const float PICK_RANGE_M = 500;
  static const float PICK_COS = 0.995;	// within ~5.7 degrees of the view centre
- protected static ref map<IEntity, ref BBB_ThinkLog> s_Logs = new map<IEntity, ref BBB_ThinkLog>();
+ protected static ref map<IEntity, ref BBB_ThinkLog> s_Logs;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Logs = new map<IEntity, ref BBB_ThinkLog>();
+ }
  static IEntity s_Picked; // the soldier the overlay shows (tests read it)
  protected static float s_fNextPick;
  protected static float s_fNextPrune;

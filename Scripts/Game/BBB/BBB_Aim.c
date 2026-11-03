@@ -35,7 +35,12 @@ class BBB_Aim
  static const float TUNED_LONG_RANGE = 3;
  static bool s_bBinoculars = true;
  // Test only: soldiers that keep vanilla aim (the A/B lanes of BBB_AimTest).
- static ref array<IEntity> s_aVanilla = {};
+ static ref array<IEntity> s_aVanilla;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aVanilla = {};
+ }
 
  // Vanilla SCR_AIGetAimErrorOffset: error factor 1.4 from 215 m on.
  static const float RAMP_END_M = 215;

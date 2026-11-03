@@ -107,9 +107,16 @@ class BBB_Flares
  static bool s_bOn;
  static int s_iDispatched;
  static int s_iCancelled;
- static ref array<ref BBB_FlareJob> s_Jobs = {};
- protected static ref array<ref BBB_FlareArea> s_Areas = {};
- protected static ref map<SCR_AIGroup, float> s_Cooldown = new map<SCR_AIGroup, float>();
+ static ref array<ref BBB_FlareJob> s_Jobs;
+ protected static ref array<ref BBB_FlareArea> s_Areas;
+ protected static ref map<SCR_AIGroup, float> s_Cooldown;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Jobs = {};
+  s_Areas = {};
+  s_Cooldown = new map<SCR_AIGroup, float>();
+ }
  protected static int s_iCursor;
  protected static float s_fNextCheck;
  static float s_fSquadCooldownMs = 120000;

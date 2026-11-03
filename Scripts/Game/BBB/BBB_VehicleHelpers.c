@@ -31,7 +31,7 @@ class BBB_VehicleHelpers : Managed
  protected ref map<IEntity, vector> m_StallPos = new map<IEntity, vector>();
  protected ref map<IEntity, float> m_StallSince = new map<IEntity, float>();
  protected ref map<IEntity, int> m_Unsticks = new map<IEntity, int>();
- static ref map<IEntity, float> s_mGunnerReplaceNext = new map<IEntity, float>();
+ static ref map<IEntity, float> s_mGunnerReplaceNext;
  protected ref array<IEntity> m_Unsticking = {};
  protected ref BBB_VehicleHelpersUnstick m_UnstickListener;
 
@@ -42,7 +42,13 @@ class BBB_VehicleHelpers : Managed
  // Counts accepted native boarding requests, not confirmed occupied seats.
  static int s_iGunnerReplacements;
  protected static bool s_bSeatTrace;
- protected static ref array<IEntity> s_aReplacingVehicles = {};
+ protected static ref array<IEntity> s_aReplacingVehicles;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_mGunnerReplaceNext = new map<IEntity, float>();
+  s_aReplacingVehicles = {};
+ }
 
  void BBB_VehicleHelpers()
  {

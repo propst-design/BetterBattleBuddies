@@ -100,14 +100,21 @@ class BBB_Morale
 	static const float LEADER_REORG_S = 45.0;      // a fallen leader still counts this long after a new one is named
 
 	// State tracking
-	protected static ref array<ref BBB_GroupMoraleState> s_States = {};
+	protected static ref array<ref BBB_GroupMoraleState> s_States;
 	// s_States by group (rebuilt each tick): other features ask IsWithdrawing per soldier.
-	protected static ref map<SCR_AIGroup, BBB_GroupMoraleState> s_mStateOf = new map<SCR_AIGroup, BBB_GroupMoraleState>();
+	protected static ref map<SCR_AIGroup, BBB_GroupMoraleState> s_mStateOf;
 	// Every group BBB looks after gets a state (its strength when first seen is the loss baseline).
 	// It was 64: on a mission with more groups than that, every squad past the 64th never had
 	// morale at all, often the fighting ones while idle garrisons held the slots.
 	static const int MAX_STATES = 256;
-	protected static ref array<ref BBB_SurrenderState> s_Surrendered = {};
+	protected static ref array<ref BBB_SurrenderState> s_Surrendered;
+	// Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+	static void BBB_InitStatics()
+	{
+		s_States = {};
+		s_mStateOf = new map<SCR_AIGroup, BBB_GroupMoraleState>();
+		s_Surrendered = {};
+	}
 
 	// Performance counters
 	static int s_iWithdrawalsStarted;

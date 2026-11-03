@@ -44,10 +44,16 @@ class BBB_Smoke
 	static const float RECENT_THREAT_MAX_S = 20.0;
 
 	// Active smoke clouds
-	protected static ref array<ref BBB_SmokeCloud> s_aClouds = new array<ref BBB_SmokeCloud>();
+	protected static ref array<ref BBB_SmokeCloud> s_aClouds;
 
 	// Squad cooldown tracking: Group -> world time in ms of last smoke throw
-	protected static ref map<SCR_AIGroup, float> s_mGroupCooldown = new map<SCR_AIGroup, float>();
+	protected static ref map<SCR_AIGroup, float> s_mGroupCooldown;
+	// Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+	static void BBB_InitStatics()
+	{
+		s_aClouds = new array<ref BBB_SmokeCloud>();
+		s_mGroupCooldown = new map<SCR_AIGroup, float>();
+	}
 
 	// Performance and test counters
 	static int s_iSmokeThrown;

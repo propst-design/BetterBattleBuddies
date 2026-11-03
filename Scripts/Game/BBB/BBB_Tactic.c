@@ -140,13 +140,13 @@ class BBB_Tactic
  static bool s_bSearch = true;
  static bool s_bFire = false; // HOLD base of fire: opt-in until an A/B shows it adds fire (24 Oct)
  protected static int s_iRead;
- protected static ref map<SCR_AIGroup, ref BBB_TacticState> s_States = new map<SCR_AIGroup, ref BBB_TacticState>();
- static ref array<SCR_AIGroup> s_aVanilla = {}; // test only: squads left to the features' own rules
+ protected static ref map<SCR_AIGroup, ref BBB_TacticState> s_States;
+ static ref array<SCR_AIGroup> s_aVanilla; // test only: squads left to the features' own rules
  static int s_iChanges; // tests read these
  protected static int s_iTick;
  static int s_iCallouts;
  // First contact plays once per squad per CONTACT_LOCK_S, across contacts (world time s).
- protected static ref map<SCR_AIGroup, float> s_mContactLock = new map<SCR_AIGroup, float>();
+ protected static ref map<SCR_AIGroup, float> s_mContactLock;
  // -bbbTacticStats: squads seen in contact this minute -> bits of what happened to them
  static bool s_bStats;
  static const int STAT_RUN = 1;     // a tactic ran it
@@ -154,7 +154,15 @@ class BBB_Tactic
  static const int STAT_PLAYER = 4;  // player in the squad
  static const int STAT_CREW = 8;    // crewing a vehicle
  static const int STAT_ORDER = 16;  // player/GM order on a member
- protected static ref map<SCR_AIGroup, int> s_mStat = new map<SCR_AIGroup, int>();
+ protected static ref map<SCR_AIGroup, int> s_mStat;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_States = new map<SCR_AIGroup, ref BBB_TacticState>();
+  s_aVanilla = {};
+  s_mContactLock = new map<SCR_AIGroup, float>();
+  s_mStat = new map<SCR_AIGroup, int>();
+ }
  protected static float s_fStatAt;
  protected static int s_iPinnedLooks; // looks where a pinned leader kept the squad from picking
  protected static int s_iPinnedTotal;      // "leader pinned" decisions with a leader to read...

@@ -18,7 +18,12 @@ class BBB_CoverFire
  static bool s_bOn = true;
  protected static int s_iRead;
  static int s_iOnCover, s_iOnReport, s_iRefused; // tests read these
- protected static ref array<IEntity> s_aFound = {};
+ protected static ref array<IEntity> s_aFound;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aFound = {};
+ }
  protected static float s_fGround;
  protected static Faction s_Side;
  protected static bool s_bFriendly;

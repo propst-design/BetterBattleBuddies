@@ -23,8 +23,14 @@ class BBB_TacticDrill
  static const float POINT_S = 20;     // per point, plus walking time at 1.5 m/s
  static const int SEARCH_EXTRA = 4;
  static int s_iBursts, s_iRuns, s_iLooks, s_iPointsDone; // tests read these
- static ref array<SCR_AIGroup> s_aNoFire = {}; // test only: squads that hold without a base of fire
- protected static ref array<IEntity> s_aFound = {};
+ static ref array<SCR_AIGroup> s_aNoFire; // test only: squads that hold without a base of fire
+ protected static ref array<IEntity> s_aFound;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aNoFire = {};
+  s_aFound = {};
+ }
  protected static float s_fGround;
 
  // Conscious AI members in a stable order; half = index % 2.

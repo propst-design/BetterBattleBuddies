@@ -36,12 +36,21 @@ class BBB_ArmorReaction
  static int s_iReactions;
  static int s_iReverses;
  static int s_iSmoke;
- static ref array<ref BBB_ATProjectile> s_Projectiles = {};
- static ref array<ref BBB_ArmorEscape> s_Escapes = {};
- protected static ref array<IEntity> s_Vehicles = {};
- protected static ref map<IEntity, float> s_Retry = new map<IEntity, float>();
+ static ref array<ref BBB_ATProjectile> s_Projectiles;
+ static ref array<ref BBB_ArmorEscape> s_Escapes;
+ protected static ref array<IEntity> s_Vehicles;
+ protected static ref map<IEntity, float> s_Retry;
  protected static IEntity s_TraceVehicle;
- protected static ref array<TurretControllerComponent> s_SmokePulses = {};
+ protected static ref array<TurretControllerComponent> s_SmokePulses;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Projectiles = {};
+  s_Escapes = {};
+  s_Vehicles = {};
+  s_Retry = new map<IEntity, float>();
+  s_SmokePulses = {};
+ }
 
  static void Read()
  {

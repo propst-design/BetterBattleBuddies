@@ -30,9 +30,16 @@ class BBB_HeldGuns
  static int s_iRemounted;
  static int s_iWinchester;
  protected static int s_iTicks;
- protected static ref map<IEntity, float> s_mEmptySince = new map<IEntity, float>();
- protected static ref map<IEntity, float> s_mLogged = new map<IEntity, float>();
- protected static ref map<IEntity, float> s_mDrySince = new map<IEntity, float>(); // gunner -> first seen on a dry gun
+ protected static ref map<IEntity, float> s_mEmptySince;
+ protected static ref map<IEntity, float> s_mLogged;
+ protected static ref map<IEntity, float> s_mDrySince; // gunner -> first seen on a dry gun
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_mEmptySince = new map<IEntity, float>();
+  s_mLogged = new map<IEntity, float>();
+  s_mDrySince = new map<IEntity, float>();
+ }
 
  static void Read()
  {

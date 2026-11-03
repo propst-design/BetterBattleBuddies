@@ -88,7 +88,12 @@ class BBB_Transport
   return speed < SETTLED_SPEED && height < SETTLED_HEIGHT;
  }
 
- static ref map<IEntity, float> s_mLastVehicleHit = new map<IEntity, float>();
+ static ref map<IEntity, float> s_mLastVehicleHit;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_mLastVehicleHit = new map<IEntity, float>();
+ }
 
  static void OnVehicleHit(IEntity vehicle)
  {

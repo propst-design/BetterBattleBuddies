@@ -47,8 +47,14 @@ class BBB_Squad
  static const float FLANK_SHARE = 0.25;
  static bool s_bOn = true;
  protected static int s_iRead;
- protected static ref map<SCR_AIGroup, ref BBB_SquadPicture> s_Pictures = new map<SCR_AIGroup, ref BBB_SquadPicture>();
- static ref array<SCR_AIGroup> s_aVanilla = {}; // test only: squads that keep the old functions
+ protected static ref map<SCR_AIGroup, ref BBB_SquadPicture> s_Pictures;
+ static ref array<SCR_AIGroup> s_aVanilla; // test only: squads that keep the old functions
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Pictures = new map<SCR_AIGroup, ref BBB_SquadPicture>();
+  s_aVanilla = {};
+ }
  static int s_iBuilt; // tests and perf read this
 
  static void Read()

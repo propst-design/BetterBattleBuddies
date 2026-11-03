@@ -59,9 +59,9 @@ class BBB_Drag
  // Above the heal behaviour (111): he moves the casualty before treating him.
  static const float MOVE_PRIORITY = 112;
 
- static ref array<ref BBB_DragJob> s_aJobs = {};
+ static ref array<ref BBB_DragJob> s_aJobs;
  // Casualty -> world time (ms) of his last drag, or of a search that found no spot.
- static ref map<IEntity, float> s_mLast = new map<IEntity, float>();
+ static ref map<IEntity, float> s_mLast;
  static bool s_bTicking;
  // For the test.
  static int s_iStarted;
@@ -281,7 +281,14 @@ class BBB_Drag
  }
 
  // Log why a drag was not started (at most every 10 s per casualty).
- static ref map<IEntity, float> s_mRefusedLog = new map<IEntity, float>();
+ static ref map<IEntity, float> s_mRefusedLog;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aJobs = {};
+  s_mLast = new map<IEntity, float>();
+  s_mRefusedLog = new map<IEntity, float>();
+ }
  static void Refused(IEntity healer, IEntity casualty, string why)
  {
   float now = NowMs();

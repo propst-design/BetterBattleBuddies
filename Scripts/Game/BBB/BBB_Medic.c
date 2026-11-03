@@ -31,7 +31,7 @@ class BBB_Medic
  static int s_iRead;
  static bool s_bOn = true;
  // Test only: soldiers that keep vanilla healing (the A/B sides of BBB_MedicTest).
- static ref array<IEntity> s_aVanilla = {};
+ static ref array<IEntity> s_aVanilla;
 
  static const float RECENT_S = 15;
  static const float EXPOSED_HOLD_S = 30;
@@ -70,24 +70,38 @@ class BBB_Medic
  static const float SMOKE_RADIUS = 9.0;
  static const float SMOKE_THROW_MAX_M = 38.0;
 
- static ref map<IEntity, float> s_mSmokeTime = new map<IEntity, float>();
- static ref map<IEntity, vector> s_mSmokePos = new map<IEntity, vector>();
+ static ref map<IEntity, float> s_mSmokeTime;
+ static ref map<IEntity, vector> s_mSmokePos;
 
  // Casualty -> world time (ms) a heal for him was last held / he became a hot spot.
- static ref map<IEntity, float> s_mHeld = new map<IEntity, float>();
- static ref map<IEntity, float> s_mHot = new map<IEntity, float>();
+ static ref map<IEntity, float> s_mHeld;
+ static ref map<IEntity, float> s_mHot;
  // Healer -> world time (ms) he was last let go to a casualty (on his way), and to whom.
- static ref map<IEntity, float> s_mGoing = new map<IEntity, float>();
- static ref map<IEntity, IEntity> s_mGoingTo = new map<IEntity, IEntity>();
+ static ref map<IEntity, float> s_mGoing;
+ static ref map<IEntity, IEntity> s_mGoingTo;
  static bool s_bWatching;
 
  // Counters for the test (heal behaviour selected / completed, healers hit on the way).
  static int s_iStarted;
  static int s_iDone;
  static int s_iHealersHit;
- static ref map<IEntity, int> s_mStartedBy = new map<IEntity, int>();
- static ref map<IEntity, int> s_mDoneBy = new map<IEntity, int>();
- static ref map<IEntity, int> s_mHitBy = new map<IEntity, int>();
+ static ref map<IEntity, int> s_mStartedBy;
+ static ref map<IEntity, int> s_mDoneBy;
+ static ref map<IEntity, int> s_mHitBy;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aVanilla = {};
+  s_mSmokeTime = new map<IEntity, float>();
+  s_mSmokePos = new map<IEntity, vector>();
+  s_mHeld = new map<IEntity, float>();
+  s_mHot = new map<IEntity, float>();
+  s_mGoing = new map<IEntity, float>();
+  s_mGoingTo = new map<IEntity, IEntity>();
+  s_mStartedBy = new map<IEntity, int>();
+  s_mDoneBy = new map<IEntity, int>();
+  s_mHitBy = new map<IEntity, int>();
+ }
 
  static void Stop()
  {

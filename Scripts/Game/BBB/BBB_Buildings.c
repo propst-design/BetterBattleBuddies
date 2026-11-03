@@ -54,21 +54,32 @@ class BBB_Buildings
  static const float HOLD_CQB_M = 10;    // closer than this, vanilla close combat decides
  static const float WINDOW_WAIT_MS = 4000;
  static const float NO_WINDOW_MS = 20000;
- protected static ref map<SCR_AIUtilityComponent, ref BBB_IndoorSpot> s_Indoor = new map<SCR_AIUtilityComponent, ref BBB_IndoorSpot>();
- protected static ref map<SCR_AIUtilityComponent, vector> s_WindowThreat = new map<SCR_AIUtilityComponent, vector>();
- protected static ref map<SCR_AIUtilityComponent, float> s_WindowAsked = new map<SCR_AIUtilityComponent, float>();
- protected static ref map<SCR_AIUtilityComponent, float> s_NoWindow = new map<SCR_AIUtilityComponent, float>();
+ protected static ref map<SCR_AIUtilityComponent, ref BBB_IndoorSpot> s_Indoor;
+ protected static ref map<SCR_AIUtilityComponent, vector> s_WindowThreat;
+ protected static ref map<SCR_AIUtilityComponent, float> s_WindowAsked;
+ protected static ref map<SCR_AIUtilityComponent, float> s_NoWindow;
  static int s_iStarted;
  static int s_iArrived;
  static int s_iFailed;
  static int s_iQueries;
  static int s_iClearingSteps;
  protected static int s_iQueryBudget;
- static ref array<ref BBB_BuildingJob> s_Jobs = {};
- protected static ref map<SCR_AIUtilityComponent, float> s_Retry = new map<SCR_AIUtilityComponent, float>();
+ static ref array<ref BBB_BuildingJob> s_Jobs;
+ protected static ref map<SCR_AIUtilityComponent, float> s_Retry;
  protected static int s_iCursor;
  protected static bool s_bInTick;
- protected static ref array<IEntity> s_Buildings = {};
+ protected static ref array<IEntity> s_Buildings;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Indoor = new map<SCR_AIUtilityComponent, ref BBB_IndoorSpot>();
+  s_WindowThreat = new map<SCR_AIUtilityComponent, vector>();
+  s_WindowAsked = new map<SCR_AIUtilityComponent, float>();
+  s_NoWindow = new map<SCR_AIUtilityComponent, float>();
+  s_Jobs = {};
+  s_Retry = new map<SCR_AIUtilityComponent, float>();
+  s_Buildings = {};
+ }
 
  protected static bool CollectBuilding(IEntity entity)
  {

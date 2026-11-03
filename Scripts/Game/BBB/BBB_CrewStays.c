@@ -16,7 +16,12 @@ class BBB_CrewStays
  protected static int s_iRead;
  static int s_iGatesKept;
  static int s_iHealsKept;
- protected static ref map<IEntity, float> s_mLogged = new map<IEntity, float>();
+ protected static ref map<IEntity, float> s_mLogged;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_mLogged = new map<IEntity, float>();
+ }
 
  // BBB is stopping (mission end): forget the log throttle, whose soldiers are gone.
  static void Stop()

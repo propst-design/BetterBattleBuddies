@@ -86,7 +86,12 @@ class BBB_Threat
 	static int s_iExplosionReflexScheduled;
 	static int s_iExplosionReflexApplied;
 
-	protected static ref array<ref BBB_ExplosionReflexJob> s_aReflexJobs = {};
+	protected static ref array<ref BBB_ExplosionReflexJob> s_aReflexJobs;
+	// Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+	static void BBB_InitStatics()
+	{
+		s_aReflexJobs = {};
+	}
 	protected static bool s_bReflexWatching;
 
 	static void Read()

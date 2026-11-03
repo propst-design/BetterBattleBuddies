@@ -53,9 +53,16 @@ class BBB_Teams
  static const int LAUNCHER_TARGET = 2;
  static bool s_bOn = true;
  protected static int s_iRead;
- protected static ref array<ref BBB_Pair> s_aPairs = {};
- protected static ref map<SCR_AIGroup, float> s_mNextPair = new map<SCR_AIGroup, float>();
- static ref array<IEntity> s_aVanilla = {}; // test only: soldiers never paired
+ protected static ref array<ref BBB_Pair> s_aPairs;
+ protected static ref map<SCR_AIGroup, float> s_mNextPair;
+ static ref array<IEntity> s_aVanilla; // test only: soldiers never paired
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aPairs = {};
+  s_mNextPair = new map<SCR_AIGroup, float>();
+  s_aVanilla = {};
+ }
  static int s_iPaired;    // tests read these
  static int s_iLeashes;
  static int s_iHandovers;

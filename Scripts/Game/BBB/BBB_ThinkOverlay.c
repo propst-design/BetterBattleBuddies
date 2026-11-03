@@ -15,7 +15,12 @@ class BBB_ThinkOverlay
  protected static Widget s_Card;
  protected static Widget s_Marker;
  protected static Widget s_TargetMarker;
- protected static ref array<TextWidget> s_Texts = {};
+ protected static ref array<TextWidget> s_Texts;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Texts = {};
+ }
  protected static vector s_TargetAt;
  protected static bool s_bHasText;
 

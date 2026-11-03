@@ -8,10 +8,18 @@ class BBB_Perf
 {
  static bool s_bOn;
  static bool s_bOwnReport; // -bbbPerf 1: BBB prints its own line (no host report)
- protected static ref map<string, int> s_Ms = new map<string, int>();
- protected static ref map<string, int> s_Max = new map<string, int>();
- protected static ref map<string, int> s_Count = new map<string, int>();
- protected static ref array<string> s_Order = {};
+ protected static ref map<string, int> s_Ms;
+ protected static ref map<string, int> s_Max;
+ protected static ref map<string, int> s_Count;
+ protected static ref array<string> s_Order;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Ms = new map<string, int>();
+  s_Max = new map<string, int>();
+  s_Count = new map<string, int>();
+  s_Order = {};
+ }
  protected static int s_iTicks;
  protected static int s_iWindowTicks;
  protected static int s_iFrames;

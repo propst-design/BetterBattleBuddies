@@ -19,7 +19,12 @@ class BBB_Gunner
  static bool s_bDrill = true;
  static bool s_bScan = true;
  static int s_iDrills;          // drills started (tests read it)
- static ref array<IEntity> s_aVanilla = {}; // test only: gunners kept vanilla
+ static ref array<IEntity> s_aVanilla; // test only: gunners kept vanilla
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aVanilla = {};
+ }
 
  static const float DRILL_S = 12;
  static const float COOLDOWN_S = 20;

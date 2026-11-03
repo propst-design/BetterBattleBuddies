@@ -96,7 +96,12 @@ class BBB_Hooks : Managed
 
 class BBB
 {
-	static ref BBB_Hooks s_Hooks = new BBB_Hooks();
+	static ref BBB_Hooks s_Hooks;
+	// Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+	static void BBB_InitStatics()
+	{
+		s_Hooks = new BBB_Hooks();
+	}
 	static ref BBB_VehicleHelpers s_VehicleHelpers;
 	static ref BBB_Launchers s_Launchers;
 	static ref BBB_Combat s_Combat;

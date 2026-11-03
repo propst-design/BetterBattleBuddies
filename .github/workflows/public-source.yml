@@ -17,3 +17,5 @@ jobs:
         run: python3 tools/check_public_source.py
       - name: Check Enforce number traps
         run: python3 tools/check_enforce_numbers.py
+      - name: Check the static-initializer budget
+        run: python3 tools/check_static_init.py

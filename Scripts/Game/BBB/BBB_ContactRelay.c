@@ -31,11 +31,19 @@ class BBB_ContactRelay
  static const float DELAY_MAX_MS = 6000;
  static const float RADIO_CACHE_MS = 30000;
  static const int MAX_PENDING = 200;
- protected static ref array<ref BBB_RelayReport> s_Pending = {};
+ protected static ref array<ref BBB_RelayReport> s_Pending;
  // receiver -> enemy -> sighting time last relayed (no duplicate reports of one sighting)
- protected static ref map<SCR_AIGroup, ref map<IEntity, float>> s_Sent = new map<SCR_AIGroup, ref map<IEntity, float>>();
- protected static ref map<IEntity, float> s_RadioRange = new map<IEntity, float>();
- protected static ref map<IEntity, float> s_RadioAt = new map<IEntity, float>();
+ protected static ref map<SCR_AIGroup, ref map<IEntity, float>> s_Sent;
+ protected static ref map<IEntity, float> s_RadioRange;
+ protected static ref map<IEntity, float> s_RadioAt;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Pending = {};
+  s_Sent = new map<SCR_AIGroup, ref map<IEntity, float>>();
+  s_RadioRange = new map<IEntity, float>();
+  s_RadioAt = new map<IEntity, float>();
+ }
  protected static int s_iTick;
  static int s_iQueued;    // tests read these
  static int s_iDelivered;

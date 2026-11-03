@@ -104,10 +104,16 @@ class BBB_Settings
  protected static ref array<ref BBB_Setting> s_aSettings;
  protected static ref map<string, BBB_Setting> s_Index;
  // The values this mission runs with (from the active preset; launch parameters are read live).
- protected static ref map<string, string> s_Values = new map<string, string>();
+ protected static ref map<string, string> s_Values;
  // Keys a preset ever set in this game session: a later mission without them gets the default
  // back, because the feature still holds the earlier mission's value.
- protected static ref set<string> s_Touched = new set<string>();
+ protected static ref set<string> s_Touched;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Values = new map<string, string>();
+  s_Touched = new set<string>();
+ }
  protected static int s_iGeneration;
  protected static bool s_bStale = true;
  protected static string s_sPreset;
@@ -748,6 +754,13 @@ class BBB_Preset
 
 modded class ArmaReforgerScripted
 {
+ // Runs when the game object is created, before any world or entity: BBB's statics exist from
+ // the first frame. Modded constructors chain, so a host mod's own constructor still runs.
+ void ArmaReforgerScripted()
+ {
+  BBB_StaticInit.Run();
+ }
+
  protected override void OnBeforeWorldCleanup()
  {
   // Stop first: Stop hands state back with this mission's settings still read

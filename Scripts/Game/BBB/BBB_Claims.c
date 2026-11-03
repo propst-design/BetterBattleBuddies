@@ -29,8 +29,14 @@ class BBB_Claims
  static const float TTL_MS = 3000;
  static bool s_bOn = true;
  protected static int s_iRead;
- protected static ref map<IEntity, ref BBB_Claim> s_Claims = new map<IEntity, ref BBB_Claim>();
- static ref array<IEntity> s_aVanilla = {}; // test only: soldiers who keep the old arbitration
+ protected static ref map<IEntity, ref BBB_Claim> s_Claims;
+ static ref array<IEntity> s_aVanilla; // test only: soldiers who keep the old arbitration
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Claims = new map<IEntity, ref BBB_Claim>();
+  s_aVanilla = {};
+ }
  static int s_iTaken;     // tests read these
  static int s_iPreempted;
  static int s_iRefused;

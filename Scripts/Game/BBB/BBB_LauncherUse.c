@@ -63,7 +63,12 @@ class BBB_LauncherUse
  static int s_iDugIn;
  static bool s_bTrace; // test only: print why each hold ends
  static bool s_bTestNoSettle; // test only: leave tubes loaded (swap fixture)
- static ref map<string, int> s_mClass = new map<string, int>();
+ static ref map<string, int> s_mClass;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_mClass = new map<string, int>();
+ }
 
  static void Read()
  {

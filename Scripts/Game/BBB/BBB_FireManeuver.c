@@ -34,8 +34,14 @@ class BBB_FireManeuver
  static const float COVER_ORDER_PRIORITY = 90.5; // just above attacking a selected target (90)
  static int s_iCoverOrders;
  static bool s_bCoverOrders = true;
- protected static ref map<SCR_AIGroup, ref BBB_FireTeamJob> s_Jobs = new map<SCR_AIGroup, ref BBB_FireTeamJob>();
- protected static ref map<SCR_AIGroup, float> s_Next = new map<SCR_AIGroup, float>();
+ protected static ref map<SCR_AIGroup, ref BBB_FireTeamJob> s_Jobs;
+ protected static ref map<SCR_AIGroup, float> s_Next;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Jobs = new map<SCR_AIGroup, ref BBB_FireTeamJob>();
+  s_Next = new map<SCR_AIGroup, float>();
+ }
 
  static void Read()
  {

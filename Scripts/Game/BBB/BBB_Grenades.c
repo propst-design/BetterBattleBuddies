@@ -32,13 +32,20 @@ class BBB_Grenades
 	static const float CHECK_INTERVAL_MS = 2000.0;
 
 	// Squad cooldown tracking: Group -> world time in ms of last grenade throw
-	protected static ref map<SCR_AIGroup, float> s_mGroupCooldown = new map<SCR_AIGroup, float>();
+	protected static ref map<SCR_AIGroup, float> s_mGroupCooldown;
 
 	// Per-group check throttle: Group -> next allowed evaluation time in ms
-	protected static ref map<SCR_AIGroup, float> s_mNextCheck = new map<SCR_AIGroup, float>();
+	protected static ref map<SCR_AIGroup, float> s_mNextCheck;
 
 	// Scratch query buffer
-	protected static ref array<IEntity> s_aNearbyEntities = new array<IEntity>();
+	protected static ref array<IEntity> s_aNearbyEntities;
+	// Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+	static void BBB_InitStatics()
+	{
+		s_mGroupCooldown = new map<SCR_AIGroup, float>();
+		s_mNextCheck = new map<SCR_AIGroup, float>();
+		s_aNearbyEntities = new array<IEntity>();
+	}
 
 	// Performance and test counters
 	static int s_iGrenadesThrown;

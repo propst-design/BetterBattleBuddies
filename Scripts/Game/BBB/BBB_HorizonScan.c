@@ -6,8 +6,14 @@ class BBB_HorizonScan
 {
 	static int s_iRead;
 	static bool s_bOn = true;
-	protected static ref BBB_VanillaHooks s_WorldGroups = new BBB_VanillaHooks();
-	protected static ref array<SCR_AIGroup> s_aHostGroups = {};
+	protected static ref BBB_VanillaHooks s_WorldGroups;
+	protected static ref array<SCR_AIGroup> s_aHostGroups;
+	// Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+	static void BBB_InitStatics()
+	{
+		s_WorldGroups = new BBB_VanillaHooks();
+		s_aHostGroups = {};
+	}
 	static IEntity s_ExemptSoldier;
 
 	static void SetExemptSoldier(IEntity ent)

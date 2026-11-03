@@ -4,7 +4,12 @@
 class BBB_LongRangeTest : BBB_AimTest
 {
  static ref BBB_LongRangeTest s_Long;
- static ref array<IEntity> s_StaticShooters = {};
+ static ref array<IEntity> s_StaticShooters;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_StaticShooters = {};
+ }
  protected float m_SavedLong;
  protected float m_SavedSuppressed;
  protected float m_SavedLauncher;

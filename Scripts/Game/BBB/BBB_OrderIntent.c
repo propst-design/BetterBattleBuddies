@@ -125,7 +125,12 @@ class BBB_OrderLeash
  static const float ROUTE_RADIUS = 150;
  static const float DEFEND_RADIUS = 35;
  static const float QUIET_MS = 75000;
- protected static ref map<SCR_AIGroup, ref BBB_OrderLease> s_Leases = new map<SCR_AIGroup, ref BBB_OrderLease>();
+ protected static ref map<SCR_AIGroup, ref BBB_OrderLease> s_Leases;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Leases = new map<SCR_AIGroup, ref BBB_OrderLease>();
+ }
 
  static void Read()
  {

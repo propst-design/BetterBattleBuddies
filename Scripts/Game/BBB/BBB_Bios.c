@@ -279,8 +279,8 @@ class BBB_Bios
  static const ResourceName CIV_CONFIG = "{BBB0B10500000002}Configs/BBB/BBB_CivBios.conf";
  // Our blood type codes start here (vanilla's are 0-7).
  static const int BLOOD_BASE = 7700;
- protected static ref array<ref SCR_UIInfo> s_aBloodInfos = {};
- protected static ref array<string> s_aBloodLabels = {};
+ protected static ref array<ref SCR_UIInfo> s_aBloodInfos;
+ protected static ref array<string> s_aBloodLabels;
  protected static const string VANILLA_BLOOD = "O+|O-|A+|A-|B+|B-|AB+|AB-";
 
  static SCR_UIInfo BloodInfo(int code)
@@ -368,7 +368,14 @@ class BBB_Bios
 
  // -bbbIdentityTest 1 (server): spawns civilians and US riflemen out of the way, logs what
  // identity each got, then deletes them. Run it in a world with a CIV faction (Game Master).
- protected static ref array<IEntity> s_aTestEntities = {};
+ protected static ref array<IEntity> s_aTestEntities;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_aBloodInfos = {};
+  s_aBloodLabels = {};
+  s_aTestEntities = {};
+ }
  protected static const ResourceName TEST_CIV = "{22E43956740A6794}Prefabs/Characters/Factions/CIV/GenericCivilians/Character_CIV_Randomized.et";
  protected static const ResourceName TEST_US = "{26A9756790131354}Prefabs/Characters/Factions/BLUFOR/US_Army/Character_US_Rifleman.et";
 

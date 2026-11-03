@@ -18,7 +18,12 @@ class BBB_Unstick : Managed
  static const float REVERSE_MS = 3500;    // reversing, then a short brake
  static const float TOTAL_MS = 4300;
 
- protected static ref array<ref BBB_Unstick> s_Active = {};
+ protected static ref array<ref BBB_Unstick> s_Active;
+ // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
+ static void BBB_InitStatics()
+ {
+  s_Active = {};
+ }
 
  IEntity m_Vehicle;
  ChimeraCharacter m_Driver;
