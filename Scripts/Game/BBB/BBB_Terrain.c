@@ -63,6 +63,223 @@ class BBB_Terrain
   return GetGame().GetWorld().GetSurfaceY(x, z) < SEA_LEVEL;
  }
 
+ // Rivers and ponds (3 Nov 2026): IsWater only knows the sea (ground below sea level). An inland
+ // river's bed lies above it, so routes and spots ran straight into rivers. The engine's water
+ // surfaces know all three (sea, river, pond).
+ static const float WADE_DEPTH = 1;       // deeper than this a soldier swims
+ static const float DECK_CLEAR = 0.3;     // a bridge deck stands at least this far above the water
+ static const float BRIDGE_STEP = 5;      // m between water checks along a road
+ static const float BRIDGE_APPROACH = 30; // m along the road before each end: the way onto it
+ static const float LANDING_RISE = 1.5;   // a road this close to the ground is off its bridge
+ static const float BRIDGE_MAX = 400;     // a bridge or viaduct longer than this isn't followed
+
+ // Metres of water over the ground at p: the sea, a river or a pond; 0 on dry ground.
+ static float WaterDepthAt(vector p)
+ {
+  BaseWorld world = GetGame().GetWorld();
+  float ground = world.GetSurfaceY(p[0], p[2]);
+  vector surface;
+  EWaterSurfaceType surfaceType;
+  vector transform[4];
+  vector extents;
+  if (ChimeraWorldUtils.TryGetWaterSurface(world, Vector(p[0], ground + 0.05, p[2]), surface, surfaceType, transform, extents))
+   return Math.Max(0.05, surface[1] - ground);
+  if (ground < SEA_LEVEL) return SEA_LEVEL - ground;
+  return 0;
+ }
+
+ // Too deep to wade at p (a soldier would swim).
+ static bool IsDeepWaterAt(vector p)
+ {
+  return WaterDepthAt(p) >= WADE_DEPTH;
+ }
+
+ // Metres of the straight line from a to b too deep to wade.
+ static float DeepWaterAlong(vector a, vector b, float step = 10)
+ {
+  float length = vector.DistanceXZ(a, b);
+  int samples = Math.Max(1, (int)(length / step));
+  float wet;
+  for (int i = 1; i < samples; i++)
+  {
+   float t = i / (float)samples;
+   if (IsDeepWaterAt(a + (b - a) * t)) wet += length / samples;
+  }
+  return wet;
+ }
+
+ // The road bridge nearest 'wet' (deep water) within 'search' m: a stretch of road over deep water
+ // with a deck above it. nearEnd/farEnd are where its road is back on dry ground (a viaduct runs
+ // on far past the water: its ends over the water's edge are high in the air), nearEnd the one
+ // nearer 'from'; nearApproach/farApproach are on its road BRIDGE_APPROACH m further out (a river
+ // often bends round a bridge's abutments, so the way onto it is along its road).
+ static bool BridgeNear(vector wet, vector from, float search, out vector nearEnd, out vector farEnd, out vector nearApproach, out vector farApproach)
+ {
+  ChimeraAIWorld aiWorld = ChimeraAIWorld.Cast(GetGame().GetAIWorld());
+  if (!aiWorld || !aiWorld.GetRoadNetworkManager()) return false;
+  array<BaseRoad> roads = {};
+  aiWorld.GetRoadNetworkManager().GetRoadsInAABB(Vector(wet[0] - search, -1000, wet[2] - search), Vector(wet[0] + search, 3000, wet[2] + search), roads);
+  float best = search;
+  bool found;
+  array<vector> points = {};
+  foreach (BaseRoad road : roads)
+  {
+   if (!road) continue;
+   points.Clear();
+   road.GetPoints(points);
+   if (points.IsEmpty()) continue;
+   // Walk the road in BRIDGE_STEP steps; a run of deep water starts at the last dry point.
+   vector lastDry = points[0];
+   vector runStart;
+   bool inWater;
+   for (int i = 0; i < points.Count(); i++)
+   {
+    vector a = points[i];
+    vector b = a;
+    int steps = 1;
+    if (i + 1 < points.Count())
+    {
+     b = points[i + 1];
+     steps = Math.Max(1, Math.Ceil(vector.DistanceXZ(a, b) / BRIDGE_STEP));
+    }
+    // A long road only through the box: its stretches far from the crossing aren't walked.
+    if (BBB_ArmorReaction.SegmentDistance(wet, a, b) > search)
+    {
+     inWater = false;
+     lastDry = b;
+     continue;
+    }
+    for (int s = 0; s < steps; s++)
+    {
+     vector p = a + (b - a) * (s / (float)steps);
+     bool deep = IsDeepWaterAt(p);
+     if (deep && !inWater)
+     {
+      inWater = true;
+      runStart = lastDry;
+     }
+     else if (!deep && inWater)
+     {
+      inWater = false;
+      float d = vector.DistanceXZ((runStart + p) * 0.5, wet);
+      if (d < best && HasDeck(runStart, p))
+      {
+       best = d;
+       found = true;
+       nearEnd = runStart;
+       farEnd = p;
+      }
+     }
+     if (!deep) lastDry = p;
+    }
+   }
+  }
+  if (!found) return false;
+  if (vector.DistanceXZ(farEnd, from) < vector.DistanceXZ(nearEnd, from))
+  {
+   vector swap = nearEnd;
+   nearEnd = farEnd;
+   farEnd = swap;
+  }
+  vector wetNear = nearEnd;
+  vector wetFar = farEnd;
+  if (!Landing(aiWorld.GetRoadNetworkManager(), wetNear, wetFar, nearEnd, nearApproach)) return false;
+  return Landing(aiWorld.GetRoadNetworkManager(), wetFar, wetNear, farEnd, farApproach);
+ }
+
+ // From a bridge's end over the water's edge 'at', on along its road away from 'other' until the
+ // road is back on dry ground: 'landing'; 'approach' is BRIDGE_APPROACH m further on. The road is
+ // followed piece by piece at the deck's height (a road passing under a viaduct isn't it). False:
+ // no landing within BRIDGE_MAX.
+ protected static bool Landing(RoadNetworkManager network, vector at, vector other, out vector landing, out vector approach)
+ {
+  BaseWorld world = GetGame().GetWorld();
+  vector onward = at - other;
+  onward[1] = 0;
+  onward.Normalize();
+  vector here = at;
+  bool landed;
+  float beyond;
+  for (float travelled = 0; travelled < BRIDGE_MAX + BRIDGE_APPROACH; travelled += BRIDGE_STEP)
+  {
+   vector next = here + onward * BRIDGE_STEP;
+   vector onRoad, tangent;
+   if (OnRoadAt(network, next, here[1], onRoad, tangent))
+   {
+    next = onRoad;
+    if (vector.Dot(tangent, onward) < 0) tangent = -tangent;
+    onward = tangent;
+   }
+   else if (!landed) return false; // the road ends in the air
+   here = next;
+   if (!landed)
+   {
+    if (LANDING_RISE >= here[1] - world.GetSurfaceY(here[0], here[2]) && !IsDeepWaterAt(here))
+    {
+     landed = true;
+     landing = BBB.Ground(here);
+     approach = landing;
+    }
+    continue;
+   }
+   if (IsDeepWaterAt(here)) return true; // more water on: the landing will do
+   approach = BBB.Ground(here);
+   beyond += BRIDGE_STEP;
+   if (beyond >= BRIDGE_APPROACH) return true;
+  }
+  return landed;
+ }
+
+ // The road under 'p' at about height y (within 4 m): its point there (with the road's height) and
+ // flat direction.
+ protected static bool OnRoadAt(RoadNetworkManager network, vector p, float y, out vector point, out vector tangent)
+ {
+  array<BaseRoad> roads = {};
+  network.GetRoadsInAABB(Vector(p[0] - 8, y - 6, p[2] - 8), Vector(p[0] + 8, y + 6, p[2] + 8), roads);
+  float best = 8;
+  bool found;
+  array<vector> points = {};
+  foreach (BaseRoad road : roads)
+  {
+   points.Clear();
+   if (road) road.GetPoints(points);
+   for (int i = 0; i + 1 < points.Count(); i++)
+   {
+    vector a = points[i];
+    vector b = points[i + 1];
+    float abx = b[0] - a[0];
+    float abz = b[2] - a[2];
+    float lengthSq = abx * abx + abz * abz;
+    if (lengthSq < 0.01) continue;
+    float t = Math.Clamp(((p[0] - a[0]) * abx + (p[2] - a[2]) * abz) / lengthSq, 0, 1);
+    vector c = a + (b - a) * t;
+    if (Math.AbsFloat(c[1] - y) > 4) continue;
+    float d = vector.DistanceXZ(c, p);
+    if (d >= best) continue;
+    best = d;
+    found = true;
+    point = c;
+    tangent = Vector(abx, 0, abz);
+   }
+  }
+  if (found) tangent.Normalize();
+  return found;
+ }
+
+ // Something solid (a deck) above the water in the middle of a road's wet stretch: a road line
+ // alone can't tell a bridge from a road through a deep ford.
+ protected static bool HasDeck(vector a, vector b)
+ {
+  vector middle = (a + b) * 0.5;
+  BaseWorld world = GetGame().GetWorld();
+  float water = world.GetSurfaceY(middle[0], middle[2]) + WaterDepthAt(middle);
+  TraceParam trace = new TraceParam();
+  trace.Start = Vector(middle[0], Math.Max(middle[1], water) + 5, middle[2]);
+  trace.End = Vector(middle[0], water + DECK_CLEAR, middle[2]);
+  trace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+  return world.TraceMove(trace, null) < 1;
+ }
+
  static bool IsWaterAt(vector p)
  {
   return IsWater(p[0], p[2]);

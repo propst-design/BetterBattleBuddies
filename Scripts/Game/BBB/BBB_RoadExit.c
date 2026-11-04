@@ -6,6 +6,8 @@
 // there STOPPED_S after vanilla's own cover search now steps off it to the side he is nearer, into cover on that side if the native cover search finds
 // one, else onto the verge 7 m past the edge. Vanilla still picks the cover, the stance and when
 // to move next; BBB only adds the "move now" and points the move off the road.
+// Not on a bridge or an overpass: the verge there is a drop into a river or a ravine, so he
+// stays to vanilla's own cover search; a verge spot in water (river, pond, sea) is refused.
 // Yields to: player/GM orders (BBB_OrderIntent), a fire and manoeuvre job (it moves him itself),
 // claimed men (rescue, static gun, rearm), close-range fights. One road check per soldier every
 // CHECK_S at most, only while he is stopped in the open.
@@ -20,6 +22,7 @@ class BBB_RoadExit
  static const float CHECK_S = 2;       // road check per soldier at most this often
  static const float STOPPED_S = 3;     // vanilla has had its own go at finding cover first
  static const float RETRY_S = 6;       // after a road exit, the next one no sooner
+ static const float DECK = 1.5;        // standing this far above the ground under him: on a bridge or overpass
  static int s_iRequests, s_iStarted, s_iCover, s_iArrived, s_iNoSpot; // tests read these
 
  static void Read()
@@ -112,6 +115,7 @@ class BBB_RoadExit
   float half = road.GetWidth() * 0.5;
   if (half <= 0) half = 3;
   if (distance - half > ON_ROAD) return 0;
+  if (at[1] > GetGame().GetWorld().GetSurfaceY(at[0], at[2]) + DECK) return 0;
   // The road's direction here: the nearest of its segments.
   array<vector> points = {};
   road.GetPoints(points);
@@ -149,7 +153,7 @@ class BBB_RoadExit
   for (int pass = 0; pass < 2; pass++)
   {
    vector candidate = BBB.Ground(closest + side * (half + STEP_OFF));
-   if (!BBB_Terrain.IsWaterAt(candidate) && Clearance(aiWorld, candidate) >= CLEAR_SPOT)
+   if (BBB_Terrain.WaterDepthAt(candidate) <= 0 && Clearance(aiWorld, candidate) >= CLEAR_SPOT)
    {
     spot = candidate;
     return 1;
