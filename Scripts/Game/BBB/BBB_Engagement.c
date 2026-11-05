@@ -66,6 +66,18 @@ modded class SCR_AICombatComponent
 {
 	// Diagnostic association only; never used to nominate a production target.
 	BaseTarget m_BBBPriorityTestTarget;
+
+	// The game reads the combat mode from the soldier's group utility without checking it is there,
+	// and a group can be without one for a moment (a host's VM exception through BBB_Engagement.Ready,
+	// 3 Nov play log). Read such a soldier as the game reads one without a group: fire at will.
+	override EAIGroupCombatMode GetCombatMode()
+	{
+		AIAgent agent = GetAiAgent();
+		if (!agent) return EAIGroupCombatMode.FIRE_AT_WILL;
+		SCR_AIGroup group = SCR_AIGroup.Cast(agent.GetParentGroup());
+		if (group && !group.GetGroupUtilityComponent()) return EAIGroupCombatMode.FIRE_AT_WILL;
+		return super.GetCombatMode();
+	}
 	protected bool BBBPreferVisibleContact()
 	{
 		BBB_Engagement.Read();
