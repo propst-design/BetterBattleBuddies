@@ -471,6 +471,7 @@ class BBB_PullOver : Managed
  protected bool m_bStopped;
  protected bool m_bReleased;
  protected bool m_bParkedAI;
+ protected BaseVehicleControllerComponent m_PilotHeld; // driver seat unhooked while we drive (BBB_PilotHold)
  protected ref BBB_PullOverListener m_Listener;
  protected float m_fLogAt;
 
@@ -663,6 +664,7 @@ class BBB_PullOver : Managed
   VehicleWheeledSimulation sim = car.GetSimulation();
   Physics physics = vehicle.GetPhysics();
   if (physics && !physics.IsActive()) physics.SetActive(ActiveState.ACTIVE);
+  if (!m_PilotHeld && BBB_PilotHold.Take(car)) m_PilotHeld = car;
   BBB_Unstick.ReleaseHorn(m_Driver);
   float speed = BBB_Traffic.Velocity(vehicle).Length();
   int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
@@ -711,6 +713,8 @@ class BBB_PullOver : Managed
   {
    BBB_Unstick.Drive(m_Driver, car.GetSimulation(), 0, 0, 0);
   }
+  if (m_PilotHeld) BBB_PilotHold.Give(m_PilotHeld);
+  m_PilotHeld = null;
   BBB_Unstick.ReleaseHorn(m_Driver);
   if (m_bParkedAI && m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver))
   {

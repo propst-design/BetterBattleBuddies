@@ -37,6 +37,7 @@ class BBB_Unstick : Managed
  protected float m_fSteer;
  protected bool m_bBraking = true;   // still rolling forward: stop first (cleared once slow or after BRAKE_MAX_MS)
  protected bool m_bParkedAI; // only hand back an AI this parked (something else may have parked it)
+ protected BaseVehicleControllerComponent m_PilotHeld; // driver seat unhooked while we drive (BBB_PilotHold)
  protected ref BBB_UnstickListener m_Listener;
 
  // Start backing this vehicle out; steer is the wheel while reversing (-1..1).
@@ -133,6 +134,7 @@ class BBB_Unstick : Managed
   Physics physics = vehicle.GetPhysics();
   if (physics && !physics.IsActive()) physics.SetActive(ActiveState.ACTIVE);
   if (!car.IsEngineOn()) car.ForceStartEngine();
+  if (!m_PilotHeld && BBB_PilotHold.Take(car)) m_PilotHeld = car;
   car.SetPersistentHandBrake(false);
   ReleaseHorn(m_Driver);
   int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
@@ -172,6 +174,8 @@ class BBB_Unstick : Managed
    int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
    sim.SetGear(neutral + 1);
   }
+  if (m_PilotHeld) BBB_PilotHold.Give(m_PilotHeld);
+  m_PilotHeld = null;
   ReleaseHorn(m_Driver);
   if (m_bParkedAI && m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver))
   {

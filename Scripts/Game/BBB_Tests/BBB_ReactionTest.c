@@ -342,6 +342,8 @@ class BBB_ReactionTest : BBB_AimTest
  {
   Assert("order-cancels-reverse", BBB_ArmorReaction.s_Escapes.IsEmpty());
   Assert("restores-owned-driver-ai", m_DriverControl.IsAIActivated());
+  CarControllerComponent seatCar = CarControllerComponent.Cast(m_Truck.FindComponent(CarControllerComponent));
+  Assert("restores-driver-seat", seatCar.GetPilotCompartmentSlot() != null && !BBB_PilotHold.Held(seatCar) && BBB_ArmorReaction.Driver(m_Truck) == m_Driver);
   Assert("preserves-order", m_Crew.GetCurrentWaypoint() == m_Order);
   BBB_ArmorReaction.Stop();
   m_Crew.RemoveWaypoint(m_Order);

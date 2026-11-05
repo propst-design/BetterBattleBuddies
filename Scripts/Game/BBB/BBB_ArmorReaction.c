@@ -26,6 +26,7 @@ class BBB_ArmorEscape : Managed
  int m_Gear;
  bool m_Handbrake;
  float m_Clutch;
+ BaseVehicleControllerComponent m_PilotHeld; // driver seat unhooked while we drive (BBB_PilotHold)
 }
 
 class BBB_ArmorReaction
@@ -64,8 +65,9 @@ class BBB_ArmorReaction
  {
   if (!vehicle) return null;
   BaseVehicleControllerComponent controller = BaseVehicleControllerComponent.Cast(vehicle.FindComponent(BaseVehicleControllerComponent));
-  if (!controller || !controller.GetPilotCompartmentSlot()) return null;
-  return ChimeraCharacter.Cast(controller.GetPilotCompartmentSlot().GetOccupant());
+  PilotCompartmentSlot seat = BBB_PilotHold.Seat(controller);
+  if (!seat) return null;
+  return ChimeraCharacter.Cast(seat.GetOccupant());
  }
 
  static bool PlayerAboard(IEntity vehicle)
@@ -348,6 +350,8 @@ class BBB_ArmorReaction
    car.GetSimulation().SetClutch(escape.m_Clutch);
    car.SetPersistentHandBrake(escape.m_Handbrake);
   }
+  if (escape.m_PilotHeld) BBB_PilotHold.Give(escape.m_PilotHeld);
+  escape.m_PilotHeld = null;
   if (escape.m_bParked && escape.m_Control && escape.m_Driver && BBB.IsAlive(escape.m_Driver) && !BBB.PlayerOf(escape.m_Driver) && !escape.m_Driver.GetCharacterController().IsPlayerControlled() && !escape.m_Control.IsAIActivated()) escape.m_Control.ActivateAI();
   escape.m_bParked = false;
  }
@@ -424,6 +428,7 @@ class BBB_ArmorReaction
    int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
    Physics physics = escape.m_Vehicle.GetPhysics();
    if (physics && !physics.IsActive()) physics.SetActive(ActiveState.ACTIVE);
+   if (!escape.m_PilotHeld && BBB_PilotHold.Take(car)) escape.m_PilotHeld = car;
    car.SetPersistentHandBrake(false);
    sim.SetClutch(1);
    sim.SetGear(neutral - 1);

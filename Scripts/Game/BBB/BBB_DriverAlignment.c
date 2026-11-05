@@ -27,6 +27,7 @@ class BBB_DriverAlignmentState : Managed
  bool m_bParkedAI;
  bool m_bHandbrake;
  int m_iGear;
+ BaseVehicleControllerComponent m_PilotHeld; // driver seat unhooked while we drive (BBB_PilotHold)
 }
 
 class BBB_DriverAlignment
@@ -380,6 +381,8 @@ class BBB_DriverAlignment
     car.SetPersistentHandBrake(state.m_bHandbrake);
    }
   }
+  if (state.m_PilotHeld) BBB_PilotHold.Give(state.m_PilotHeld);
+  state.m_PilotHeld = null;
   // Restore only AI we parked, even after that AI leaves the seat. A player
   // taking possession owns its activation state from that point onward.
   // Never a dead driver's: vanilla switched his AI off at death (as Unstick and ArmorReaction).
@@ -425,6 +428,7 @@ class BBB_DriverAlignment
    if (!car || !car.GetSimulation()) { End(state); continue; }
    VehicleWheeledSimulation simulation = car.GetSimulation();
    if (!physics.IsActive()) physics.SetActive(ActiveState.ACTIVE);
+   if (!state.m_PilotHeld && BBB_PilotHold.Take(car)) state.m_PilotHeld = car;
    car.SetPersistentHandBrake(false);
    int neutral = simulation.GearboxGearsCount() - simulation.GearboxForwardGearsCount() - 1;
    simulation.SetGear(neutral + 1);

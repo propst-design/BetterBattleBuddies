@@ -183,6 +183,7 @@ class BBB
   BBB_Tactic.Stop();
   BBB_Transport.ClearHits();
   BBB_VehicleHelpers.Reset();
+  BBB_PilotHold.GiveAll(); // after every manoeuvre has ended
   s_bStarted = false;
 		s_VehicleHelpers = null;
 		s_Launchers = null;
@@ -326,8 +327,9 @@ class BBB
  {
   if (!vehicle) return null;
   CarControllerComponent car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
-  if (!car || !car.GetPilotCompartmentSlot()) return null;
-  return ChimeraCharacter.Cast(car.GetPilotCompartmentSlot().GetOccupant());
+  PilotCompartmentSlot seat = BBB_PilotHold.Seat(car);
+  if (!seat) return null;
+  return ChimeraCharacter.Cast(seat.GetOccupant());
  }
 
  static float Health(IEntity entity)
