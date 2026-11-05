@@ -235,6 +235,12 @@ class BBB_Medic
   return combat.FindWeaponOfType(EWeaponType.WT_SMOKEGRENADE) != null;
  }
 
+ // Kept for host mods and tests that call it (ACA's regress); the clouds use BBB_Smoke's.
+ static bool LineIntersectsSphere(vector from, vector to, vector center, float radius)
+ {
+  return BBB_Smoke.LineIntersectsSphere(from, to, center, radius);
+ }
+
  // Smoke BBB had really thrown (squad or medic smoke, BBB_Smoke's clouds): a throw only ordered
  // hides nothing (#41).
  static bool IsOccludedBySmoke(vector from, vector to)
