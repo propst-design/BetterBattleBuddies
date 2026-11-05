@@ -507,7 +507,7 @@ class BBB_PullOver : Managed
   return true;
  }
 
- // The giving way is over: drive on.
+ // The giving way is over, or the host no longer wants it parked (its order changed): drive on.
  static void Release(IEntity vehicle)
  {
   if (!s_aActive) return;
@@ -653,6 +653,13 @@ class BBB_PullOver : Managed
   }
   // Shot at while giving way: drive on (the fight comes first).
   if (m_iMode != MODE_PARK && BBB_Transport.VehicleHitRecently(vehicle, 3000)) m_bReleased = true;
+  // Parking, but released by the host or hit: stop here, no handbrake, and tell the host it didn't
+  // park (a newer order takes the driver at once; under fire the crew gets out where it is).
+  if (m_iMode == MODE_PARK && (m_bReleased || BBB_Transport.VehicleHitRecently(vehicle, 3000)))
+  {
+   End(car, false);
+   return false;
+  }
   VehicleWheeledSimulation sim = car.GetSimulation();
   Physics physics = vehicle.GetPhysics();
   if (physics && !physics.IsActive()) physics.SetActive(ActiveState.ACTIVE);
