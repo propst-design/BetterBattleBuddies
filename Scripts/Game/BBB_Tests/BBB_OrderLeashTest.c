@@ -168,9 +168,11 @@ class BBB_OrderLeashTest : BBB_ReactionTest
   BBB_Buildings.Stop(); BBB_OrderLeash.Stop();
   Assert("lease-cache-cleared", !BBB_OrderLeash.Lease(m_Infantry));
   BBB.s_Hooks = m_SavedHooks;
+  // Checks a full run makes: 12 from BBB_ReactionTest's setup and indoor fixture, 24 here.
+  int expected = 36;
   string verdict = "PASS";
-  if (m_Failures > 0) verdict = "FAIL";
-  PrintFormat("[ACR] VERDICT %1 test=bbb-order-leash checks=%2 failed=%3", verdict, m_Checks, m_Failures);
+  if (m_Failures > 0 || m_Checks != expected) verdict = "FAIL";
+  PrintFormat("[ACR] VERDICT %1 test=bbb-order-leash checks=%2 failed=%3 expected=%4", verdict, m_Checks, m_Failures, expected);
   Print("[ACR] TEST COMPLETE");
  }
 }

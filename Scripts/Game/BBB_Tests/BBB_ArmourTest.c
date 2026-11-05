@@ -7,6 +7,8 @@
 // target: are rounds wasted on it?) and "mixed" (two US riflemen in the open 12 m beside
 // it: do they get shot instead?). Per round: Humvee hits, team shots, US men down (crew /
 // in the open), team men down, holds and steers. Logs "[BBB] ARMOURTEST ...".
+// VERDICT (Test-BBB.ps1 -Preset armour), printed once every round has run: the 3 key/calibre unit checks.
+// The on/off rounds are a measurement for a person to compare: the verdict doesn't judge them.
 class BBB_ArmourTest : BBB_AimTest
 {
  static ref BBB_ArmourTest s_Armour;
@@ -15,6 +17,9 @@ class BBB_ArmourTest : BBB_AimTest
  static const int MIXED_PAIRS = 3;
  static const float ROUND_S = 60;
  static const float RANGE_M = 150;
+ static const int UNIT_CHECKS = 3;
+ protected int m_iUnitRan;
+ protected int m_iUnitFailed;
 
  protected ref array<bool> m_aOn = {};
  protected ref array<bool> m_aMixed = {};
@@ -42,15 +47,16 @@ class BBB_ArmourTest : BBB_AimTest
  {
   BBB_Armour.Read();
   BBB_Armour.s_bDiag = true;
-  Check("key", BBB_Armour.Key("{4A71F755A4513227}Prefabs/Vehicles/Wheeled/M998/M1025.et") == "prefabs/vehicles/wheeled/m998/m1025.et", BBB_Armour.Key(HUMVEE));
+  Unit("key", BBB_Armour.Key("{4A71F755A4513227}Prefabs/Vehicles/Wheeled/M998/M1025.et") == "prefabs/vehicles/wheeled/m998/m1025.et", BBB_Armour.Key(HUMVEE));
   m_sKind = BBB_Armour.Key(HUMVEE);
   string round = BBB_Armour.Round("prefabs/weapons/ammo/ammo_545x39_tracer_7t3.et");
-  Check("calibre", round == "cal 545x39", round);
+  Unit("calibre", round == "cal 545x39", round);
   string plain = BBB_Armour.Round("prefabs/weapons/ammo/ammo_rocket_pg7vm.et");
-  Check("no-calibre", plain == "prefabs/weapons/ammo/ammo_rocket_pg7vm.et", plain);
+  Unit("no-calibre", plain == "prefabs/weapons/ammo/ammo_rocket_pg7vm.et", plain);
   if (!FindSite())
   {
    Print("[BBB] ARMOURTEST no lane");
+   Print("[ACR] VERDICT FAIL test=bbbarmour aborted=no-lane");
    Print("[ACR] TEST COMPLETE");
    return;
   }
@@ -71,6 +77,13 @@ class BBB_ArmourTest : BBB_AimTest
   }
   m_fNextRound = Now() + 5;
   GetGame().GetCallqueue().CallLater(Tick, 500, true);
+ }
+
+ protected void Unit(string name, bool ok, string detail)
+ {
+  Check(name, ok, detail);
+  m_iUnitRan++;
+  if (!ok) m_iUnitFailed++;
  }
 
  protected IEntity Seat(SCR_AIGroup group, vector at, vector dir, ECompartmentType type, BBB_AimLane lane)
@@ -246,6 +259,9 @@ class BBB_ArmourTest : BBB_AimTest
   ObserversSystem observers = ObserversSystem.Cast(GetGame().GetWorld().FindSystem(ObserversSystem));
   if (observers) observers.RemoveObserverSP(OBSERVER_KEY);
   Print("[BBB] ARMOURTEST done");
+  string verdict = "FAIL";
+  if (m_iUnitFailed == 0 && m_iUnitRan == UNIT_CHECKS) verdict = "PASS";
+  PrintFormat("[ACR] VERDICT %1 test=bbbarmour passed=%2 failed=%3 expected=%4", verdict, m_iUnitRan - m_iUnitFailed, m_iUnitFailed, UNIT_CHECKS);
   Print("[ACR] TEST COMPLETE");
  }
 }
