@@ -5,11 +5,16 @@
 // test's lane, at 350 and 600 m, 90 s a round, drill on and off in turn (REPEATS pairs per
 // distance). Per round: seconds until the gunner's first burst, rounds he fired, drills
 // started, fire team men down, gunner down. Logs "[BBB] GUNNERTEST ...".
+// VERDICT (Test-BBB.ps1 -Preset gunner), printed once every round has run: the guess-range unit check.
+// The drill on/off rounds are a measurement for a person to compare: the verdict doesn't judge them.
 class BBB_GunnerTest : BBB_AimTest
 {
  static ref BBB_GunnerTest s_Gunner;
  static const int GUNNER_REPEATS = 4;
  static const float ROUND_S = 90;
+ static const int UNIT_CHECKS = 1;
+ protected int m_iUnitRan;
+ protected int m_iUnitFailed;
 
  protected ref array<bool> m_aDrill = {};
  protected int m_iTurretLast = -1;
@@ -45,9 +50,12 @@ class BBB_GunnerTest : BBB_AimTest
   BBB_Gunner.Read();
   float far = BBB_Gunner.Guess(Vector(0, 0, 0), Vector(0, 0, 500), 500).Length();
   Check("guess-range", far >= 370 && far <= 655, far.ToString());
+  m_iUnitRan++;
+  if (far < 370 || far > 655) m_iUnitFailed++;
   if (!FindSite())
   {
    Print("[BBB] GUNNERTEST no lane");
+   Print("[ACR] VERDICT FAIL test=bbbgunner aborted=no-lane");
    Print("[ACR] TEST COMPLETE");
    return;
   }
@@ -185,6 +193,9 @@ class BBB_GunnerTest : BBB_AimTest
   ObserversSystem observers = ObserversSystem.Cast(GetGame().GetWorld().FindSystem(ObserversSystem));
   if (observers) observers.RemoveObserverSP(OBSERVER_KEY);
   Print("[BBB] GUNNERTEST done");
+  string verdict = "FAIL";
+  if (m_iUnitFailed == 0 && m_iUnitRan == UNIT_CHECKS) verdict = "PASS";
+  PrintFormat("[ACR] VERDICT %1 test=bbbgunner passed=%2 failed=%3 expected=%4", verdict, m_iUnitRan - m_iUnitFailed, m_iUnitFailed, UNIT_CHECKS);
   Print("[ACR] TEST COMPLETE");
  }
 }
