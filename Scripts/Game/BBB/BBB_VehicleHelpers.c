@@ -575,11 +575,74 @@ class BBB_VehicleHelpers : Managed
   return EjectFromCompartment(vehicle, ch);
  }
 
- static void DoSeatInTurret(IEntity vehicle, BaseCompartmentSlot slot, ChimeraCharacter candidate, SCR_AIGroup group, int retries = 0)
+ // A player in any seat but cargo crews the vehicle: it is his, not a replacement's.
+ protected static bool PlayerCrewed(IEntity vehicle)
+ {
+  array<BaseCompartmentSlot> slots = {};
+  GetVehicleCompartments(vehicle, slots);
+  foreach (BaseCompartmentSlot s : slots)
+  {
+   IEntity occ = s.GetOccupant();
+   if (occ && BBB.PlayerOf(occ) && s.GetType() != ECompartmentType.CARGO) return true;
+  }
+  return false;
+ }
+
+ // The pick was checked when it was made; the seating runs later, through retries, and a lot can
+ // change hands in between (BBB #39): a player possesses the man or takes a seat, a GM orders
+ // him, he leaves the squad, the host asks for the vehicle to be left alone. So the pick is judged
+ // again on every callback, before the man is ejected or boards; a change cancels the reservation
+ // and the next scan picks afresh if the turret is still empty. A man whose AI someone parked is
+ // never ours to seat (nor to wake: ownership rule).
+ // `group` is the squad the vehicle was being manned for, `squad` the one the man belonged to when
+ // picked (the same squad, unless he was a passenger from another).
+ static bool SeatStillOurs(IEntity vehicle, BaseCompartmentSlot slot, ChimeraCharacter candidate, SCR_AIGroup group, SCR_AIGroup squad, out string why)
+ {
+  why = "";
+  if (!s_bGunnerReplace) why = "feature off";
+  else if (!vehicle || BBB.Health(vehicle) <= 0) why = "vehicle gone";
+  else if (BBB.s_Hooks.LeaveAlone(vehicle)) why = "the host left the vehicle alone";
+  else if (group && BBB.HasPlayer(group)) why = "a player joined the squad";
+  else if (!candidate || !IsAble(candidate)) why = "candidate unable";
+  else if (BBB.PlayerOf(candidate) || candidate.GetCharacterController().IsPlayerControlled()) why = "candidate is a player";
+  else if (BBB_OrderIntent.Blocks(BBB_StaticWeapons.UtilityOf(candidate))) why = "candidate under a player/GM order";
+  else if (!SquadStillHis(squad, candidate)) why = "candidate changed squad or his AI is parked";
+  else if (PlayerCrewed(vehicle)) why = "a player crews the vehicle";
+  else if (slot && slot.GetOccupant() && slot.GetOccupant() != candidate && (BBB.PlayerOf(slot.GetOccupant()) || IsAble(slot.GetOccupant()))) why = "turret taken";
+  return why == "";
+ }
+
+ // The squad a man belongs to (null: none).
+ static SCR_AIGroup SquadOf(ChimeraCharacter man)
+ {
+  AIControlComponent control = AIControlComponent.Cast(man.FindComponent(AIControlComponent));
+  if (!control || !control.GetControlAIAgent()) return null;
+  return SCR_AIGroup.Cast(control.GetControlAIAgent().GetParentGroup());
+ }
+
+ // His AI runs, he is still in the squad he was picked from, and no player has joined it since.
+ protected static bool SquadStillHis(SCR_AIGroup squad, ChimeraCharacter candidate)
+ {
+  AIControlComponent control = AIControlComponent.Cast(candidate.FindComponent(AIControlComponent));
+  if (!control || !control.GetControlAIAgent() || !control.IsAIActivated()) return false;
+  AIAgent agent = control.GetControlAIAgent();
+  SCR_AIGroup now = SCR_AIGroup.Cast(agent.GetParentGroup());
+  if (now != squad) return false;
+  if (!now) return true;
+  if (BBB.HasPlayer(now)) return false;
+  array<AIAgent> agents = {};
+  BBB.s_Hooks.GetMembers(now, agents);
+  return agents.Contains(agent);
+ }
+
+ static void DoSeatInTurret(IEntity vehicle, BaseCompartmentSlot slot, ChimeraCharacter candidate, SCR_AIGroup group, SCR_AIGroup squad, int retries = 0)
  {
   SeatTrace("seat-attempt", vehicle, slot, candidate, retries);
-  if (!vehicle || !slot || !candidate || !IsAble(candidate))
+  string why;
+  if (!slot || !SeatStillOurs(vehicle, slot, candidate, group, squad, why))
   {
+   if (why != "") PrintFormat("[BBB] TURRET: replacement of %1 called off (%2)", candidate, why);
+   SeatTrace("cancel", vehicle, slot, candidate, retries);
    s_aReplacingVehicles.RemoveItem(vehicle);
    return;
   }
@@ -593,7 +656,7 @@ class BBB_VehicleHelpers : Managed
   {
    if (retries < 10)
    {
-    GetGame().GetCallqueue().CallLater(DoSeatInTurret, 40, false, vehicle, slot, candidate, group, retries + 1);
+    GetGame().GetCallqueue().CallLater(DoSeatInTurret, 40, false, vehicle, slot, candidate, group, squad, retries + 1);
     return;
    }
    SeatTrace("abandon-transition", vehicle, slot, candidate, retries);
@@ -603,15 +666,11 @@ class BBB_VehicleHelpers : Managed
   IEntity occ = slot.GetOccupant();
   if (occ && occ != candidate)
   {
-   if (IsAble(occ))
-   {
-    s_aReplacingVehicles.RemoveItem(vehicle);
-    return;
-   }
-   EjectFromCompartment(vehicle, ChimeraCharacter.Cast(occ));
+   // SeatStillOurs cancelled on a player or an able man here: only an incapacitated AI is left.
+   EjectIncapacitatedOccupant(vehicle, slot);
    if (retries < 10)
    {
-    GetGame().GetCallqueue().CallLater(DoSeatInTurret, 40, false, vehicle, slot, candidate, group, retries + 1);
+    GetGame().GetCallqueue().CallLater(DoSeatInTurret, 40, false, vehicle, slot, candidate, group, squad, retries + 1);
     return;
    }
    s_aReplacingVehicles.RemoveItem(vehicle);
@@ -631,7 +690,7 @@ class BBB_VehicleHelpers : Managed
   SeatTrace("get-in-return", vehicle, slot, candidate, retries, ok);
   if (!ok && retries < 8)
   {
-   GetGame().GetCallqueue().CallLater(DoSeatInTurret, 50, false, vehicle, slot, candidate, group, retries + 1);
+   GetGame().GetCallqueue().CallLater(DoSeatInTurret, 50, false, vehicle, slot, candidate, group, squad, retries + 1);
    return;
   }
 
@@ -641,8 +700,6 @@ class BBB_VehicleHelpers : Managed
   {
    s_iGunnerReplacements++;
    BBB_Perf.Count("vehicle.gunnerReplace");
-   AIControlComponent ai = AIControlComponent.Cast(candidate.FindComponent(AIControlComponent));
-   if (ai && !ai.IsAIActivated()) ai.ActivateAI();
    string gName = "vehicle";
    if (group) gName = BBB.s_Hooks.NameOf(group);
    PrintFormat("[BBB] TURRET %1: boarding request accepted for %2 into %3", gName, candidate, slot.GetCompartmentName());
@@ -702,7 +759,7 @@ class BBB_VehicleHelpers : Managed
    CompartmentAccessComponent acc = ch.GetCompartmentAccessComponent();
    if (!acc || acc.IsGettingIn() || acc.IsGettingOut()) continue;
    AIControlComponent ai = AIControlComponent.Cast(ch.FindComponent(AIControlComponent));
-   if (!ai || !ai.GetControlAIAgent()) continue;
+   if (!ai || !ai.GetControlAIAgent() || !ai.IsAIActivated()) continue; // a parked AI belongs to whoever parked him
    if (ch == leaderEnt)
    {
     if (!fallbackLeader) fallbackLeader = ch;
@@ -762,13 +819,14 @@ class BBB_VehicleHelpers : Managed
   s_aReplacingVehicles.Insert(vehicle);
   float now = GetGame().GetWorld().GetWorldTime();
   s_mGunnerReplaceNext.Set(vehicle, now + GUNNER_REPLACE_COOLDOWN_MS);
+  SCR_AIGroup squad = SquadOf(candidate);
   if (needsEject)
   {
-   GetGame().GetCallqueue().CallLater(DoSeatInTurret, 100, false, vehicle, targetTurret, candidate, group, 0);
+   GetGame().GetCallqueue().CallLater(DoSeatInTurret, 100, false, vehicle, targetTurret, candidate, group, squad, 0);
   }
   else
   {
-   DoSeatInTurret(vehicle, targetTurret, candidate, group, 0);
+   DoSeatInTurret(vehicle, targetTurret, candidate, group, squad, 0);
   }
   return true;
  }

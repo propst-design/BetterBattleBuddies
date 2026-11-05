@@ -30,6 +30,8 @@ class BBB_Grenades
 	static float s_fSquadCooldownS = 25.0;
 	static const float RECENT_TARGET_MAX_S = 12.0;
 	static const float CHECK_INTERVAL_MS = 2000.0;
+	// How often a queued throw's landing area is judged again while it waits (BBB #40).
+	static const float RECHECK_MS = 250.0;
 
 	// Squad cooldown tracking: Group -> world time in ms of last grenade throw
 	protected static ref map<SCR_AIGroup, float> s_mGroupCooldown;
@@ -243,6 +245,25 @@ class BBB_Grenades
 		return true;
 	}
 
+	// A queued throw waits for the native utility to start it, sometimes behind another behaviour.
+	// The landing area and the throw line are judged again then (BBB #40): a friendly who walked
+	// in meanwhile calls the throw off. Fails closed without the squad it was cleared for.
+	static bool LandingStillClear(SCR_AIGroup group, IEntity thrower, vector landingPos)
+	{
+		if (!group || !thrower) return false;
+		if (!IsBlastAreaClearOfFriendlies(landingPos, group, s_fFriendlySafetyDistM))
+		{
+			s_iSafetyVetoes++;
+			return false;
+		}
+		if (!IsThrowCorridorClear(thrower.GetOrigin(), landingPos, group, thrower))
+		{
+			s_iCorridorVetoes++;
+			return false;
+		}
+		return true;
+	}
+
 	// Check if immediate trajectory in front of thrower (3 m) is clear of solid walls/windows
 	static bool IsImmediateTrajectoryClear(IEntity thrower, vector throwDir)
 	{
@@ -393,6 +414,7 @@ class BBB_Grenades
 		BBB_AIThrowFrag behavior = new BBB_AIThrowFrag(
 			throwerUtil, null, landingPos, EWeaponType.WT_FRAGGRENADE, 0.1, SCR_AIActionBase.PRIORITY_BEHAVIOR_THROW_GRENADE
 		);
+		behavior.m_Group = group;
 		throwerUtil.AddAction(behavior);
 
 		// Record cooldown
@@ -492,10 +514,15 @@ class BBB_Grenades
 	}
 }
 
-// The thrower may have moved (indoors, behind a wall) between being picked and the throw:
-// the arc is checked again whenever the native utility evaluates the throw.
+// The thrower may have moved (indoors, behind a wall) and a friendly may have walked into the
+// landing area between the pick and the throw: the arc, the blast area and the throw line are
+// checked again whenever the native utility evaluates the throw, until it is running.
 class BBB_AIThrowFrag : SCR_AIThrowGrenadeToBehavior
 {
+	// The squad the throw was cleared for (set by BBB_Grenades when it queues the throw).
+	SCR_AIGroup m_Group;
+	protected float m_fLandingCheckedMs;
+
 	override float CustomEvaluate()
 	{
 		float priority = super.CustomEvaluate();
@@ -508,8 +535,22 @@ class BBB_AIThrowFrag : SCR_AIThrowGrenadeToBehavior
 			Fail();
 			return 0;
 		}
-		if (BBB_Grenades.IsArcClear(m_Utility.m_OwnerEntity, m_vTargetPosition.m_Value)) return priority;
-		BBB_Grenades.s_iArcVetoes++;
+		IEntity thrower = m_Utility.m_OwnerEntity;
+		vector landing = m_vTargetPosition.m_Value;
+		if (!BBB_Grenades.IsArcClear(thrower, landing))
+		{
+			BBB_Grenades.s_iArcVetoes++;
+			Fail();
+			return 0;
+		}
+		// Friendlies at the landing point or on the line (BBB #40). Evaluated many times a second,
+		// so the sphere queries run at most every RECHECK_MS.
+		float nowMs = GetGame().GetWorld().GetWorldTime();
+		if (m_fLandingCheckedMs > 0 && nowMs - m_fLandingCheckedMs < BBB_Grenades.RECHECK_MS) return priority;
+		m_fLandingCheckedMs = nowMs;
+		if (BBB_Grenades.LandingStillClear(m_Group, thrower, landing)) return priority;
+		PrintFormat("[BBB] GRENADE: %1 called off the frag at %2: a friendly moved into the blast area or the throw line", thrower, landing);
+		BBB_Think.NoteUtility(m_Utility, "Grenades", "frag called off: a friendly is in the way");
 		Fail();
 		return 0;
 	}

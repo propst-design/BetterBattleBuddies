@@ -1,11 +1,21 @@
 // Better Battle Buddies (BBB): Standalone hand grenade employment assertions.
+// Ends with a live throw: the queued throw is called off when a friendly steps into the landing
+// area while it waits (BBB #40), and the same throw with nobody near lands a real grenade.
 class BBB_GrenadeTest : BBB_AimTest
 {
 	static ref BBB_GrenadeTest s_GrenadeTest;
 	protected int m_iChecks;
 	protected int m_iFailures;
 	protected SCR_AIGroup m_SquadUS;
+	protected AIWaypoint m_Order;
+	protected ChimeraCharacter m_Walker;
+	protected vector m_vWalkerHome;
+	protected vector m_vSafeSpot;
+	protected int m_iGrenadesBefore;
+	protected int m_iVetoesBefore;
+	protected float m_fCooldownWas;
 	static const ResourceName WP_MOVE = "{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et";
+	static const int EXPECTED_CHECKS = 24;
 
 	static void MaybeStartGrenade()
 	{
@@ -99,7 +109,7 @@ class BBB_GrenadeTest : BBB_AimTest
 		// Check 10: Squad members populated
 		Check("squad-members-populated", agents.Count() >= 4);
 
-		// Check 11: Inventory frag grenade detection
+		// Check 11: Inventory frag grenade detection (light fire team riflemen carry M67s)
 		bool foundGrenadier = false;
 		ChimeraCharacter firstChar = null;
 		SCR_AIUtilityComponent firstUtil = null;
@@ -125,9 +135,7 @@ class BBB_GrenadeTest : BBB_AimTest
 				break;
 			}
 		}
-
-		// Light FireTeam riflemen carry M67 fragmentation grenades
-		Check("frag-grenade-inventory-check", foundGrenadier || agents.Count() >= 4);
+		Check("frag-grenade-inventory-check", foundGrenadier);
 
 		// Check 12a: a squad on hold fire doesn't throw (a fit thrower is refused once the squad holds fire)
 		ChimeraCharacter fitChar = null;
@@ -157,36 +165,24 @@ class BBB_GrenadeTest : BBB_AimTest
 			Check("hold-fire-blocks", false);
 		}
 
-		// Check 12: Player/GM explicit order blocks grenade throwing
+		// Check 12: Player/GM explicit order blocks grenade throwing (a missing fixture is a failure,
+		// not a pass). The order is lifted again before the live throw below.
+		bool orderBlocks = false;
 		if (firstUtil && firstChar)
 		{
 			EntitySpawnParams wpParams = new EntitySpawnParams();
 			wpParams.Transform[3] = m_SquadUS.GetLeaderEntity().GetOrigin() + Vector(0, 0, 10);
 			Resource res = Resource.Load(WP_MOVE);
-			if (res && res.IsValid())
+			if (res && res.IsValid()) m_Order = AIWaypoint.Cast(GetGame().SpawnEntityPrefab(res, GetGame().GetWorld(), wpParams));
+			if (m_Order)
 			{
-				AIWaypoint wp = AIWaypoint.Cast(GetGame().SpawnEntityPrefab(res, GetGame().GetWorld(), wpParams));
-				if (wp)
-				{
-					SCR_AIWaypoint scrWp = SCR_AIWaypoint.Cast(wp);
-					if (scrWp) scrWp.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
-					m_SquadUS.AddWaypoint(wp);
-					Check("player-order-blocks", BBB_OrderIntent.Blocks(firstUtil) || !BBB_Grenades.IsFitThrower(firstChar, firstUtil));
-				}
-				else
-				{
-					Check("player-order-blocks", true);
-				}
-			}
-			else
-			{
-				Check("player-order-blocks", true);
+				SCR_AIWaypoint scrWp = SCR_AIWaypoint.Cast(m_Order);
+				if (scrWp) scrWp.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
+				m_SquadUS.AddWaypoint(m_Order);
+				orderBlocks = BBB_OrderIntent.Blocks(firstUtil) || !BBB_Grenades.IsFitThrower(firstChar, firstUtil);
 			}
 		}
-		else
-		{
-			Check("player-order-blocks", true);
-		}
+		Check("player-order-blocks", orderBlocks);
 
 		// Check 13: players are judged by their side: an enemy player is a target, a friendly or
 		// unreadable one is kept clear (both blast and corridor checks use NonHostileSide).
@@ -207,26 +203,120 @@ class BBB_GrenadeTest : BBB_AimTest
 		Check("blast-area-friendly-safety-veto", blastVetoed);
 
 		// Check 15: Safe throw distance live
-		vector safeFarSpot = leaderPos + Vector(0, 0, 22); // 22 m from squad -> clear of friendlies
-		bool safeClear = BBB_Grenades.IsBlastAreaClearOfFriendlies(safeFarSpot, m_SquadUS, 14.0);
+		m_vSafeSpot = leaderPos + Vector(0, 0, 22); // 22 m from squad -> clear of friendlies
+		bool safeClear = BBB_Grenades.IsBlastAreaClearOfFriendlies(m_vSafeSpot, m_SquadUS, 14.0);
 		Check("blast-area-safe-spot-clear", safeClear);
 
-		// Check 16: Live throw dispatch
-		bool thrownOk = BBB_Grenades.TryThrowGrenadeAt(m_SquadUS, safeFarSpot, "test throw");
-		Check("grenade-throw-dispatched", thrownOk || BBB_Grenades.s_iGrenadesThrown >= 0);
+		// The player order above would block the live throw: lift it and let the behaviour settle.
+		if (m_Order)
+		{
+			m_SquadUS.RemoveWaypoint(m_Order);
+			SCR_EntityHelper.DeleteEntityAndChildren(m_Order);
+			m_Order = null;
+		}
+		GetGame().GetCallqueue().CallLater(LiveThrow, 3000);
+	}
 
+	// The squad member holding a queued BBB frag throw (null: nobody has one).
+	protected ChimeraCharacter QueuedThrower(array<AIAgent> agents)
+	{
+		foreach (AIAgent agent : agents)
+		{
+			if (!agent) continue;
+			SCR_AIUtilityComponent util = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+			if (!util) continue;
+			array<ref AIActionBase> actions = {};
+			util.FindActionsOfInheritedType(BBB_AIThrowFrag, actions);
+			foreach (AIActionBase action : actions)
+			{
+				if (action.GetRemoveAction() || action.GetActionState() == EAIActionState.FAILED || action.GetActionState() == EAIActionState.COMPLETED) continue;
+				return ChimeraCharacter.Cast(agent.GetControlledEntity());
+			}
+		}
+		return null;
+	}
+
+	protected int GroupGrenades()
+	{
+		int total = 0;
+		array<AIAgent> agents = {};
+		BBB.s_Hooks.GetMembers(m_SquadUS, agents);
+		foreach (AIAgent agent : agents)
+		{
+			if (!agent) continue;
+			IEntity body = agent.GetControlledEntity();
+			if (!body) continue;
+			InventoryStorageManagerComponent inv = InventoryStorageManagerComponent.Cast(body.FindComponent(InventoryStorageManagerComponent));
+			if (inv) total = total + inv.GetGrenadesCount();
+		}
+		return total;
+	}
+
+	// Checks 16-18: a dispatch queues BBB_AIThrowFrag on a squad member; a friendly who steps into
+	// the landing area while it waits calls it off before any grenade leaves the inventory (#40).
+	protected void LiveThrow()
+	{
+		array<AIAgent> agents = {};
+		BBB.s_Hooks.GetMembers(m_SquadUS, agents);
+		m_fCooldownWas = BBB_Grenades.s_fSquadCooldownS;
+		BBB_Grenades.s_fSquadCooldownS = 0; // the test dispatches twice
+		m_iGrenadesBefore = GroupGrenades();
+		m_iVetoesBefore = BBB_Grenades.s_iSafetyVetoes;
+		bool thrownOk = BBB_Grenades.TryThrowGrenadeAt(m_SquadUS, m_vSafeSpot, "test throw");
+		Check("grenade-throw-dispatched", thrownOk);
+		ChimeraCharacter thrower = QueuedThrower(agents);
+		Check("grenade-throw-queued", thrower != null);
+		foreach (AIAgent agent : agents)
+		{
+			if (!agent) continue;
+			ChimeraCharacter ch = ChimeraCharacter.Cast(agent.GetControlledEntity());
+			if (ch && ch != thrower && BBB.IsAlive(ch)) { m_Walker = ch; break; }
+		}
+		if (m_Walker)
+		{
+			m_vWalkerHome = m_Walker.GetOrigin();
+			m_Walker.SetOrigin(BBB.Ground(m_vSafeSpot + Vector(3, 0, 0)));
+		}
+		PrintFormat("[BBB] GRENADETEST live throw: dispatched %1, queued on %2, %3 steps into the blast area", thrownOk, thrower, m_Walker);
+		GetGame().GetCallqueue().CallLater(LateFriendlyChecked, 6000);
+	}
+
+	protected void LateFriendlyChecked()
+	{
+		int after = GroupGrenades();
+		int vetoes = BBB_Grenades.s_iSafetyVetoes - m_iVetoesBefore;
+		PrintFormat("[BBB] GRENADETEST late friendly: grenades %1 -> %2, safety vetoes +%3", m_iGrenadesBefore, after, vetoes);
+		Check("late-friendly-vetoes-queued-frag", m_Walker && after == m_iGrenadesBefore && vetoes > 0);
+		if (m_Walker) m_Walker.SetOrigin(m_vWalkerHome);
+		GetGame().GetCallqueue().CallLater(ClearThrow, 1000);
+	}
+
+	// Control: the same throw with nobody near lands a real grenade.
+	protected void ClearThrow()
+	{
+		m_iGrenadesBefore = GroupGrenades();
+		Check("grenade-rethrow-dispatched", BBB_Grenades.TryThrowGrenadeAt(m_SquadUS, m_vSafeSpot, "test throw clear"));
+		GetGame().GetCallqueue().CallLater(FragLanded, 9000);
+	}
+
+	protected void FragLanded()
+	{
+		int after = GroupGrenades();
+		PrintFormat("[BBB] GRENADETEST clear throw: grenades %1 -> %2", m_iGrenadesBefore, after);
+		Check("frag-actually-thrown", after < m_iGrenadesBefore);
+		BBB_Grenades.s_fSquadCooldownS = m_fCooldownWas;
 		FinishTest();
 	}
 
 	protected void FinishTest()
 	{
 		string verdict = "FAIL";
-		if (m_iFailures == 0 && m_iChecks >= 20)
+		if (m_iFailures == 0 && m_iChecks >= EXPECTED_CHECKS)
 		{
 			verdict = "PASS";
 		}
 		PrintFormat("[BBB] GRENADETEST FINISHED checks=%1 failures=%2", m_iChecks, m_iFailures);
-		PrintFormat("[ACR] VERDICT %1 test=bbbgrenades passed=%2 failed=%3 expected=20", verdict, m_iChecks - m_iFailures, m_iFailures);
+		PrintFormat("[ACR] VERDICT %1 test=bbbgrenades passed=%2 failed=%3 expected=%4", verdict, m_iChecks - m_iFailures, m_iFailures, EXPECTED_CHECKS);
 		Print("[ACR] TEST COMPLETE");
 	}
 }
