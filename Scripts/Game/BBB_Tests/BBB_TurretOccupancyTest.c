@@ -279,11 +279,27 @@ class BBB_TurretOccupancyTest : BBB_AimTest
   else m_Trial++;
   if (m_Trial < 12) { GetGame().GetCallqueue().CallLater(BeginTrial, 500); return; }
   PrintFormat("[BBB] SEATDIAG summary observed=%1 setupFailures=%2 neverOccupied=%3 boardedThenLeft=%4 stayed=%5 fireCovered=%6 moveCovered=%7", m_Observed, m_SetupFailures, m_Empty, m_Left, m_Stayed, m_FireCovered, m_MoveCovered);
+  // The run's conditions, each counted: every trial observed, no setup failure, and (full and fire
+  // runs) enemy fire covered every fire trial, (full run) motion covered every move trial.
+  int trials = 12;
+  if (m_FireOnly || m_IdleOnly) trials = 4;
+  int expected = 2;
+  int passed;
+  if (m_Observed == trials) passed++;
+  if (m_SetupFailures == 0) passed++;
+  if (!m_IdleOnly)
+  {
+   expected++;
+   if (m_FireCovered == 4) passed++;
+  }
+  if (!m_FireOnly && !m_IdleOnly)
+  {
+   expected++;
+   if (m_MoveCovered == 4) passed++;
+  }
   string verdict = "FAIL";
-  if (!m_FireOnly && !m_IdleOnly && m_Observed == 12 && m_SetupFailures == 0 && m_FireCovered == 4 && m_MoveCovered == 4) verdict = "PASS";
-  if (m_FireOnly && m_Observed == 4 && m_SetupFailures == 0 && m_FireCovered == 4) verdict = "PASS";
-  if (m_IdleOnly && m_Observed == 4 && m_SetupFailures == 0) verdict = "PASS";
-  PrintFormat("[ACR] VERDICT %1 test=bbbseatdiag coverageOnly=1", verdict);
+  if (passed == expected) verdict = "PASS";
+  PrintFormat("[ACR] VERDICT %1 test=bbbseatdiag coverageOnly=1 passed=%2 failed=%3 expected=%4", verdict, passed, expected - passed, expected);
   Print("[ACR] TEST COMPLETE");
  }
 }

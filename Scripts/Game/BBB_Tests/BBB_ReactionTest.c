@@ -408,9 +408,11 @@ class BBB_ReactionTest : BBB_AimTest
   GetGame().GetCallqueue().Remove(ObserveNativeAT);
   BBB_Buildings.Stop(); BBB_ArmorReaction.Stop();
   BBB.s_Hooks = m_SavedHooks;
+  // Checks a full run makes: setup 6, prepare 2, indoor fixture 4, building 5, reverse 12, rocket 7.
+  int expected = 36;
   string verdict = "PASS";
-  if (m_Failures > 0) verdict = "FAIL";
-  PrintFormat("[ACR] VERDICT %1 test=bbb-reactions checks=%2 failed=%3", verdict, m_Checks, m_Failures);
+  if (m_Failures > 0 || m_Checks != expected) verdict = "FAIL";
+  PrintFormat("[ACR] VERDICT %1 test=bbb-reactions checks=%2 failed=%3 expected=%4", verdict, m_Checks, m_Failures, expected);
   Print("[ACR] TEST COMPLETE");
  }
 }
