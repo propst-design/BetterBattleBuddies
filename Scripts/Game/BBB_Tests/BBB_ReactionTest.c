@@ -412,6 +412,43 @@ class BBB_ReactionTest : BBB_AimTest
  {
   Assert("controlled-rocket-segment-response", BBB_ArmorReaction.s_iReactions > m_ReactionsBefore,
    string.Format("before=%1 after=%2", m_ReactionsBefore, BBB_ArmorReaction.s_iReactions));
+  BeginHandbrake();
+ }
+
+ // Handbrake when the driver leaves (on by default since 1.9: an empty vehicle drops into neutral and
+ // rolls). The AI driver gets out with the game's own animated get-out, which sets no handbrake; BBB must.
+ int m_HandbrakesBefore;
+ int m_HandbrakePolls;
+
+ void BeginHandbrake()
+ {
+  BBB_ArmorReaction.Stop();
+  CarControllerComponent car = CarControllerComponent.Cast(m_Truck.FindComponent(CarControllerComponent));
+  car.SetPersistentHandBrake(false);
+  if (!m_DriverControl.IsAIActivated()) m_DriverControl.ActivateAI();
+  // BBB's once-a-second scan must see an AI at the wheel before he leaves.
+  GetGame().GetCallqueue().CallLater(DriverLeaves, 2500);
+ }
+
+ void DriverLeaves()
+ {
+  CarControllerComponent car = CarControllerComponent.Cast(m_Truck.FindComponent(CarControllerComponent));
+  Assert("handbrake-fixture-off", BBB_Traffic.s_bHandbrake && !car.GetPersistentHandBrake() && BBB.DriverOf(m_Truck) == m_Driver);
+  m_HandbrakesBefore = BBB_Traffic.s_iHandbrakes;
+  m_HandbrakePolls = 0;
+  m_Driver.GetCompartmentAccessComponent().GetOutVehicle(EGetOutType.ANIMATED, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+  GetGame().GetCallqueue().CallLater(ObserveHandbrake, 500, true);
+ }
+
+ void ObserveHandbrake()
+ {
+  m_HandbrakePolls++;
+  CarControllerComponent car = CarControllerComponent.Cast(m_Truck.FindComponent(CarControllerComponent));
+  bool left = !m_Driver.IsInVehicle();
+  bool braked = car.GetPersistentHandBrake() && BBB_Traffic.s_iHandbrakes > m_HandbrakesBefore;
+  if (!(left && braked) && m_HandbrakePolls < 20) return;
+  GetGame().GetCallqueue().Remove(ObserveHandbrake);
+  Assert("handbrake-after-driver-left", left && braked, string.Format("out=%1 handbrake=%2 bbbSet=%3 after %4 s", left, car.GetPersistentHandBrake(), BBB_Traffic.s_iHandbrakes - m_HandbrakesBefore, m_HandbrakePolls * 0.5));
   FinishReaction();
  }
 
@@ -420,6 +457,7 @@ class BBB_ReactionTest : BBB_AimTest
   GetGame().GetCallqueue().Remove(ObserveBuilding);
   GetGame().GetCallqueue().Remove(ObserveReverse);
   GetGame().GetCallqueue().Remove(ObserveNativeAT);
+  GetGame().GetCallqueue().Remove(ObserveHandbrake);
   BBB_Buildings.Stop(); BBB_ArmorReaction.Stop();
   BBB.s_Hooks = m_SavedHooks;
   string verdict = "PASS";

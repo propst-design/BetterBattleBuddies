@@ -393,7 +393,7 @@ class BBB_Settings
   On(g, "bbbDoors", "Gates and doors", "AI drivers open gates ahead without stopping; crews close doors and hatches once aboard.");
   On(g, "bbbUnstick", "Unstick vehicles", "Stuck AI drivers reverse and steer away; soldiers left standing on a truck bed get down.");
   Off(g, "bbbGiveWay", "Vehicles give way", "Friendly vehicles on a collision course agree who gives way: head-on, one pulls over to its right and waits; anywhere else it brakes. Never for an enemy.");
-  Off(g, "bbbHandbrake", "Handbrake when the driver leaves", "A vehicle its AI driver has left gets its handbrake on (sometimes forgotten under fire).");
+  On(g, "bbbHandbrake", "Handbrake when the driver leaves", "A vehicle its AI driver has left gets its handbrake on (sometimes forgotten under fire). From Reforger 1.9 an empty vehicle drops into neutral and rolls away on a slope.");
   Off(g, "bbbEvadeArmour", "Unarmed vehicles get away from armed enemies", "An unarmed vehicle whose crew sees an armed enemy vehicle asks the mission to drive it away.");
 
   g = "Movement";
