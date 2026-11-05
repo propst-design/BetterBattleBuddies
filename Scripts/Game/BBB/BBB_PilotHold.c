@@ -66,6 +66,14 @@ class BBB_PilotHold
   return controller && s_Held && s_Held.Contains(controller);
  }
 
+ // BBB is driving this vehicle itself right now (braking, reversing, turning it): a host's own
+ // "stopped, so stuck" watch should wait until the seat is given back.
+ static bool Driving(IEntity vehicle)
+ {
+  if (!vehicle || !s_Held) return false;
+  return Held(BaseVehicleControllerComponent.Cast(vehicle.FindComponent(BaseVehicleControllerComponent)));
+ }
+
  // BBB stopping: every seat goes back, whoever held it.
  static void GiveAll()
  {
