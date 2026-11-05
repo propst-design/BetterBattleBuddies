@@ -1,4 +1,6 @@
 // Better Battle Buddies (BBB): Standalone tactical smoke deployment assertions.
+// Live part (#41): an ordered throw counts as smoke only once a grenade has really left the
+// thrower, and at the grenade, not the aim point; a thrower killed before throwing leaves no cover.
 class BBB_SmokeTest : BBB_AimTest
 {
 	static ref BBB_SmokeTest s_SmokeTest;
@@ -6,7 +8,12 @@ class BBB_SmokeTest : BBB_AimTest
 	protected int m_iFailures;
 	protected SCR_AIGroup m_SquadUS;
 	protected SCR_AIGroup m_SquadEnemy;
+	protected ref BBB_SmokeCloud m_Thrown;
+	protected int m_iThrownBefore;
+	protected ref BBB_SmokeCloud m_Interrupted;
+	protected int m_iInterruptedBefore;
 	static const ResourceName WP_MOVE = "{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et";
+	static const int EXPECTED = 22;
 
 	static void MaybeStartSmoke()
 	{
@@ -70,23 +77,11 @@ class BBB_SmokeTest : BBB_AimTest
 		bool landingDirOk = (landingPos[2] > squadPos[2]) && (landingPos[2] < threatPos[2]) && (Math.AbsFloat(landingPos[0] - squadPos[0]) < 1.0);
 		Check("threat-vector-landing-position", landingDirOk);
 
-		// Check 6: Active cloud registration and occlusion query
-		BBB_Smoke.s_bOn = true;
-		BBB_SmokeCloud testCloud = new BBB_SmokeCloud();
-		testCloud.m_vPosition = cloudCenter;
-		testCloud.m_fCreatedMs = 0;
-		testCloud.m_fBloomMs = 0; // Already bloomed
-		testCloud.m_fExpireMs = 99999999.0; // Active
-		testCloud.m_fRadius = cloudRadius;
-		testCloud.m_sReason = "test";
+		// Enable feature for live scenario assertions
 		BBB_Smoke.Stop();
 		BBB_Smoke.s_bOn = true;
-		Check("cloud-management-clean", true);
 
-		// Enable feature for live scenario assertions
-		BBB_Smoke.s_bOn = true;
-
-		// Check 7: Spawning squad
+		// Check 6: Spawning squad
 		vector spawnPos = BBB.Ground(Vector(1340, 0, 2770));
 		vector facing = Vector(0, 0, 1);
 		m_SquadUS = SCR_AIGroup.Cast(Spawn(TEAM_US, spawnPos, facing));
@@ -101,101 +96,167 @@ class BBB_SmokeTest : BBB_AimTest
 		GetGame().GetCallqueue().CallLater(EvaluateSpawnedSquad, 4000);
 	}
 
+	protected int Smokes(IEntity soldier)
+	{
+		array<IEntity> carried = {};
+		BBB_Smoke.CarriedSmokes(soldier, carried);
+		return carried.Count();
+	}
+
+	protected BBB_SmokeCloud LastCloud()
+	{
+		int count = BBB_Smoke.CloudCount();
+		if (count == 0) return null;
+		return BBB_Smoke.CloudAt(count - 1);
+	}
+
+	// A sight line passing straight through the spot, 1.5 m up.
+	protected bool LineThroughOccluded(vector at)
+	{
+		return BBB_Smoke.IsOccluded(at + Vector(-15, 1.5, 0), at + Vector(15, 1.5, 0));
+	}
+
+	protected bool Listed(BBB_SmokeCloud cloud)
+	{
+		for (int i = 0; i < BBB_Smoke.CloudCount(); i++)
+		{
+			if (BBB_Smoke.CloudAt(i) == cloud) return true;
+		}
+		return false;
+	}
+
 	protected void EvaluateSpawnedSquad()
 	{
 		array<AIAgent> agents = {};
 		BBB.s_Hooks.GetMembers(m_SquadUS, agents);
 		Check("squad-members-populated", agents.Count() >= 4);
 
-		// Check 8: Check inventory for smoke grenades or weapons
-		bool foundSmokeBearer = false;
-		IEntity firstMember = null;
-		SCR_AIUtilityComponent firstUtility = null;
-
+		// Check 7: someone in the squad really carries a smoke grenade
+		int bearers = 0;
 		foreach (AIAgent agent : agents)
 		{
-			if (!agent) continue;
-			IEntity controlled = agent.GetControlledEntity();
-			if (!controlled) continue;
-
-			if (!firstMember)
-			{
-				firstMember = controlled;
-				firstUtility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
-			}
-
-			if (BBB_Smoke.HasSmokeGrenade(controlled))
-			{
-				foundSmokeBearer = true;
-				break;
-			}
+			if (agent && Smokes(agent.GetControlledEntity()) > 0) bearers++;
 		}
+		PrintFormat("[BBB] SMOKETEST smoke bearers: %1 of %2", bearers, agents.Count());
+		Check("smoke-bearer-found", bearers > 0);
 
-		// Light FireTeam squad leader / team leader carries M18 smoke grenades
-		Check("smoke-grenade-inventory-verified", foundSmokeBearer || agents.Count() >= 4);
+		// Check 8: an ordered throw is only planned
+		vector leader = m_SquadUS.GetLeaderEntity().GetOrigin();
+		vector threatPos = leader + Vector(0, 0, 60);
+		bool firstDeploy = BBB_Smoke.TryDeploySmoke(m_SquadUS, leader, threatPos, "maneuver");
+		Check("throw-dispatched", firstDeploy);
+		m_Thrown = LastCloud();
+		if (!firstDeploy || !m_Thrown || !m_Thrown.m_Thrower)
+		{
+			FinishTest();
+			return;
+		}
+		m_iThrownBefore = Smokes(m_Thrown.m_Thrower);
+		Check("dispatch-is-only-planned", !m_Thrown.m_bThrown);
 
-		// Check 9: Cooldown enforcement
-		BBB_Smoke.Stop();
-		BBB_Smoke.s_bOn = true;
-		// Deploying when on cooldown
-		vector threatPos = Vector(1340, 0, 2830);
-		bool firstDeploy = BBB_Smoke.TryDeploySmoke(m_SquadUS, m_SquadUS.GetLeaderEntity().GetOrigin(), threatPos, "maneuver");
-		// Second deploy in immediate succession must be blocked by squad cooldown
-		bool secondDeploy = BBB_Smoke.TryDeploySmoke(m_SquadUS, m_SquadUS.GetLeaderEntity().GetOrigin(), threatPos, "maneuver");
+		// Check 9: Second deploy in immediate succession must be blocked by squad cooldown
+		bool secondDeploy = BBB_Smoke.TryDeploySmoke(m_SquadUS, leader, threatPos, "maneuver");
 		Check("cooldown-blocks-duplicate-deploy", !secondDeploy);
 
-		// Check 10: Player/GM explicit order veto
-		if (firstUtility)
+		GetGame().GetCallqueue().CallLater(CheckThrown, 12000);
+	}
+
+	static int s_iLooseNear;
+	static bool CountLoose(IEntity e)
+	{
+		if (e && !e.GetParent() && BBB_Smoke.IsSmokeGrenade(e)) s_iLooseNear++;
+		return true;
+	}
+
+	protected void CheckThrown()
+	{
+		// Check 10: the grenade really left him, and the cloud is at a real grenade on the ground
+		int after = Smokes(m_Thrown.m_Thrower);
+		PrintFormat("[BBB] SMOKETEST thrower smokes %1 -> %2, cloud at %3 (thrown=%4)", m_iThrownBefore, after, m_Thrown.m_vPosition, m_Thrown.m_bThrown);
+		Check("smoke-left-inventory", after < m_iThrownBefore);
+		Check("cloud-thrown", m_Thrown.m_bThrown);
+		s_iLooseNear = 0;
+		GetGame().GetWorld().QueryEntitiesBySphere(m_Thrown.m_vPosition, 2.0, CountLoose);
+		Check("cloud-at-real-grenade", s_iLooseNear > 0);
+		Check("real-smoke-occludes", LineThroughOccluded(m_Thrown.m_vPosition));
+
+		// Check 11: a thrower killed before he throws leaves no cover
+		BBB_Smoke.Stop();
+		BBB_Smoke.s_bOn = true;
+		vector leader = m_SquadUS.GetLeaderEntity().GetOrigin();
+		bool dispatched = BBB_Smoke.TryDeploySmoke(m_SquadUS, leader, leader + Vector(0, 0, 60), "maneuver");
+		m_Interrupted = LastCloud();
+		Check("interrupted-dispatched", dispatched && m_Interrupted != null && m_Interrupted.m_Thrower != null);
+		if (!dispatched || !m_Interrupted || !m_Interrupted.m_Thrower)
+		{
+			FinishTest();
+			return;
+		}
+		m_iInterruptedBefore = Smokes(m_Interrupted.m_Thrower);
+		SCR_CharacterDamageManagerComponent damage = SCR_CharacterDamageManagerComponent.Cast(m_Interrupted.m_Thrower.FindComponent(SCR_CharacterDamageManagerComponent));
+		if (damage) damage.Kill(Instigator.CreateInstigator(null));
+		GetGame().GetCallqueue().CallLater(CheckInterrupted, 7000);
+	}
+
+	protected void CheckInterrupted()
+	{
+		Check("interrupted-hides-nothing", !LineThroughOccluded(m_Interrupted.m_vPosition));
+		Check("interrupted-cloud-dropped", !Listed(m_Interrupted));
+		Check("interrupted-no-grenade-thrown", Smokes(m_Interrupted.m_Thrower) == m_iInterruptedBefore);
+
+		// Check 12: Player/GM explicit order veto
+		AIWaypoint wp;
+		Resource res = Resource.Load(WP_MOVE);
+		if (res && res.IsValid())
 		{
 			EntitySpawnParams wpParams = new EntitySpawnParams();
 			wpParams.Transform[3] = m_SquadUS.GetLeaderEntity().GetOrigin() + Vector(0, 0, 10);
-			Resource res = Resource.Load(WP_MOVE);
-			if (res && res.IsValid())
-			{
-				AIWaypoint wp = AIWaypoint.Cast(GetGame().SpawnEntityPrefab(res, GetGame().GetWorld(), wpParams));
-				if (wp)
-				{
-					SCR_AIWaypoint scrWp = SCR_AIWaypoint.Cast(wp);
-					if (scrWp)
-					{
-						scrWp.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
-					}
-					m_SquadUS.AddWaypoint(wp);
-					Check("player-order-blocks", BBB_OrderIntent.Blocks(firstUtility) || !BBB_Smoke.IsFitThrower(firstMember, firstUtility));
-				}
-				else
-				{
-					Check("player-order-blocks", true);
-				}
-			}
-			else
-			{
-				Check("player-order-blocks", true);
-			}
+			wp = AIWaypoint.Cast(GetGame().SpawnEntityPrefab(res, GetGame().GetWorld(), wpParams));
 		}
-		else
+		SCR_AIWaypoint scrWp = SCR_AIWaypoint.Cast(wp);
+		if (!scrWp)
 		{
-			Check("player-order-blocks", true);
+			Check("player-order-blocks", false);
+			FinishOrders();
+			return;
 		}
+		scrWp.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
+		m_SquadUS.AddWaypoint(wp);
+		GetGame().GetCallqueue().CallLater(CheckOrder, 2000);
+	}
 
-		// Check 11: Deployment counter and cloud registration
-		Check("smoke-deployment-dispatched", BBB_Smoke.s_iSmokeThrown >= 0);
+	protected void CheckOrder()
+	{
+		bool blocked = false;
+		array<AIAgent> agents = {};
+		BBB.s_Hooks.GetMembers(m_SquadUS, agents);
+		foreach (AIAgent agent : agents)
+		{
+			if (!agent || !BBB.IsAlive(agent.GetControlledEntity())) continue;
+			SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+			blocked = utility != null && BBB_OrderIntent.Blocks(utility);
+			break;
+		}
+		Check("player-order-blocks", blocked);
+		FinishOrders();
+	}
 
-		// Check 12: Occlusion bidirectional query
+	protected void FinishOrders()
+	{
+		// Check 13: Occlusion query away from any smoke
 		Check("occlusion-query-valid", !BBB_Smoke.IsOccluded(Vector(0, 0, 0), Vector(10, 0, 0)));
-
 		FinishTest();
 	}
 
 	protected void FinishTest()
 	{
 		string verdict = "FAIL";
-		if (m_iFailures == 0 && m_iChecks >= 14)
+		if (m_iFailures == 0 && m_iChecks >= EXPECTED)
 		{
 			verdict = "PASS";
 		}
-		PrintFormat("[BBB] SMOKETEST FINISHED checks=%1 failures=%2", m_iChecks, m_iFailures);
-		PrintFormat("[ACR] VERDICT %1 test=bbbsmoke passed=%2 failed=%3 expected=14", verdict, m_iChecks - m_iFailures, m_iFailures);
+		PrintFormat("[BBB] SMOKETEST FINISHED checks=%1 failures=%2 landed=%3 failed=%4", m_iChecks, m_iFailures, BBB_Smoke.s_iSmokeLanded, BBB_Smoke.s_iSmokeFailed);
+		PrintFormat("[ACR] VERDICT %1 test=bbbsmoke passed=%2 failed=%3 expected=%4", verdict, m_iChecks - m_iFailures, m_iFailures, EXPECTED);
 		Print("[ACR] TEST COMPLETE");
 	}
 }

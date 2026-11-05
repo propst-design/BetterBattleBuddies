@@ -11,6 +11,10 @@
 //    enemy positions (from perception/combat components). Positions are never invented.
 // 3. Occlusion tracking: active smoke clouds are tracked with bloom (4 s) and
 //    effective duration (30 s) for spherical line-of-sight occlusion (IsOccluded).
+//    An ordered throw is only planned until its grenade has left the thrower (#41):
+//    a planned cloud hides nothing, one never thrown is dropped, and a thrown one sits
+//    where the grenade lies, not where it was aimed. Medic smoke (BBB_Medic) uses the
+//    same clouds.
 // 4. Strict safety: never throws if thrower is in vehicle, player-controlled,
 //    unconscious, reloading, changing item, or blocked by explicit player/GM orders
 //    (BBB_OrderIntent.Blocks). Cooldowns prevent grenade spam. Budget <= 0.1 ms/tick.
@@ -23,6 +27,14 @@ class BBB_SmokeCloud : Managed
 	float m_fExpireMs;
 	float m_fRadius;
 	string m_sReason;
+	// Planned until the grenade leaves the thrower: m_fBloomMs/m_fExpireMs are set then.
+	bool m_bThrown;
+	IEntity m_Thrower;
+	ref array<IEntity> m_aCarried; // the thrower's smoke grenades when the throw was ordered
+	IEntity m_Grenade;
+	float m_fBloomS;
+	float m_fDurationS;
+	float m_fGiveUpMs;
 }
 
 class BBB_Smoke
@@ -42,6 +54,10 @@ class BBB_Smoke
 	static const float SMOKE_DURATION_S = 30.0;
 	static const float SMOKE_RADIUS = 9.0;
 	static const float RECENT_THREAT_MAX_S = 20.0;
+	// A throw not made this long after it was ordered never will be (the throw itself takes 2-4 s).
+	static const float THROW_GIVE_UP_S = 10.0;
+	// Where to look for a thrown grenade whose entity the throw replaced.
+	static const float FIND_GRENADE_M = 45.0;
 
 	// Active smoke clouds
 	protected static ref array<ref BBB_SmokeCloud> s_aClouds;
@@ -60,6 +76,8 @@ class BBB_Smoke
 	static int s_iDragSmoke;
 	static int s_iManeuverSmoke;
 	static int s_iMoraleSmoke;
+	static int s_iSmokeLanded; // ordered throws whose grenade really left the thrower
+	static int s_iSmokeFailed; // ordered throws never made (thrower down, busy or out of time)
 
 	// ---------------------------------------------------------------- configuration
 
@@ -114,6 +132,8 @@ class BBB_Smoke
 		s_iDragSmoke = 0;
 		s_iManeuverSmoke = 0;
 		s_iMoraleSmoke = 0;
+		s_iSmokeLanded = 0;
+		s_iSmokeFailed = 0;
 	}
 
 	// ---------------------------------------------------------------- inventory and readiness
@@ -125,6 +145,28 @@ class BBB_Smoke
 		SCR_AICombatComponent combat = SCR_AICombatComponent.Cast(soldier.FindComponent(SCR_AICombatComponent));
 		if (!combat) return false;
 		return combat.FindWeaponOfType(EWeaponType.WT_SMOKEGRENADE) != null;
+	}
+
+	static bool IsSmokeGrenade(IEntity item)
+	{
+		if (!item) return false;
+		BaseWeaponComponent weapon = BaseWeaponComponent.Cast(item.FindComponent(BaseWeaponComponent));
+		return weapon && weapon.GetWeaponType() == EWeaponType.WT_SMOKEGRENADE;
+	}
+
+	// The smoke grenades a soldier carries, in his hands or his kit
+	static void CarriedSmokes(IEntity soldier, notnull array<IEntity> outSmokes)
+	{
+		outSmokes.Clear();
+		if (!soldier) return;
+		InventoryStorageManagerComponent inventory = InventoryStorageManagerComponent.Cast(soldier.FindComponent(InventoryStorageManagerComponent));
+		if (!inventory) return;
+		array<IEntity> items = {};
+		inventory.GetItems(items);
+		foreach (IEntity item : items)
+		{
+			if (IsSmokeGrenade(item)) outSmokes.Insert(item);
+		}
 	}
 
 	// Check if soldier is fit to execute a smoke throw
@@ -336,17 +378,10 @@ class BBB_Smoke
 		);
 		throwerUtil.AddAction(behavior);
 
-		// Register active cloud
-		BBB_SmokeCloud cloud = new BBB_SmokeCloud();
-		cloud.m_vPosition = smokePos;
-		cloud.m_fCreatedMs = nowMs;
-		cloud.m_fBloomMs = nowMs + (SMOKE_BLOOM_S * 1000.0);
-		cloud.m_fExpireMs = nowMs + ((SMOKE_BLOOM_S + SMOKE_DURATION_S) * 1000.0);
-		cloud.m_fRadius = SMOKE_RADIUS;
-		cloud.m_sReason = reason;
-		s_aClouds.Insert(cloud);
+		// Planned cloud: it reserves the spot but hides nothing until the grenade is thrown
+		Plan(thrower, smokePos, reason, SMOKE_BLOOM_S, SMOKE_DURATION_S, SMOKE_RADIUS);
 
-		// Record cooldown
+		// Record cooldown (a throw that never happens still waits it out)
 		s_mGroupCooldown.Set(group, nowMs);
 
 		s_iSmokeThrown++;
@@ -354,10 +389,126 @@ class BBB_Smoke
 		else if (reason == "maneuver") s_iManeuverSmoke++;
 		else if (reason == "morale") s_iMoraleSmoke++;
 
-		PrintFormat("[BBB] SMOKE: %1 (%2) deployed smoke to %3 (reason=%4, threatDist=%5 m)",
+		PrintFormat("[BBB] SMOKE: %1 (%2) ordered to throw smoke to %3 (reason=%4, threatDist=%5 m)",
 			thrower, BBB.s_Hooks.NameOf(group), smokePos, reason, Math.Round(threatDist));
 			BBB_Think.Note(thrower, "Smoke", "throws smoke (" + reason + ", threat " + Math.Round(threatDist) + " m)");
 		return true;
+	}
+
+	// ---------------------------------------------------------------- planned and thrown clouds
+
+	// Registers a smoke throw just ordered (squad or medic smoke). It counts as cover only once
+	// the grenade has left the thrower, and from where the grenade lies (Follow).
+	static BBB_SmokeCloud Plan(IEntity thrower, vector aim, string reason, float bloomS, float durationS, float radius)
+	{
+		float nowMs = GetGame().GetWorld().GetWorldTime();
+		BBB_SmokeCloud cloud = new BBB_SmokeCloud();
+		cloud.m_vPosition = aim;
+		cloud.m_fCreatedMs = nowMs;
+		cloud.m_fRadius = radius;
+		cloud.m_sReason = reason;
+		cloud.m_Thrower = thrower;
+		cloud.m_aCarried = new array<IEntity>();
+		CarriedSmokes(thrower, cloud.m_aCarried);
+		cloud.m_fBloomS = bloomS;
+		cloud.m_fDurationS = durationS;
+		cloud.m_fGiveUpMs = nowMs + THROW_GIVE_UP_S * 1000.0;
+		s_aClouds.Insert(cloud);
+		return cloud;
+	}
+
+	// The grenade this planned throw put in the air, or null while he still holds them all.
+	protected static IEntity Released(BBB_SmokeCloud cloud)
+	{
+		if (!cloud.m_Thrower || !cloud.m_aCarried) return null;
+		array<IEntity> carried = {};
+		CarriedSmokes(cloud.m_Thrower, carried);
+		bool gone = false;
+		foreach (IEntity grenade : cloud.m_aCarried)
+		{
+			if (grenade && carried.Contains(grenade)) continue;
+			// Still on his body (in his hand, about to throw) is not thrown.
+			if (grenade && grenade.GetParent()) continue;
+			if (grenade) return grenade;
+			gone = true;
+		}
+		// The throw replaced the grenade's entity: take the loose smoke grenade nearest the aim.
+		if (gone) return NearestLoose(cloud.m_vPosition);
+		return null;
+	}
+
+	protected static vector s_vLooseAt;
+	protected static IEntity s_Loose;
+	protected static float s_fLooseSq;
+
+	protected static IEntity NearestLoose(vector at)
+	{
+		s_vLooseAt = at;
+		s_Loose = null;
+		s_fLooseSq = FIND_GRENADE_M * FIND_GRENADE_M;
+		GetGame().GetWorld().QueryEntitiesBySphere(at, FIND_GRENADE_M, CollectLoose);
+		return s_Loose;
+	}
+
+	protected static bool CollectLoose(IEntity e)
+	{
+		if (!e || e.GetParent() || !IsSmokeGrenade(e)) return true;
+		foreach (BBB_SmokeCloud cloud : s_aClouds)
+		{
+			if (cloud && cloud.m_Grenade == e) return true;
+		}
+		float d = vector.DistanceSq(e.GetOrigin(), s_vLooseAt);
+		if (d < s_fLooseSq)
+		{
+			s_fLooseSq = d;
+			s_Loose = e;
+		}
+		return true;
+	}
+
+	// A planned cloud becomes real when its grenade leaves the thrower, then follows the grenade
+	// until it blooms. False: the throw was never made, drop the cloud.
+	protected static bool Follow(BBB_SmokeCloud cloud, float nowMs)
+	{
+		if (!cloud.m_bThrown)
+		{
+			IEntity thrown = Released(cloud);
+			if (!thrown)
+			{
+				if (nowMs < cloud.m_fGiveUpMs && StillThrowing(cloud.m_Thrower)) return true;
+				s_iSmokeFailed++;
+				PrintFormat("[BBB] SMOKE: throw to %1 never made (reason=%2): no smoke counted", cloud.m_vPosition, cloud.m_sReason);
+				return false;
+			}
+			cloud.m_bThrown = true;
+			cloud.m_Grenade = thrown;
+			cloud.m_fBloomMs = nowMs + cloud.m_fBloomS * 1000.0;
+			cloud.m_fExpireMs = cloud.m_fBloomMs + cloud.m_fDurationS * 1000.0;
+			s_iSmokeLanded++;
+		}
+		// The grenade may still roll; once the smoke is up the cloud stays where it is.
+		if (cloud.m_Grenade && nowMs <= cloud.m_fBloomMs) cloud.m_vPosition = cloud.m_Grenade.GetOrigin();
+		return true;
+	}
+
+	protected static bool StillThrowing(IEntity thrower)
+	{
+		if (!thrower || !BBB.IsAlive(thrower)) return false;
+		ChimeraCharacter character = ChimeraCharacter.Cast(thrower);
+		if (!character) return false;
+		CharacterControllerComponent controller = character.GetCharacterController();
+		return controller && !controller.IsUnconscious();
+	}
+
+	// For tests: the clouds, planned and thrown.
+	static int CloudCount()
+	{
+		return s_aClouds.Count();
+	}
+
+	static BBB_SmokeCloud CloudAt(int i)
+	{
+		return s_aClouds[i];
 	}
 
 	// ---------------------------------------------------------------- domain triggers
@@ -416,18 +567,16 @@ class BBB_Smoke
 		return vector.DistanceSq(closest, center) <= radius * radius;
 	}
 
-	// Check if line of sight between two positions is occluded by tactical smoke clouds
+	// Check if line of sight between two positions is occluded by smoke BBB had thrown (squad or
+	// medic smoke). Only thrown clouds count, whichever switch threw them: real smoke is real.
 	static bool IsOccludedSelf(vector from, vector to)
 	{
-		Read();
-		if (!s_bOn) return false;
-
 		float nowMs = GetGame().GetWorld().GetWorldTime();
 
 		for (int i = s_aClouds.Count() - 1; i >= 0; i--)
 		{
 			BBB_SmokeCloud cloud = s_aClouds[i];
-			if (!cloud) continue;
+			if (!cloud || !cloud.m_bThrown) continue;
 
 			if (nowMs >= cloud.m_fBloomMs && nowMs <= cloud.m_fExpireMs)
 			{
@@ -444,27 +593,31 @@ class BBB_Smoke
 	// Check if line of sight between two positions is occluded by either tactical smoke or medic smoke
 	static bool IsOccluded(vector from, vector to)
 	{
-		if (IsOccludedSelf(from, to)) return true;
-		if (BBB_Medic.IsOccludedBySmoke(from, to)) return true;
-		return false;
+		return IsOccludedSelf(from, to);
 	}
 
 	// ---------------------------------------------------------------- lifecycle and maintenance
 
-	// Periodic cleanup of expired clouds and stale group cooldowns (<= 0.05 ms)
+	// Periodic cleanup of expired clouds and stale group cooldowns (<= 0.05 ms). Runs with squad
+	// smoke off too: medic smoke's clouds are followed here.
 	static void Tick()
 	{
 		Read();
-		if (!s_bOn) return;
+		if (s_aClouds.Count() == 0 && s_mGroupCooldown.Count() == 0) return;
 
 		float nowMs = GetGame().GetWorld().GetWorldTime();
 
-		// Clean up expired clouds
+		// Follow planned throws; clean up expired clouds
 		for (int i = s_aClouds.Count() - 1; i >= 0; i--)
 		{
 			BBB_SmokeCloud cloud = s_aClouds[i];
+			if (cloud && !Follow(cloud, nowMs))
+			{
+				s_aClouds.RemoveOrdered(i);
+				continue;
+			}
 			// Kept past its smoke for the spot cooldown; the line-of-sight check reads only live smoke.
-			if (!cloud || (nowMs > cloud.m_fExpireMs && nowMs - cloud.m_fCreatedMs >= s_fCooldownTargetS * 1000.0))
+			if (!cloud || (cloud.m_bThrown && nowMs > cloud.m_fExpireMs && nowMs - cloud.m_fCreatedMs >= s_fCooldownTargetS * 1000.0))
 			{
 				s_aClouds.RemoveOrdered(i);
 			}

@@ -70,8 +70,8 @@ class BBB_Medic
  static const float SMOKE_RADIUS = 9.0;
  static const float SMOKE_THROW_MAX_M = 38.0;
 
+ // Casualty -> world time (ms) smoke was last ordered for him (cooldown; the cloud is BBB_Smoke's).
  static ref map<IEntity, float> s_mSmokeTime;
- static ref map<IEntity, vector> s_mSmokePos;
 
  // Casualty -> world time (ms) a heal for him was last held / he became a hot spot.
  static ref map<IEntity, float> s_mHeld;
@@ -93,7 +93,6 @@ class BBB_Medic
  {
   s_aVanilla = {};
   s_mSmokeTime = new map<IEntity, float>();
-  s_mSmokePos = new map<IEntity, vector>();
   s_mHeld = new map<IEntity, float>();
   s_mHot = new map<IEntity, float>();
   s_mGoing = new map<IEntity, float>();
@@ -112,7 +111,6 @@ class BBB_Medic
   s_mGoing.Clear();
   s_mGoingTo.Clear();
   s_mSmokeTime.Clear();
-  s_mSmokePos.Clear();
   s_aVanilla.Clear();
   s_mStartedBy.Clear();
   s_mDoneBy.Clear();
@@ -237,35 +235,11 @@ class BBB_Medic
   return combat.FindWeaponOfType(EWeaponType.WT_SMOKEGRENADE) != null;
  }
 
- static bool LineIntersectsSphere(vector from, vector to, vector center, float radius)
- {
-  vector dir = to - from;
-  float lenSq = dir.LengthSq();
-  if (lenSq < 0.001) return vector.DistanceSq(from, center) <= radius * radius;
-  vector fromToCenter = center - from;
-  float t = vector.Dot(fromToCenter, dir) / lenSq;
-  t = Math.Clamp(t, 0.0, 1.0);
-  vector closest = from + dir * t;
-  return vector.DistanceSq(closest, center) <= radius * radius;
- }
-
+ // Smoke BBB had really thrown (squad or medic smoke, BBB_Smoke's clouds): a throw only ordered
+ // hides nothing (#41).
  static bool IsOccludedBySmoke(vector from, vector to)
  {
-  if (BBB_Smoke.s_bOn && BBB_Smoke.IsOccludedSelf(from, to)) return true;
-  if (!s_bSmokeOn) return false;
-  float now = NowMs();
-  for (int i = s_mSmokeTime.Count() - 1; i >= 0; i--)
-  {
-   IEntity cas = s_mSmokeTime.GetKey(i);
-   if (!cas) continue;
-   float elapsed = now - s_mSmokeTime.GetElement(i);
-   if (elapsed >= SMOKE_BLOOM_MS && elapsed <= SMOKE_DURATION_MS)
-   {
-    vector smokePos = s_mSmokePos.Get(cas);
-    if (LineIntersectsSphere(from, to, smokePos, SMOKE_RADIUS)) return true;
-   }
-  }
-  return false;
+  return BBB_Smoke.IsOccludedSelf(from, to);
  }
 
  // Does an enemy the healer's group saw or heard lately have a clear line to the casualty?
@@ -409,9 +383,9 @@ class BBB_Medic
   throwerUtil.AddAction(behavior);
 
   s_mSmokeTime.Set(casualty, now);
-  s_mSmokePos.Set(casualty, smokePos);
+  BBB_Smoke.Plan(thrower, smokePos, "medic", SMOKE_BLOOM_MS / 1000.0, (SMOKE_DURATION_MS - SMOKE_BLOOM_MS) / 1000.0, SMOKE_RADIUS);
   StartWatching();
-  PrintFormat("[BBB] MEDIC SMOKE %1 deploying smoke to %2 for casualty %3", Name(thrower), smokePos, Name(casualty));
+  PrintFormat("[BBB] MEDIC SMOKE %1 ordered to throw smoke to %2 for casualty %3", Name(thrower), smokePos, Name(casualty));
   return true;
  }
 
@@ -487,11 +461,6 @@ class BBB_Medic
   Prune(s_mHeld);
   Prune(s_mHot);
   Prune(s_mSmokeTime);
-  for (int s = s_mSmokePos.Count() - 1; s >= 0; s--)
-  {
-   IEntity key = s_mSmokePos.GetKey(s);
-   if (!key || !s_mSmokeTime.Contains(key)) s_mSmokePos.RemoveElement(s);
-  }
   PruneCounts(s_mStartedBy);
   PruneCounts(s_mDoneBy);
   PruneCounts(s_mHitBy);
