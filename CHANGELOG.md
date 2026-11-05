@@ -2,6 +2,7 @@
 
 ## 0.1.8 — unreleased
 
+- Works with Arma Reforger 1.9. In 1.9 the game's automatic gearbox takes the gear and throttle from the driver's own controls every moment, so whenever Better Battle Buddies drove a vehicle for its AI driver (backing a truck away from an incoming rocket or an armed vehicle, backing a stuck vehicle out, pulling over onto the verge) the game put it straight back in neutral: the truck sat still or crept forward. Better Battle Buddies now takes the driver's controls for the few seconds it drives and hands them back as soon as it's done.
 - A frag that is still waiting to be thrown is called off if a friendly soldier or player walks into where it would land, or into its path. The blast and path were checked when the throw was decided, but a throw can wait a few seconds behind what the soldier is already doing, and nobody looked again before he let go. He still never drops a throw that is already under way.
 - A soldier picked to take over an empty turret is left alone if things change before he gets there: a player takes him over or takes a seat in that vehicle, he gets a player's or Game Master's order, he changes squad, or the host mod takes the vehicle back. Before, the seating went ahead on the earlier decision; it also switched on the AI of a soldier that something else had deliberately parked.
 - Fixed a rare script error when a soldier's squad was still being set up (seen once on a hosted game with AiO Command Menu loaded): the check for whether his squad holds fire read a part of the squad that wasn't there yet.
