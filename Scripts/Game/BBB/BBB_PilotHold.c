@@ -1,5 +1,5 @@
-// While BBB drives a parked AI driver's vehicle itself (armour reverse, unstick, firing-arc
-// alignment, pull-over), the driver seat is unhooked from the vehicle's controller and handed back
+// While BBB drives a parked AI driver's vehicle itself (armour reverse, unstick, pull-over), the
+// driver seat is unhooked from the vehicle's controller and handed back
 // when the manoeuvre ends. From Reforger 1.9 the controller feeds the seat's input into the
 // simulation every physics step and its automatic gearbox picks the gear from that input; a parked
 // driver's input is empty, so BBB's gear and throttle were overwritten (a truck told to reverse sat

@@ -313,7 +313,7 @@ class BBB_ReactionTest : BBB_AimTest
   Assert("armor-reverse-started", reacted && BBB_ArmorReaction.s_Escapes.Count() == 1 && !m_DriverControl.IsAIActivated(), string.Format("clearance=%1", BBB_ArmorReaction.Clearance(m_Truck)));
   Assert("armor-cooldown", !BBB_ArmorReaction.React(m_Truck, enemy, line, "0 0 -1"));
   m_At = Now();
-  GetGame().GetCallqueue().CallLater(ObserveReverse, 1000, true);
+  GetGame().GetCallqueue().CallLater(ObserveReverse, 250, true);
   GetGame().GetCallqueue().CallLater(TraceReverse, 250, true);
  }
 
@@ -327,7 +327,9 @@ class BBB_ReactionTest : BBB_AimTest
 
  void ObserveReverse()
  {
-  if (Now() - m_At < 3) return;
+  // 1.5 s, while the reverse still runs (from 1.9, with the seat held, it backs at 2-3 m/s and reaches
+  // its 7 m bound before 3 s), so the order check below cancels a real one.
+  if (Now() - m_At < 1.5) return;
   GetGame().GetCallqueue().Remove(ObserveReverse);
   vector moved = m_Truck.GetOrigin() - m_TruckStart;
   CarControllerComponent motionCar = CarControllerComponent.Cast(m_Truck.FindComponent(CarControllerComponent));
