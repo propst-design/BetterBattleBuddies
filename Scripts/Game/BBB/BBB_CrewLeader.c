@@ -341,16 +341,21 @@ class BBB_CrewLeader
   s_aTargets.Clear();
  }
 
- // What one enemy is worth on his own.
- protected static float Value(BBB_CrewSighting seen, float now)
+ // What one enemy is worth on his own (the squad leader scores with it too).
+ static float ThreatValue(EAIUnitType type, IEntity enemy, bool shooting, float now)
  {
   float value = MAN;
-  if (seen.m_eType == EAIUnitType.UnitType_VehicleUnarmored) value = VEHICLE_LIGHT;
-  else if (seen.m_eType == EAIUnitType.UnitType_VehicleMedium) value = VEHICLE_MEDIUM;
-  else if (seen.m_eType == EAIUnitType.UnitType_VehicleHeavy) value = VEHICLE_HEAVY;
-  else if (HasAT(seen.m_Enemy, now)) value = AT_MAN;
-  if (seen.m_bShooting) value += SHOOTING;
+  if (type == EAIUnitType.UnitType_VehicleUnarmored) value = VEHICLE_LIGHT;
+  else if (type == EAIUnitType.UnitType_VehicleMedium) value = VEHICLE_MEDIUM;
+  else if (type == EAIUnitType.UnitType_VehicleHeavy) value = VEHICLE_HEAVY;
+  else if (HasAT(enemy, now)) value = AT_MAN;
+  if (shooting) value += SHOOTING;
   return value;
+ }
+
+ protected static float Value(BBB_CrewSighting seen, float now)
+ {
+  return ThreatValue(seen.m_eType, seen.m_Enemy, seen.m_bShooting, now);
  }
 
  protected static bool Armour(EAIUnitType type)
@@ -359,8 +364,9 @@ class BBB_CrewLeader
  }
 
  // A man with a loaded launcher (or rockets for it), cached AT_CACHE_S per man.
- protected static bool HasAT(IEntity enemy, float now)
+ static bool HasAT(IEntity enemy, float now)
  {
+  if (!enemy || !s_mATUntil) return false;
   float until;
   if (s_mATUntil.Find(enemy, until) && now < until) return s_mAT.Get(enemy);
   ChimeraCharacter character = ChimeraCharacter.Cast(enemy);
@@ -540,7 +546,7 @@ class BBB_CrewLeader
   BaseTarget seen = Visible(utility, order);
   if (seen)
   {
-   if (combat.BBBLeaderWants(seen.GetTargetEntity(), nowMs))
+   if (combat.BBBLeaderWants(seen.GetTargetEntity(), nowMs, false))
     BBB_Think.NoteUtility(utility, "CrewLeader", "switched onto the leader's target: " + order.m_sWhat);
    return;
   }
@@ -588,20 +594,25 @@ modded class SCR_AIUtilityComponent
  float m_fBBBOverrideNext; // world time (ms) the crew leader may break off his fight again
 }
 
-// The leader's switch: after vanilla's own pick, his target becomes the man the leader wants, with
-// the weapon his picker gives against that kind of target, and is held HOLD_S.
+// The leader's switch (crew leader, squad leader): after vanilla's own pick, his target becomes the man
+// the leader wants, with the weapon his picker gives against that kind of target, and is held while the
+// leader renews it.
 modded class SCR_AICombatComponent
 {
  protected IEntity m_BBBLeaderWant;
  protected float m_fBBBLeaderWantUntil;
  protected BaseTarget m_BBBLeaderHeld;
  protected float m_fBBBLeaderHeldUntil;
+ protected bool m_bBBBLeaderYields; // infantry: the hold gives way when someone else shoots at him
 
- // From BBB_CrewLeader.Command: true when this is a new switch.
- bool BBBLeaderWants(IEntity enemy, float nowMs)
+ // From BBB_CrewLeader.Command / BBB_SquadLeader: true when this is a new switch. yields: the hold
+ // ends when another enemy shoots at him (a man on foot answers that himself; a crew under armour
+ // leaves it to its commander).
+ bool BBBLeaderWants(IEntity enemy, float nowMs, bool yields)
  {
   if (m_BBBLeaderHeld && m_BBBLeaderHeld.GetTargetEntity() == enemy && nowMs < m_fBBBLeaderHeldUntil) return false;
   bool fresh = m_BBBLeaderWant != enemy;
+  m_bBBBLeaderYields = yields;
   m_BBBLeaderWant = enemy;
   m_fBBBLeaderWantUntil = nowMs + 1500;
   m_fNextWeaponTargetEvaluation_ms = 0; // pick now, not in up to half a second
@@ -630,6 +641,12 @@ modded class SCR_AICombatComponent
   }
   BaseWeaponComponent weapon = GetCurrentWeapon();
   if (!weapon || !weapon.GetCurrentMagazine() || weapon.GetCurrentMagazine().GetAmmoCount() <= 0) return false;
+  // On foot and under fire: his own picker answers it.
+  if (m_bBBBLeaderYields && BBB_SquadLeader.UnderFire(m_Utility))
+  {
+   m_BBBLeaderHeld = null;
+   return false;
+  }
   return true;
  }
 
@@ -673,7 +690,10 @@ modded class SCR_AICombatComponent
   if (!target) return;
   // The weapon his picker gives against this kind of target at this range.
   bool turret = m_AIInfo && m_AIInfo.HasUnitState(EUnitState.IN_TURRET);
-  if (!m_WeaponTargetSelector.SelectWeaponAgainstUnitTypeAndDistance(target.GetUnitType(), target.GetDistance(), true, turret)) return;
+  // On foot: his gun, never a grenade or a launcher (their own features decide those throws and shots).
+  array<int> notThese;
+  if (!turret) notThese = {EWeaponType.WT_FRAGGRENADE, EWeaponType.WT_SMOKEGRENADE, EWeaponType.WT_ROCKETLAUNCHER, EWeaponType.WT_GRENADELAUNCHER};
+  if (!m_WeaponTargetSelector.SelectWeaponAgainstUnitTypeAndDistance(target.GetUnitType(), target.GetDistance(), true, turret, null, notThese)) return;
   BaseWeaponComponent weapon;
   int muzzle;
   BaseMagazineComponent magazine;
@@ -701,7 +721,11 @@ modded class SCR_AICombatComponent
   m_BBBLeaderHeld = target;
   m_fBBBLeaderHeldUntil = now + BBB_CrewLeader.HOLD_S * 1000;
   // (BBB_HotAI's override, compiled after this one, wraps it and restarts its turret hold on the change.)
-  BBB_CrewLeader.s_iSwitches++;
-  PrintFormat("[BBB] CREW LEADER gunner switched onto the leader's target %1 m away", Math.Round(target.GetDistance()));
+  if (turret)
+  {
+   BBB_CrewLeader.s_iSwitches++;
+   PrintFormat("[BBB] CREW LEADER gunner switched onto the leader's target %1 m away", Math.Round(target.GetDistance()));
+  }
+  else BBB_SquadLeader.s_iSwitches++;
  }
 }

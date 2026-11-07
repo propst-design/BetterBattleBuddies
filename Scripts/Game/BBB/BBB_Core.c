@@ -184,6 +184,7 @@ class BBB
   BBB_Squad.Stop();
   BBB_Tactic.Stop();
   BBB_CrewLeader.Stop();
+  BBB_SquadLeader.Stop();
   BBB_Transport.ClearHits();
   BBB_VehicleHelpers.Reset();
   BBB_PilotHold.GiveAll(); // after every manoeuvre has ended
@@ -206,6 +207,8 @@ class BBB
   t = BBB_Perf.Lap("tick.squad", t);
   BBB_Tactic.Tick();
   t = BBB_Perf.Lap("tick.tactic", t);
+  BBB_SquadLeader.Tick();
+  t = BBB_Perf.Lap("tick.squadLeader", t);
   BBB_CrewTurnout.Tick();
   t = BBB_Perf.Lap("tick.crewTurnout", t);
   BBB_DriverAlignment.Tick();

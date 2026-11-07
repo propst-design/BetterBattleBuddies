@@ -21,6 +21,8 @@ class BBB_SquadContact : Managed
  float m_fAge;     // s since detected
  float m_fWeight;
  float m_fBearing; // degrees from the squad, 0 = +Z
+ EAIUnitType m_eType; // as the members' perception classes it
+ bool m_bShooting;    // shot at a member within SHOOTING_S (BBB_SquadLeader scores it)
 }
 
 class BBB_SquadPicture : Managed
@@ -45,6 +47,7 @@ class BBB_Squad
  static const float SECTOR_HALF_DEG = 30.0;
  static const float FLANK_DEG = 90.0;
  static const float FLANK_SHARE = 0.25;
+ static const float SHOOTING_S = 10.0;
  static bool s_bOn = true;
  protected static int s_iRead;
  protected static ref map<SCR_AIGroup, ref BBB_SquadPicture> s_Pictures;
@@ -150,7 +153,12 @@ class BBB_Squad
     if (enemy && !BBB.StillFighting(enemy)) continue;
     BBB_SquadContact contact;
     if (enemy) contact = byEnemy.Get(enemy);
-    if (contact && contact.m_fAge <= age) continue;
+    bool shooting = target.GetTimeSinceEndangered() < SHOOTING_S;
+    if (contact && contact.m_fAge <= age)
+    {
+     if (shooting) contact.m_bShooting = true;
+     continue;
+    }
     if (!contact)
     {
      contact = new BBB_SquadContact();
@@ -160,12 +168,15 @@ class BBB_Squad
     }
     contact.m_fAge = age;
     contact.m_vPos = target.GetLastDetectedPosition();
+    contact.m_eType = target.GetUnitType();
+    if (shooting) contact.m_bShooting = true;
    }
   }
   foreach (BBB_SquadContact kept : before)
   {
    if (!kept.m_Enemy || byEnemy.Contains(kept.m_Enemy) || !BBB.StillFighting(kept.m_Enemy)) continue;
    kept.m_fAge = kept.m_fAge + since;
+   kept.m_bShooting = false; // nobody perceives him now
    if (kept.m_fAge > MEMORY_S) continue;
    picture.m_Contacts.Insert(kept);
    byEnemy.Set(kept.m_Enemy, kept);
