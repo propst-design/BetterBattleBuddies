@@ -342,21 +342,26 @@ class BBB_FeatureAuditTest : BBB_AimTest
 		bool dispatched = BBB_Grenades.TryThrowGrenadeAt(m_Group, leader + m_vEnemyDir * 24, "audit clear");
 		BBB_Grenades.s_bOn = false;
 		Audit("frag-dispatched-clear-spot", dispatched);
-		GetGame().GetCallqueue().CallLater(HoldFireAgain, 3000);
-		GetGame().GetCallqueue().CallLater(FragLanded, 9000);
+		m_fStepStart = NowMs();
+		GetGame().GetCallqueue().CallLater(FragLanded, 1000);
 	}
 
-	// The throw is under way by now (a running throw isn't cancelled): back to holding fire.
+	// Back to holding fire once the frag is gone.
 	void HoldFireAgain()
 	{
 		if (m_Group) { m_Group.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE); m_Group.GetGroupUtilityComponent().EvaluateCombatMode(); }
 	}
 
+	// The squad fires at will until the frag is gone: a thrower busy shooting at the enemy throws once that's done
+	// (Reforger 1.9: 0.2-7 s before he starts, about 4 s for the throw), and holding fire again 3 s after the order
+	// caught some throws before they had begun. 15 s at most, then the grenade is counted; the next part waits 4 s.
 	void FragLanded()
 	{
 		int after = GroupGrenades();
-		Audit("frag-actually-thrown", after < m_iGrenadesBefore, string.Format("grenades %1 -> %2 [%3]", m_iGrenadesBefore, after, GrenadeBreakdown()));
-		StaticBegin();
+		if (after >= m_iGrenadesBefore && NowMs() - m_fStepStart < 15000) { GetGame().GetCallqueue().CallLater(FragLanded, 500); return; }
+		HoldFireAgain();
+		Audit("frag-actually-thrown", after < m_iGrenadesBefore, string.Format("grenades %1 -> %2 [%3] after %4 s", m_iGrenadesBefore, after, GrenadeBreakdown(), Math.Round((NowMs() - m_fStepStart) / 1000.0)));
+		GetGame().GetCallqueue().CallLater(StaticBegin, 4000);
 	}
 
 	// ---------------------------------------------------------------- static weapon
