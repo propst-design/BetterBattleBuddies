@@ -10,6 +10,99 @@ class BBB_OrderIntent
   return true;
  }
 
+ // Gunners fire on the move (6 Nov 2026). A move order says where the vehicle goes, not whether its
+ // gunner may shoot on the way. AC: Actual raises every Fast move to the player level, so a BMP driving
+ // to its attack's staging point drove past a squad its crew had reported: the group's player-level
+ // move outranked the gunner's fire (modded classes at the end of this file), and BBB's gunner help (Hot
+ // AI fire control, crew call-out, BBB_Gunner drill) asked Blocks and stood back. Now, for a gunner on
+ // such a move (GunnerOnTheMove), his fire runs at the move's level and GunnerBlocks holds BBB back only
+ // for a player-level behaviour of his own besides the group's move. Unchanged: Game Master waypoints,
+ // groups with a player, static guns, the host's LeaveAlone, hold fire (the order not to shoot).
+ //  -bbbGunnerOrders 0   the old rule: the move outranks his fire, BBB's gunner help stands back
+ static bool s_bGunnerOrders;
+ protected static int s_iGunnerRead;
+
+ static bool GunnerOrdersOn()
+ {
+  if (BBB_Settings.Due(s_iGunnerRead))
+  {
+   string value;
+   s_bGunnerOrders = !(BBB_Settings.Get("bbbGunnerOrders", value) && value == "0");
+   PrintFormat("[BBB] GUNNER ORDERS move orders leave the gunner free to fire=%1", s_bGunnerOrders);
+  }
+  return s_bGunnerOrders;
+ }
+
+ static bool GunnerBlocks(SCR_AIUtilityComponent utility)
+ {
+  if (!GunnerOnTheMove(utility)) return Blocks(utility);
+  if (!GunnerOwnOrder(utility)) return false;
+  BBB_Think.NoteUtility(utility, "Orders", "player/GM order on the gunner: BBB stands back");
+  return true;
+ }
+
+ // A turret gunner (with or without a gun) of an AI group whose current waypoint is a player-level
+ // order that is not a Game Master's, in a vehicle the host doesn't keep for itself. Measured 6 Nov
+ // (BBB_CrewCalloutTest, LAV-25 on a player-level Move): vanilla gives every crewman the group's move
+ // as SCR_AIMoveInFormationBehavior at the player level (his current behaviour in 74-77 of 80
+ // samples), which is what Blocks read as an order on him. Cached a second per soldier.
+ static bool GunnerOnTheMove(SCR_AIUtilityComponent utility)
+ {
+  if (!utility || !utility.m_AIInfo || !utility.m_AIInfo.HasUnitState(EUnitState.IN_TURRET)) return false;
+  BaseWorld world = GetGame().GetWorld();
+  if (!world) return false;
+  float now = world.GetWorldTime();
+  if (now < utility.m_fBBBOnMoveUntil) return utility.m_bBBBOnMove;
+  utility.m_fBBBOnMoveUntil = now + 1000;
+  utility.m_bBBBOnMove = OnTheMoveNow(utility);
+  return utility.m_bBBBOnMove;
+ }
+
+ protected static bool OnTheMoveNow(SCR_AIUtilityComponent utility)
+ {
+  if (!GunnerOrdersOn()) return false;
+  IEntity man = utility.m_OwnerEntity;
+  if (!man || BBB.PlayerOf(man)) return false;
+  AIAgent agent = utility.GetAIAgent();
+  if (!agent) return false;
+  SCR_AIGroup group = SCR_AIGroup.Cast(agent.GetParentGroup());
+  if (!group || BBB.HasPlayer(group)) return false;
+  SCR_AIWaypoint waypoint = SCR_AIWaypoint.Cast(group.GetCurrentWaypoint());
+  if (!waypoint || waypoint.GetPriorityLevel() < SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
+  if (GameMasterOrder(group)) return false;
+  // Vehicles only: a man on a static gun (a Turret entity) leaves it with his group on a move.
+  IEntity vehicle = BBB_Transport.VehicleOf(man);
+  if (!Vehicle.Cast(vehicle) || (BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(vehicle))) return false;
+  return true;
+ }
+
+ // A player-level behaviour of his own other than the group's move (he sits in a turret: that move
+ // is the vehicle's) and his own fire.
+ protected static bool GunnerOwnOrder(SCR_AIUtilityComponent utility)
+ {
+  SCR_AIBehaviorBase current = utility.GetCurrentBehavior();
+  if (current && current.EvaluatePriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER && !GunnerMoveOrFire(current)) return true;
+  if (!utility.m_BBBOrderActions) utility.m_BBBOrderActions = {};
+  array<ref AIActionBase> actions = utility.m_BBBOrderActions;
+  actions.Clear();
+  bool held;
+  utility.FindActionsOfInheritedType(SCR_AIBehaviorBase, actions);
+  foreach (AIActionBase action : actions)
+  {
+   if (action.GetRemoveAction() || action.GetActionState() == EAIActionState.FAILED || action.GetActionState() == EAIActionState.COMPLETED) continue;
+   if (action.EvaluatePriorityLevel() < SCR_AIActionBase.PRIORITY_LEVEL_PLAYER || GunnerMoveOrFire(action)) continue;
+   held = true;
+   break;
+  }
+  actions.Clear();
+  return held;
+ }
+
+ protected static bool GunnerMoveOrFire(AIActionBase action)
+ {
+  return SCR_AIMoveInFormationBehavior.Cast(action) != null || SCR_AIMoveBehaviorBase.Cast(action) != null || SCR_AIAttackBehavior.Cast(action) != null || SCR_AISuppressBehavior.Cast(action) != null;
+ }
+
  // The group's current waypoint is a Game Master's: placed in the editor (editable waypoint
  // prefab), or raised to GM priority. Editor waypoints keep priority 0, so the priority checks
  // never saw them. For decisions that would override where the GM sent the group.
@@ -34,6 +127,20 @@ class BBB_OrderIntent
   SCR_AIWaypoint waypoint;
   if (group) waypoint = SCR_AIWaypoint.Cast(group.GetCurrentWaypoint());
   if (waypoint && waypoint.GetPriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return true;
+  return QueuedOrder(utility);
+ }
+
+ // A player-level behaviour of his own: running now or queued.
+ static bool OwnOrder(SCR_AIUtilityComponent utility)
+ {
+  if (!utility) return false;
+  SCR_AIBehaviorBase current = utility.GetCurrentBehavior();
+  if (current && current.EvaluatePriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return true;
+  return QueuedOrder(utility);
+ }
+
+ protected static bool QueuedOrder(SCR_AIUtilityComponent utility)
+ {
   // Reuse storage per controller; native decisions can ask many times a frame.
   // Clear after the scan so this buffer never retains finished actions.
   if (!utility.m_BBBOrderActions) utility.m_BBBOrderActions = {};
@@ -266,4 +373,35 @@ class BBB_OrderLeash
 modded class SCR_AIUtilityComponent
 {
  ref array<ref AIActionBase> m_BBBOrderActions;
+}
+
+// Gunners fire on the move: a turret gunner's attack and suppressive fire (vanilla's, and BBB's, which
+// extend SCR_AISuppressBehavior) at the level of the forced move he rides on (GunnerOnTheMove). While the
+// group's move (SCR_AIMoveInFormationBehavior, player level) is selected, normal-level fire never runs:
+// measured 6 Nov, call-out fire started at 12 s and 22 s fired its first round only when the waypoint
+// completed (27 s), and a gunner with an enemy in sight in 20-24 samples fired 0-1 rounds on the move.
+modded class SCR_AIAttackBehavior
+{
+ override float EvaluatePriorityLevel()
+ {
+  float level = super.EvaluatePriorityLevel();
+  if (level < PRIORITY_LEVEL_PLAYER && BBB_OrderIntent.GunnerOnTheMove(m_Utility)) return PRIORITY_LEVEL_PLAYER;
+  return level;
+ }
+}
+
+modded class SCR_AISuppressBehavior
+{
+ override float EvaluatePriorityLevel()
+ {
+  float level = super.EvaluatePriorityLevel();
+  if (level < PRIORITY_LEVEL_PLAYER && BBB_OrderIntent.GunnerOnTheMove(m_Utility)) return PRIORITY_LEVEL_PLAYER;
+  return level;
+ }
+}
+
+modded class SCR_AIUtilityComponent
+{
+ float m_fBBBOnMoveUntil; // world time (ms) GunnerOnTheMove is cached to
+ bool m_bBBBOnMove;
 }

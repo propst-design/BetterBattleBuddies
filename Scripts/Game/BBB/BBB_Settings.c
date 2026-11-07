@@ -387,6 +387,8 @@ class BBB_Settings
   On(g, "bbbArmorReaction", "Armour reaction to AT fire", "Vehicles fire smoke launchers and slow wheeled vehicles back out of a launcher's line of fire.");
   On(g, "bbbGunnerDrill", "Gunner contact drill", "A vehicle gunner shot at by an enemy he can't see fires short bursts toward the sound.");
   On(g, "bbbGunnerScan", "Gunner scan on the move", "Gunners in a moving vehicle scan 75 degrees each side instead of 15.");
+  On(g, "bbbCrewCallout", "Crew call-out", "A vehicle gunner who sees nothing of his own turns onto the biggest group of enemies his crewmates see and puts fire on it until he spots them himself.");
+  On(g, "bbbGunnerOrders", "Gunners fire on the move", "A move order sends the vehicle, not the gunner: under a forced move (AC: Actual's fast moves) a vehicle gunner still shoots what he sees or his crew calls out, and BBB's gunner help still works. Hold fire still holds him. Off: vanilla, where the move outranks his fire.");
   On(g, "bbbGunnerReplace", "Replace lost gunners", "Squadmates take over an empty or wounded gunner seat on a working armed vehicle.");
   On(g, "bbbCommanderCrew", "Commander seats are crew", "Turret-linked commander positions count as crew.");
   On(g, "bbbCrewStays", "Crew stay mounted", "Crews of armed or armoured vehicles don't get out to open gates or heal.");

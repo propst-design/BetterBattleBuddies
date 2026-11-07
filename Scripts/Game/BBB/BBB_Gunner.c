@@ -84,7 +84,7 @@ class BBB_Gunner
   // with an AI gunner), a player's squad, and a soldier under a player/GM order.
   IEntity vehicle = BBB_Transport.VehicleOf(gunner);
   if (vehicle && BBB.s_Hooks.LeaveAlone(vehicle)) return;
-  if (BBB.HasPlayer(BBB_HeldGuns.GroupOf(gunner)) || BBB_OrderIntent.Blocks(utility)) return;
+  if (BBB.HasPlayer(BBB_HeldGuns.GroupOf(gunner)) || BBB_OrderIntent.GunnerBlocks(utility)) return;
 
   vector me = gunner.GetOrigin();
   vector heard = utility.m_SectorThreatFilter.GetSectorPos(sectorId);
@@ -178,7 +178,7 @@ class BBB_AIReconByFireBehavior : SCR_AISuppressBehavior
   if (m_Utility && m_Utility.m_CombatComponent && m_Utility.m_CombatComponent.GetCurrentTarget()) { Complete(); return 0; }
   if (m_Utility && m_Utility.m_AIInfo && !m_Utility.m_AIInfo.HasUnitState(EUnitState.IN_TURRET)) { Complete(); return 0; }
   // Hold fire, an order or a player taking the gun after the drill began (as the other BBB fire behaviours).
-  if (!m_Utility || BBB.PlayerOf(m_Utility.m_OwnerEntity) || BBB_OrderIntent.Blocks(m_Utility)) { Complete(); return 0; }
+  if (!m_Utility || BBB.PlayerOf(m_Utility.m_OwnerEntity) || BBB_OrderIntent.GunnerBlocks(m_Utility)) { Complete(); return 0; }
   if (m_Utility.m_CombatComponent && m_Utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) { Complete(); return 0; }
   return BBB_Gunner.PRIORITY;
  }
