@@ -297,7 +297,8 @@ class BBB_Settings
   Num(g, "bbbHotUnderFireS", 15, 1, 60, 1, "Hot AI: slow for (s)", "With gunners and vehicles on. How long after the last hit the vehicle stays slow.");
   On(g, "bbbHotGunnerFire", "Hot AI: gunner fire control", "With gunners and vehicles on. A gunner who sees no target puts fire on the one he lost sight of, an enemy who shot at him, or what his crewmates see.");
   On(g, "bbbHotMainGun", "Hot AI: main gun on everything", "With gunners and vehicles on. A turret gunner uses the main gun (autocannon, or the machine gun in the lowest slot) against infantry and for suppression, not the coaxial MG.");
-  Off(g, "bbbReturnFire", "Return fire at unseen shooters", "A soldier shot at by an enemy he can't see (behind a bush, in the dark) fires a short burst back toward where the shots came from, then takes cover as usual.");
+  Off(g, "bbbReturnFire", "Return fire at unseen shooters", "A soldier shot at by an enemy he can't see (behind a bush, in the dark) fires a short burst back toward where the shots came from. With fire discipline on, he gets into cover first.");
+  On(g, "bbbFireDiscipline", "Fire discipline", "Shot at by an enemy they can't see, soldiers get into cover before firing back, and only two or three per squad do: riflemen within 250 m, machine gunners within 500 m, never into their last spare magazines. Suppressing a spotted group stops past 350 m (600 m for machine guns), and past 100 m bursts get shorter and aim longer. Off: the old rules.");
   On(g, "bbbSkySuppression", "No firing at aircraft noises", "Gunners don't suppress the sky because a shot was reported from an aircraft.");
 
   g = "Suppression";

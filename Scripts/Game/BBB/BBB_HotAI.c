@@ -742,7 +742,8 @@ modded class SCR_AIGetFireTimes
 	override ENodeResult EOnTaskSimulate(AIAgent owner, float dt)
 	{
 		BBB_HotAI.Read();
-		if (!BBB_HotAI.s_bOn && !BBB_HotAI.s_bVehicles)
+		bool pace = BBB_FireDiscipline.Paces(m_BBBUtility); // BBB fire discipline: aimed pace at range
+		if (!BBB_HotAI.s_bOn && !BBB_HotAI.s_bVehicles && !pace)
 		{
 			ENodeResult plain = super.EOnTaskSimulate(owner, dt);
 			if (plain == ENodeResult.SUCCESS && m_BBBUtility) m_BBBUtility.m_iBBBHotBursts++; // the gunner trace
@@ -861,6 +862,7 @@ modded class SCR_AIGetFireTimes
 		// Apply CQC factor to burst size
 		burstSize -= Math.RandomGaussFloat(0.32, 0) * cqcFactor;
 		if (BBB_HotAI.s_bOn) burstSize *= BBB_HotAI.s_fBurst; // BBB hot AI: longer bursts
+		if (pace) burstSize = BBB_FireDiscipline.PacedBurst(burstSize, distToTarget, m_eLastWeaponType == EWeaponType.WT_MACHINEGUN); // BBB fire discipline: short bursts at range
 		
 		if (stabilizationTime > 0)
 			stabilizationTime -= Math.RandomFloat(stabilizationTime / 3, stabilizationTime) * cqcFactor * 0.85;
@@ -899,6 +901,7 @@ modded class SCR_AIGetFireTimes
 		stabilizationTime *= Math.RandomFloat(stabTimeRandRange[0], stabTimeRandRange[2]);
 		
 		if (BBB_HotAI.s_bOn) stabilizationTime *= BBB_HotAI.s_fPause; // BBB hot AI: shorter aiming pauses
+		if (pace) stabilizationTime *= BBB_FireDiscipline.PacedPause(distToTarget); // BBB fire discipline: aim longer at range
 		// Make sure it's always some time
 		stabilizationTime = Math.Max(stabilizationTime, 0.05);
 		

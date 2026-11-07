@@ -6,6 +6,8 @@
 // BBB keeps the alerted perception, drops the extra delay and shortens his aiming pauses
 // (fire-rate coefficient 1.6, unless an order slowed his fire). In cover, vanilla's
 // hide-and-peek is unchanged. No new targets: he only fights what his own perception finds.
+// Fire discipline (on by default, BBB_FireDiscipline): the faster fire and dropped delay apply only
+// at a target within 150 m; the perception part at any range.
 // Host option: -bbbExposedFire 0 (off).
 class BBB_ExposedFire
 {
@@ -32,6 +34,17 @@ class BBB_ExposedFire
 		if (utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || utility.m_AIInfo.HasUnitState(EUnitState.UNCONSCIOUS)) return false;
 		return BBB.PlayerOf(utility.m_OwnerEntity) == 0;
 	}
+
+	// Fire discipline (6 Nov 2026): the faster fire is for a close fight. At range a pinned man in
+	// the open keeps vanilla's pace (and his alert eyes); vanilla's hide move takes him to cover.
+	static bool CloseFight(SCR_AIUtilityComponent utility)
+	{
+		if (!BBB_FireDiscipline.On()) return true;
+		if (!utility || !utility.m_CombatComponent || !utility.m_OwnerEntity) return false;
+		BaseTarget target = utility.m_CombatComponent.GetCurrentTarget();
+		if (!target) return false;
+		return vector.Distance(utility.m_OwnerEntity.GetOrigin(), target.GetLastSeenPosition()) <= BBB_FireDiscipline.EXPOSED_M;
+	}
 }
 
 modded class SCR_AICombatComponent
@@ -54,7 +67,7 @@ modded class SCR_AIAttackBehavior
 	override protected void InitWaitTime(SCR_AIUtilityComponent utility)
 	{
 		super.InitWaitTime(utility);
-		if (!BBB_ExposedFire.Exposed(utility) || utility.m_ThreatSystem.GetThreatMeasure() < SCR_AIThreatSystem.THREATENED_THRESHOLD) return;
+		if (!BBB_ExposedFire.Exposed(utility) || utility.m_ThreatSystem.GetThreatMeasure() < SCR_AIThreatSystem.THREATENED_THRESHOLD || !BBB_ExposedFire.CloseFight(utility)) return;
 		m_fWaitTime.m_Value = Math.Max(0, m_fWaitTime.m_Value - BBB_ExposedFire.OVERTHREATENED_WAIT_S);
 	}
 }
@@ -73,7 +86,7 @@ modded class SCR_AIGetFireTimes
 	{
 		float factor = super.GetFireRateFactor();
 		// factor > 0: an order slowed his fire; it stands.
-		if (factor > 0 || factor <= BBB_ExposedFire.PANIC_FIRE_FACTOR || !BBB_ExposedFire.Exposed(m_BBBUtility)) return factor;
+		if (factor > 0 || factor <= BBB_ExposedFire.PANIC_FIRE_FACTOR || !BBB_ExposedFire.Exposed(m_BBBUtility) || !BBB_ExposedFire.CloseFight(m_BBBUtility)) return factor;
 		return BBB_ExposedFire.PANIC_FIRE_FACTOR;
 	}
 }
