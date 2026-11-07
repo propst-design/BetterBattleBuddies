@@ -801,8 +801,10 @@ modded class SCR_AIGetFireTimes
 			// Update weapon config
 			m_WeaponConfig = m_ConfigComponent.GetWeaponTypeHandlingConfig(m_eLastWeaponType);
 			
-			// Weapon data
-			m_fShotSpan = fireMode.GetShotSpan();
+			// Weapon data. The short-span clamp of BBB_Drag.c's override, which this copy runs in place
+			// of: a fire mode with no shot span made the single-fire burst RandomFloat(0.1, 0) (script
+			// error; ACA A/B soak 7 Nov, now that fire discipline sends every soldier through here).
+			m_fShotSpan = Math.Max(fireMode.GetShotSpan(), BBB_MIN_SHOT_SPAN);
 			m_fBurstSize = fireMode.GetBurstSize();
 			
 			// Update cache

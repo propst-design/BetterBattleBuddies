@@ -2,6 +2,8 @@
 
 ## 0.1.10 — unreleased
 
+- No more script error from a soldier holding a weapon whose fire mode has no shot length (Math.RandomFloat: invalid parameters) now that fire discipline handles every soldier's firing: the shot length is kept at the floor the plain firing path already used.
+
 ## 0.1.9 — released
 
 - Vehicle gunners shoot on the move, and their crew calls targets out. An armoured vehicle sent on a hurried move (AC: Actual's fast moves, or any order raised to the level of a player's) drove past enemies its gunner could see without firing a shot: the game ranked the move above everything the gunner did, so he only opened up once the vehicle stopped. Now the vehicle still goes where it was sent, and the gunner fires on the way. And a gunner who has spotted nothing himself now takes his crew's word for it: when the driver or commander sees enemies, the gunner swings onto the biggest group of them (ten men at 300 m before one man at 80 m, men shooting at the vehicle first) and puts a burst of fire on them until he spots them himself. In a test of a LAV-25 driving past an enemy fire team, the gunner fired 72 rounds on the way instead of none; with the gunner unable to see, his crew's call-out had him firing 16 rounds on the way instead of none. Hold fire still holds him, and a Game Master's or a player's own squad orders are left alone. Options: `-bbbGunnerOrders 0` and `-bbbCrewCallout 0` (or the Battle Buddies settings tab, Vehicles and crews).
