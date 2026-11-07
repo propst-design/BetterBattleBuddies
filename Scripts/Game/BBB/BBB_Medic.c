@@ -278,6 +278,12 @@ class BBB_Medic
  static bool ClearLine(vector from, vector to)
  {
   if (IsOccludedBySmoke(from, to)) return false;
+  return SolidClearLine(from, to);
+ }
+
+ // ClearLine ignoring smoke: only terrain, buildings and objects block it.
+ static bool SolidClearLine(vector from, vector to)
+ {
   vector eye = from + Vector(0, 1.5, 0);
   vector body = to + Vector(0, 0.4, 0);
   vector dir = body - eye;

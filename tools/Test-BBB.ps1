@@ -1,7 +1,7 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
@@ -138,6 +138,8 @@ $flags.firediscipline = '-bbbFireDisciplineTest 1 -bbbPerf 1'
 $timeouts.firediscipline = 250
 $flags.crewcallout = '-bbbCrewCalloutTest 1 -bbbPerf 1'
 $timeouts.crewcallout = 260
+$flags.dragcover = '-bbbDragCoverTest 1'
+$timeouts.dragcover = 120
 $world ='{AC230926A00100E0}Worlds/BBB_TestArland.ent'
 if ($Preset -eq 'compile') { $world = '{77C41EA429B6AC35}worlds/GameMaster/GM_Arland.ent' }
 $addonsDir = Split-Path $AddonRoot -Parent

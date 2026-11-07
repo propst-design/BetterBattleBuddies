@@ -6,7 +6,9 @@
 // casualty is unconscious, and either the healer is under fire (threat >= alerted) or the
 // casualty lies in view of an enemy his group saw or heard in the last RECENT_S seconds.
 // Where: the nearest spot (MIN_M..MAX_M away, turned away from the enemy, on the soldier
-// navmesh, dry) that every such enemy has no line of sight to. No spot: treat in place.
+// navmesh, dry) that every such enemy has no line of sight to, then pushed a few metres
+// further behind the same cover so the casualty isn't left at its edge (Deepen; -bbbDragDeep 0
+// = the first hidden spot). No spot: treat in place.
 // How: DRAG (crouched, walking) while enemies are within DRAG_ENEMY_M or the healer is
 // under fire; else CARRY (standing, walking). The healer gets a move behaviour that
 // outranks his heal (BBB_AIDragMove) plus stance/speed settings; at the spot (or on a
@@ -45,6 +47,7 @@ class BBB_Drag
 {
  static int s_iRead;
  static bool s_bOn = true;
+ static bool s_bDeep = true; // -bbbDragDeep 0: stop at the first hidden spot, as before 7 Nov
  static int s_iAce = -1;
 
  static const float ARRIVE_M = 3.5;
@@ -55,6 +58,11 @@ class BBB_Drag
  static const float MAX_M = 25;
  static const float SPEED_MS = 0.8;
  static const float COOLDOWN_S = 60;
+ static const float ARRIVE_SPOT_M = 1.5; // the job ends this close to the spot
+ static const float DEEP_M = 4;          // a cover spot is pushed this much further (else half)
+ static const float TRAIL_M = 2.5;       // ARRIVE_SPOT_M + the casualty ~1 m behind his dragger
+ static const int DEEP_TRIES = 4;        // hidden spots tried for depth before taking the first
+ static const float DEEP_FARTHER_M = 8;  // ...and no farther than this beyond the first
  static const float ALERTED = 0.33;
  // Above the heal behaviour (111): he moves the casualty before treating him.
  static const float MOVE_PRIORITY = 112;
@@ -67,6 +75,8 @@ class BBB_Drag
  static int s_iStarted;
  static int s_iArrived;
  static int s_iNoSpot;
+ static int s_iDeep;    // cover searches that found a deeper spot
+ static int s_iShallow; // ...that found cover but couldn't deepen it (deep on)
  static int s_iClampsMuted; // ACE's input clamp found armed on an AI carrier and switched off
 
  static void Stop()
@@ -81,6 +91,8 @@ class BBB_Drag
   s_iStarted = 0;
   s_iArrived = 0;
   s_iNoSpot = 0;
+  s_iDeep = 0;
+  s_iShallow = 0;
   s_iClampsMuted = 0;
  }
 
@@ -97,7 +109,8 @@ class BBB_Drag
   if (!BBB_Settings.Due(s_iRead)) return;
   string value;
   s_bOn = !(BBB_Settings.Get("bbbDrag", value) && value == "0");
-  PrintFormat("[BBB] DRAG on=%1 ace=%2", s_bOn, AceLoaded());
+  s_bDeep = !(BBB_Settings.Get("bbbDragDeep", value) && value == "0");
+  PrintFormat("[BBB] DRAG on=%1 deep=%2 ace=%3", s_bOn, s_bDeep, AceLoaded());
  }
 
  // ACE Carrying present? (Looked up by name: BBB doesn't depend on ACE.)
@@ -330,10 +343,30 @@ class BBB_Drag
   return best;
  }
 
- // The nearest spot no known enemy can see, turned away from them.
+ // The nearest spot no known enemy can see, turned away from them, pushed deeper into the
+ // cover when it can be (Deepen).
  static bool FindCover(IEntity healer, IEntity casualty, array<vector> enemies, out vector spot)
  {
-  vector from = casualty.GetOrigin();
+  Read();
+  vector thin;
+  if (!FindCoverFrom(casualty.GetOrigin(), Pathing(healer), enemies, s_bDeep, spot, thin)) return false;
+  if (s_bDeep)
+  {
+   float past = vector.DistanceXZ(thin, spot);
+   string where = "at the edge of cover (no deeper spot)";
+   if (past > 0.1) where = string.Format("%1 m past the edge of cover", Math.Round(past));
+   PrintFormat("[BBB] DRAG %1 -> %2: spot %3", BBB_Medic.Name(healer), BBB_Medic.Name(casualty), where);
+  }
+  return true;
+ }
+
+ // spot = where the drag goes; thin = the first hidden spot (the whole answer before 7 Nov,
+ // and still the answer with deep off or when no hidden spot can be deepened).
+ static bool FindCoverFrom(vector from, AIPathfindingComponent pathing, array<vector> enemies, bool deep, out vector spot, out vector thin)
+ {
+  bool found = false;
+  int tries = 0;
+  float thinRadius = 0;
   vector centre = vector.Zero;
   foreach (vector enemy : enemies) centre = centre + enemy;
   float count = enemies.Count();
@@ -342,34 +375,113 @@ class BBB_Drag
   away[1] = 0;
   if (away.Length() < 0.1) away = Vector(1, 0, 0);
   away.Normalize();
-  AIPathfindingComponent pathing = Pathing(healer);
   array<float> radii = {MIN_M, 8, 12, 16, 20, MAX_M};
   array<float> turns = {0, 30, -30, 60, -60, 90, -90, 120, -120};
   foreach (float radius : radii)
   {
+   // A deeper spot elsewhere is worth a slightly longer drag, not a much longer one: the drag
+   // itself is the exposed part.
+   if (found && radius > thinRadius + DEEP_FARTHER_M) break;
    foreach (float turn : turns)
    {
     vector dir = Turn(away, turn);
-    vector at = BBB.Ground(from + dir * radius);
-    if (BBB_Terrain.IsWaterAt(at)) continue;
-    if (pathing)
+    vector at;
+    if (!Usable(from + dir * radius, pathing, at)) continue;
+    if (!Hidden(at, enemies, false)) continue;
+    if (!found)
     {
-     vector onMesh;
-     if (!pathing.GetClosestPositionOnNavmesh(at, Vector(1.5, 2, 1.5), onMesh)) continue;
-     if (vector.DistanceXZ(onMesh, at) > 1.5) continue;
-     at = onMesh;
+     found = true;
+     thinRadius = radius;
+     thin = at;
+     spot = at;
+     if (!deep) return true;
     }
-    bool hidden = true;
-    foreach (vector enemy : enemies)
+    vector deeper;
+    if (Deepen(from, at, pathing, enemies, deeper))
     {
-     if (BBB_Medic.ClearLine(enemy, at)) { hidden = false; break; }
+     spot = deeper;
+     s_iDeep++;
+     return true;
     }
-    if (!hidden) continue;
-    spot = at;
-    return true;
+    tries++;
+    if (tries >= DEEP_TRIES)
+    {
+     s_iShallow++;
+     return true;
+    }
    }
   }
+  if (found) s_iShallow++;
+  return found;
+ }
+
+ // Dry, on the soldier navmesh (when the healer has pathing): the point to use, else false.
+ static bool Usable(vector want, AIPathfindingComponent pathing, out vector at)
+ {
+  at = BBB.Ground(want);
+  if (BBB_Terrain.IsWaterAt(at)) return false;
+  if (!pathing) return true;
+  vector onMesh;
+  if (!pathing.GetClosestPositionOnNavmesh(at, Vector(1.5, 2, 1.5), onMesh)) return false;
+  if (vector.DistanceXZ(onMesh, at) > 1.5) return false;
+  at = onMesh;
+  return true;
+ }
+
+ // No known enemy has a line to a casualty lying here (solid: smoke doesn't count).
+ static bool Hidden(vector at, array<vector> enemies, bool solid)
+ {
+  foreach (vector enemy : enemies)
+  {
+   if (solid && BBB_Medic.SolidClearLine(enemy, at)) return false;
+   if (!solid && BBB_Medic.ClearLine(enemy, at)) return false;
+  }
+  return true;
+ }
+
+ // Deeper cover (7 Nov 2026, Jacob: "they drag only until they reach the absolute condition of
+ // in cover, and that tends to be thin"). The first hidden sample is usually just past the
+ // cover's edge, the job ends ARRIVE_SPOT_M short of it, and a dragged casualty trails about a
+ // metre behind his dragger toward the way they came: he was put down at the edge or still in
+ // view. Push the spot DEEP_M (else half that) further along the same bearing when the new spot
+ // is reachable in a straight walk, and both it and where the casualty will really lie (TRAIL_M
+ // short of it) are hidden by solid cover: smoke clears long before the treatment is done.
+ static bool Deepen(vector from, vector at, AIPathfindingComponent pathing, array<vector> enemies, out vector deeper)
+ {
+  vector bearing = at - from;
+  bearing[1] = 0;
+  if (bearing.Length() < 0.1) return false;
+  bearing.Normalize();
+  array<float> pushes = {DEEP_M, DEEP_M * 0.5};
+  foreach (float push : pushes)
+  {
+   vector candidate;
+   if (!Usable(at + bearing * push, pathing, candidate)) continue;
+   if (!Walkable(at, candidate)) continue;
+   if (!Hidden(candidate, enemies, true)) continue;
+   vector rest;
+   if (!Usable(candidate - bearing * TRAIL_M, null, rest)) continue;
+   if (!Hidden(rest, enemies, true)) continue;
+   deeper = candidate;
+   return true;
+  }
   return false;
+ }
+
+ // Nothing solid in the way at knee and chest height between two nearby spots, so the push
+ // doesn't put the spot through a wall (the path around could be long and exposed).
+ static bool Walkable(vector a, vector b)
+ {
+  array<float> heights = {0.5, 1.2};
+  foreach (float height : heights)
+  {
+   TraceParam trace = new TraceParam();
+   trace.Start = a + Vector(0, height, 0);
+   trace.End = b + Vector(0, height, 0);
+   trace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+   if (GetGame().GetWorld().TraceMove(trace, null) < 0.99) return false;
+  }
+  return true;
  }
 
  static vector Turn(vector dir, float degrees)
@@ -480,7 +592,7 @@ class BBB_Drag
    PrintFormat("[BBB] DRAG %1: %2 m to go, doing %3, weapon %4, stance %5", BBB_Medic.Name(job.m_Healer), Math.Round(vector.DistanceXZ(job.m_Healer.GetOrigin(), job.m_vSpot)), Doing(job.m_Healer), WeaponOf(job.m_Healer), StanceOf(job.m_Healer));
   }
   if (!carrying) return string.Format("dropped (doing %1, weapon %2)", Doing(job.m_Healer), WeaponOf(job.m_Healer));
-  if (vector.DistanceXZ(job.m_Healer.GetOrigin(), job.m_vSpot) <= 1.5)
+  if (vector.DistanceXZ(job.m_Healer.GetOrigin(), job.m_vSpot) <= ARRIVE_SPOT_M)
   {
    s_iArrived++;
    return "in cover";

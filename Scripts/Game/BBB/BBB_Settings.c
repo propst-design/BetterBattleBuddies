@@ -368,6 +368,7 @@ class BBB_Settings
   On(g, "bbbMedic", "Safer healing", "Medics and buddies don't run through fire to a casualty and heal from cover.");
   On(g, "bbbMedicSmoke", "Smoke before aid", "Smoke goes out toward the threat before anyone moves to an exposed casualty.");
   On(g, "bbbDrag", "Casualty drags", "Casualties in the open are dragged to cover.");
+  On(g, "bbbDragDeep", "Drag well into cover", "A dragged casualty is taken a few metres past the edge of the cover, so he isn't left half in view.");
   On(g, "bbbRearm", "Rearm from the fallen", "Soldiers low on ammo take magazines and launchers from nearby friendly bodies, even mid-fight.");
   On(g, "bbbSpecialistTeams", "Specialist teams", "Machine gunners and AT gunners keep the assistant who carries their ammunition close; he hands over ammo before the gun runs dry and takes the launcher if the gunner falls.");
   Num(g, "bbbRearmRadius", 25, 5, 100, 1, "Rearm search radius (m)", "How far a soldier goes for ammo.");

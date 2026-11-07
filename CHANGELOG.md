@@ -2,6 +2,7 @@
 
 ## 0.1.10 — unreleased
 
+- Casualties dragged to cover are taken well behind it, not left at its edge. A soldier dragging a wounded buddy stopped at the first spot the enemy couldn't see, and since the dragger walks backwards with the casualty in front of him, the wounded man was often put down still in the open in front of the wall. Now the dragger keeps going a few metres further behind the same cover, as long as the casualty will really lie out of the enemy's sight there, the way is clear and smoke isn't the only thing hiding him. In a test behind a sandbag wall, the casualty ended up about 3 m behind it instead of up against its open side. Needs ACE Carrying, as drags always have. Option: `-bbbDragDeep 0` brings back the old stopping point (or the Battle Buddies settings tab, Medical and ammo).
 - No more script error from a soldier holding a weapon whose fire mode has no shot length (Math.RandomFloat: invalid parameters) now that fire discipline handles every soldier's firing: the shot length is kept at the floor the plain firing path already used.
 
 ## 0.1.9 — released
