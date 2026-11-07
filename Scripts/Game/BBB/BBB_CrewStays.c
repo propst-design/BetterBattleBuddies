@@ -8,6 +8,10 @@
 //  - gate: no get-out. The gate is opened by script and the walk to it is dropped.
 //  - heal: crew of an armed or armoured vehicle keep their seats. The heal activity is told
 //    this medic failed, so vanilla picks someone on foot instead.
+//  - fight: vanilla's vehicle combat activity (SCR_AIVehicleCombatActivity) dismounts every "cargo"
+//    fireteam when a fight starts, and a commander's seat is cargo to the engine: the commander of an
+//    armed LAV-25 walked off it within seconds of contact (crew leader test, 7 Nov). Crew seats of a
+//    vehicle with a turret turn that get-out down; riders still dismount.
 // Unarmed vehicle crews still get out to heal. Players and Game Master orders are left alone.
 // -bbbCrewStays 0 restores vanilla.
 class BBB_CrewStays
@@ -16,6 +20,7 @@ class BBB_CrewStays
  protected static int s_iRead;
  static int s_iGatesKept;
  static int s_iHealsKept;
+ static int s_iFightsKept;
  protected static ref map<IEntity, float> s_mLogged;
  // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
  static void BBB_InitStatics()
@@ -124,6 +129,43 @@ class BBB_CrewStays
    return true;
   }
   return false;
+ }
+
+ // Vanilla's vehicle combat activity tells this crewman to get out: true = he keeps his seat.
+ static bool KeepInFight(SCR_AIGetOutVehicle getOut, SCR_AIUtilityComponent utility, IEntity target)
+ {
+  if (!On() || !getOut || !utility) return false;
+  if (!SCR_AIVehicleCombatActivity.Cast(getOut.GetRelatedGroupActivity())) return false;
+  if (getOut.EvaluatePriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
+  IEntity soldier = utility.m_OwnerEntity;
+  IEntity vehicle = CrewedBy(soldier);
+  if (!vehicle || (target && target != vehicle) || !BBB_VehicleHelpers.HasTurret(vehicle)) return false;
+  s_iFightsKept++;
+  BBB_Perf.Count("crewStays.fight");
+  string seat = typename.EnumToString(ECompartmentType, BBB_Transport.SeatOf(soldier));
+  Log(soldier, string.Format("%1 %2 stays aboard %3: the fight's dismount is for riders", BBB.s_Hooks.NameOf(BBB_Medic.GroupOf(soldier)), seat, BBB_Armour.Short(BBB_Armour.PrefabKey(vehicle))));
+  BBB_Think.Note(soldier, "Vehicle", "stays in his crew seat when the riders dismount");
+  return true;
+ }
+}
+
+// A crewman of an armed vehicle turns down vanilla's combat dismount (KeepInFight), once.
+modded class SCR_AIGetOutVehicle
+{
+ protected bool m_bBBBChecked;
+
+ override float CustomEvaluate()
+ {
+  if (!m_bBBBChecked)
+  {
+   m_bBBBChecked = true;
+   if (BBB_CrewStays.KeepInFight(this, m_Utility, m_Vehicle.m_Value))
+   {
+    Complete();
+    return 0;
+   }
+  }
+  return super.CustomEvaluate();
  }
 }
 

@@ -126,6 +126,8 @@ class BBB_CrewCalloutTest : BBB_AimTest
   string arm = m_aArms[m_iArm];
   m_bBlind = arm == "gate" || arm == "callout";
   BBB_CrewCallout.s_bOn = m_bBlind;
+  BBB_CrewLeader.On();
+  BBB_CrewLeader.s_bOn = false; // the call-out on its own (BBB_CrewLeaderTest covers the leader)
   BBB_OrderIntent.s_bGunnerOrders = arm == "callout" || arm == "see-new";
   m_aSeated.Clear();
   m_aFoes.Clear();

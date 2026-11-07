@@ -183,6 +183,7 @@ class BBB
   BBB_Teams.Stop();
   BBB_Squad.Stop();
   BBB_Tactic.Stop();
+  BBB_CrewLeader.Stop();
   BBB_Transport.ClearHits();
   BBB_VehicleHelpers.Reset();
   BBB_PilotHold.GiveAll(); // after every manoeuvre has ended

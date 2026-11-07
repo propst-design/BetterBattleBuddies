@@ -22,6 +22,7 @@ class BBB_StaticInit : Managed
   BBB_ContactRelay.BBB_InitStatics();
   BBB_CoverFire.BBB_InitStatics();
   BBB_CrewStays.BBB_InitStatics();
+  BBB_CrewLeader.BBB_InitStatics();
   BBB_CrewTurnout.BBB_InitStatics();
   BBB_DoorUnstick.BBB_InitStatics();
   BBB_Drag.BBB_InitStatics();

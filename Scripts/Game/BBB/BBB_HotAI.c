@@ -44,6 +44,8 @@
 //    attack on a target he can't see. The crew call-out has its own switch and runs here with Hot AI
 //    off as well; with -bbbCrewCallout on it calls out the biggest group (BBB_CrewCallout), else the
 //    nearest sighting (CrewSighting, Hot AI only). The order gate is BBB_OrderIntent.GunnerBlocks.
+//    The crew leader (BBB_CrewLeader, -bbbCrewLeader) comes before all of these: his target is the
+//    one called out, and he may switch a gunner who sees a lesser target, or break his fight off.
 //  - against vehicles: a gunner whose target is selected and in sight but who isn't attacking it
 //    (vanilla's attack ended and nothing started a new one) gets a new attack after IDLE_S; a vehicle he
 //    lost sight of that has moved more than MOVED_M since is followed by its engine noise (within
@@ -240,8 +242,10 @@ class BBB_HotAI
 	static void Loop()
 	{
 		s_iLoop++;
-		// The crew call-out (BBB_CrewCallout) runs in fire control on its own switch, Hot AI or not.
-		if ((s_bVehicles && s_bGunnerFire) || BBB_CrewCallout.On())
+		// The crew leader (BBB_CrewLeader) and call-out (BBB_CrewCallout) run in fire control on their own
+		// switches, Hot AI or not.
+		bool leader = BBB_CrewLeader.On();
+		if ((s_bVehicles && s_bGunnerFire) || BBB_CrewCallout.On() || leader)
 		{
 			int t = System.GetTickCount();
 			FireControlTick();
@@ -282,14 +286,16 @@ class BBB_HotAI
 		if (!combat || combat.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) return;
 		BaseWeaponComponent weapon = combat.GetCurrentWeapon();
 		if (!weapon || weapon.GetWeaponType() == EWeaponType.WT_NONE) return; // a commander's seat: no gun
-		bool hot = s_bVehicles && s_bGunnerFire; // otherwise only the crew call-out runs
+		bool hot = s_bVehicles && s_bGunnerFire; // otherwise only the crew leader and call-out run
 		if (hot) ReloadCheck(utility, man, weapon, now);
 		BaseTarget current = combat.GetCurrentTarget();
 		if (current && combat.IsTargetVisible(current))
 		{
 			utility.m_fBBBCalloutAt = 0;
 			if (hot) ReattackCheck(utility, current, now);
-			return; // aimed fire: vanilla's
+			// Aimed fire is vanilla's, unless his crew leader wants him on something worth more.
+			BBB_CrewLeader.Command(utility, man, current, now);
+			return;
 		}
 		utility.m_fBBBIdleSince = 0;
 		if (now < utility.m_fBBBHotFireUntil) return; // a series is running
@@ -303,7 +309,14 @@ class BBB_HotAI
 		int men;       // the crew call-out's group size (BBB_CrewCallout), 0 for the older call-out
 		float spread;  // and how far its men are from aim
 		bool callout;
-		if (hot && current && current.GetTargetCategory() == ETargetCategory.ENEMY && current.GetTimeSinceSeen() <= LOST_SIGHT_S)
+		IEntity commanded; // the crew leader's vehicle when the fire is his order
+		if (vehicle && BBB_CrewLeader.Aim(utility, man, aim, men, spread))
+		{
+			// The crew leader's target comes first: he sees what the whole crew sees.
+			callout = true;
+			commanded = vehicle;
+		}
+		else if (hot && current && current.GetTargetCategory() == ETargetCategory.ENEMY && current.GetTimeSinceSeen() <= LOST_SIGHT_S)
 		{
 			aim = current.GetLastSeenPosition();
 			source = "the target he lost sight of";
@@ -341,24 +354,40 @@ class BBB_HotAI
 			if (utility.m_LookAction) utility.m_LookAction.LookAt(aim + Vector(0, 1, 0), SCR_AILookAction.PRIO_COMMANDER, 1.5);
 			if (now - utility.m_fBBBCalloutAt < CALLOUT_FIRE_S * 1000) return;
 			source = "a crewmate's call-out";
-			if (men > 0) source = "a crewmate's call-out (" + men.ToString() + " men)";
+			if (commanded) source = "the crew leader's target";
+			if (men > 0) source = source + " (" + men.ToString() + " men)";
 		}
+		if (FireSeries(utility, man, aim, men, spread, source, null) && men > 0)
+		{
+			if (commanded) BBB_CrewLeader.s_iBlindFires++;
+			else BBB_CrewCallout.s_iCallouts++;
+		}
+	}
 
+	// A short series of vanilla suppressive fire into a box round aim (a real man's last seen spot), sized
+	// to his group when men > 0. commander: the crew leader's vehicle when the series is his order to break
+	// off a fight (BBB_CrewLeader.Command): it then keeps going past a lesser target in sight.
+	static bool FireSeries(SCR_AIUtilityComponent utility, IEntity man, vector aim, int men, float spread, string source, IEntity commander)
+	{
 		vector me = man.GetOrigin();
 		float distance = vector.DistanceXZ(me, aim);
-		if (distance < FIRE_MIN_M || distance > FIRE_MAX_M || !BBB_SuppressionSafety.GroundSector(aim)) return;
+		if (distance < FIRE_MIN_M || distance > FIRE_MAX_M || !BBB_SuppressionSafety.GroundSector(aim)) return false;
 		aim = BBB.Ground(aim);
 		float half = Math.Clamp(distance * 0.025, 2.5, 10);
 		// A called-out group: the box covers its men (aim is one of them).
 		if (men > 0) half = Math.Clamp(Math.Max(half, spread + 2), 2.5, BBB_CrewCallout.GROUP_M);
 		SCR_AISuppressionVolumeBox volume = new SCR_AISuppressionVolumeBox(Vector(aim[0] - half, aim[1] - 0.5, aim[2] - half), Vector(aim[0] + half, aim[1] + 2, aim[2] + half));
 		BBB_AIHotFireBehavior fire = new BBB_AIHotFireBehavior(utility, null, volume, FIRE_S, 1.3);
+		// The series outranks his attack (FIRE_PRIORITY_HIGH) without ending it: vanilla adds an attack only
+		// when his target changes, so an ended one would leave him idle on his old target afterwards.
+		fire.m_BBBCommander = commander;
 		utility.AddAction(fire);
+		float now = GetGame().GetWorld().GetWorldTime();
 		utility.m_fBBBHotFireUntil = now + FIRE_S * 1000;
 		s_iFires++;
-		if (men > 0) BBB_CrewCallout.s_iCallouts++;
 		PrintFormat("[BBB] HOT GUNNER fire control: %1 m at %2, on %3", Math.Round(distance), aim, source);
 		BBB_Think.NoteUtility(utility, "Gunner", "puts fire on " + source + ", " + Math.Round(distance) + " m");
+		return true;
 	}
 
 	// Vanilla's attack ended with the target still selected and in sight (nothing new to react to): a new
@@ -603,6 +632,7 @@ modded class SCR_AIUtilityComponent
 class BBB_AIHotFireBehavior : SCR_AISuppressBehavior
 {
 	protected float m_fEndMs;
+	IEntity m_BBBCommander; // the crew leader's vehicle when he broke off a fight for this (BBB_CrewLeader)
 
 	// Same leading parameters as vanilla's (Enforce passes them to the parent constructor).
 	void BBB_AIHotFireBehavior(SCR_AIUtilityComponent utility, SCR_AIActivityBase groupActivity, SCR_AISuppressionVolumeBase suppressionVolume, float suppressionDuration, float fireRate, float priorityLevel = PRIORITY_LEVEL_NORMAL)
@@ -619,8 +649,14 @@ class BBB_AIHotFireBehavior : SCR_AISuppressBehavior
 		if (m_Utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) { Complete(); return 0; }
 		BaseTarget target = m_Utility.m_CombatComponent.GetCurrentTarget();
 		if (!target) return BBB_HotAI.FIRE_PRIORITY;
-		if (m_Utility.m_CombatComponent.IsTargetVisible(target)) { Complete(); return 0; } // aimed fire takes over
-		return BBB_HotAI.FIRE_PRIORITY_HIGH; // his attack on a target he can't see does nothing
+		if (m_Utility.m_CombatComponent.IsTargetVisible(target))
+		{
+			// The crew leader's order: past a lesser target, until he sees one of the leader's men (a man
+			// shooting at the crew who outweighs the group becomes the leader's target, and so ends it too).
+			bool lesser = m_BBBCommander && !BBB_CrewLeader.OnTarget(m_BBBCommander, target.GetTargetEntity());
+			if (!lesser) { Complete(); return 0; } // aimed fire takes over
+		}
+		return BBB_HotAI.FIRE_PRIORITY_HIGH; // his attack on a target he can't see (or a lesser one) does nothing
 	}
 }
 
@@ -631,6 +667,7 @@ modded class SCR_AICombatComponent
 	protected bool BBBHotTurretHold()
 	{
 		if (!BBB_HotAI.s_bVehicles || BBB_HotAI.s_fTurretHold <= 0 || !m_AIInfo || !m_AIInfo.HasUnitState(EUnitState.IN_TURRET)) return false;
+		if (BBBLeaderPending()) return false; // his crew leader is switching him (BBB_CrewLeader)
 		BaseTarget current = GetCurrentTarget();
 		if (!current || current.GetTargetCategory() != ETargetCategory.ENEMY || current.IsDisarmed()) return false;
 		if (current.GetTimeSinceSeen() > BBB_HotAI.HOLD_LOST_S) return false;
