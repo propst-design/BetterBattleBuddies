@@ -1,40 +1,12 @@
-0.1.8
+0.1.9
 
-Squads that keep attacking, AT gunners who use their rockets, and vehicles that behave. Ready for Arma Reforger 1.9.
-
-REFORGER 1.9
-
-- AI vehicles move again. 1.9's automatic gearbox cancelled the driving BBB does for AI drivers (backing away from a rocket or an armed vehicle, backing out when stuck), so trucks sat still or crept forward.
-- Handbrake when the driver leaves (on by default): in 1.9 an empty vehicle drops into neutral, so one left on a slope rolled away on its own.
-- Loads with long mod lists. With ACE, AC: Actual, AiO and more loaded, the game could refuse to load its scripts.
-
-NEW
-
-- AT gunners use their launchers on infantry: HE and dual-purpose rockets at groups and men behind cover, any rocket at men in buildings or dug in, unless enemy armour is about. They load the right warhead for the target when they carry one, and wait for contact before loading.
-- Machine gunners and AT gunners work with their ammo bearer: he stays close, hands over ammo before they run dry and picks up the launcher if his gunner falls.
-- Soldiers caught on a road in a firefight get off it into cover instead of lying on the tarmac.
-- Cover only counts when it is between a soldier and the enemy: no more men sheltering on the wrong side of the sandbags.
-- A gunner on an empty static gun gets off and fights with his rifle; he mans it again once it has ammo.
-- Covered fall-back for missions that use it: a squad its mission orders back under fire bounds back in two halves, one covering the other, instead of going prone where it stands. AC: Actual's Experimental tab switches it on; on its own it changes nothing.
-- Off by default, in the Battle Buddies settings tab: Hot AI (faster spotting and firing; sharper vehicle gunners), return fire at shooters you can't see, vehicles that give way to each other, and unarmed vehicles that get away from armour.
+Soldiers who keep their ammo and their cover, and full crews in mod tanks. Works with AC: Actual 0.5.11.
 
 BETTER
 
-- Attacking squads keep moving while they trade fire. They hold only when outnumbered or flanked.
-- Morale works: losses now count, and every squad gets a morale check on big missions, not just the first 64.
-- Squads hit by a vehicle or a static gun know where the fire comes from: they take cover, smoke and fall back.
-- Riflemen shoot at armoured vehicle crews standing in the hatches.
-- A gunner stays on his gun when the vehicle has no driver.
-- Lighter on the server.
+- Fire discipline: soldiers stop emptying their magazines at range. Shot at by someone they can't see, they get into cover first and fire a short burst from there, only two or three men of a squad at once, riflemen within 250 m and machine gunners within 500 m, and nobody burns his last spare magazines on it. Past 100 m bursts get shorter and aim gets longer, down to single aimed shots at 300 m. Two rifle squads at 200 m now fire about half the rounds and spend seven times as long in cover. Option: -bbbFireDiscipline 0 (or the Battle Buddies settings tab) brings back the old rules.
 
 FIXED
 
-- AI throws grenades and fires launchers at enemy players again.
-- No frags under hold fire, and a frag waiting to be thrown is called off if a friendly walks into its path.
-- Player and Game Master orders are respected in more places, and a player's heal order to an AI medic is carried out.
-- With ACE Carrying, the host can walk normally while an AI soldier drags a casualty.
-- Every mission starts fresh after a server restart or scenario rotation.
-- Smoke counts as cover only once a grenade has actually been thrown.
-- A soldier stuck by a door is no longer stuck there for good.
-- Settings: smoke cooldowns take effect, launch parameters are read like the Settings tab, and the Gates and Unstick switches turn off everything they describe.
-- Several rare script errors.
+- Commanders and loaders inside a mod tank's turret (Chieftain, Leopard 1, T-55, FV510 Warrior) are crew: they no longer climb out with the passengers under fire.
+- Medics no longer empty the squad's smoke over a man snagged on barbed wire: medic smoke and return fire at a hidden shooter now need a wound from the enemy.
