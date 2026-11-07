@@ -20,10 +20,15 @@ class BBB_Transport
  static bool s_bCommanderCrew = true;
  protected static int s_iCommanderRead;
 
- // A cargo seat linked to a turret (AutoConnectToTurret), like the LAV-25 commander's.
+ // A crew seat the engine calls CARGO: linked to a turret (AutoConnectToTurret), like the
+ // LAV-25 commander's, or inside the turret itself, like the commander and loader of mod tanks
+ // (Chieftain, Leopard 1, T-55, FV510 Warrior). Riders sit on the hull, not in the turret.
  static bool CommanderSeat(BaseCompartmentSlot slot)
  {
-  return slot && slot.GetType() == ECompartmentType.CARGO && !slot.GetAutoConnectTurret().IsEmpty();
+  if (!slot || slot.GetType() != ECompartmentType.CARGO) return false;
+  if (!slot.GetAutoConnectTurret().IsEmpty()) return true;
+  IEntity owner = slot.GetOwner();
+  return owner && owner != slot.GetVehicle() && owner.FindComponent(TurretControllerComponent) != null;
  }
 
  // A commander's seat reports TURRET: he is crew, not a passenger.
