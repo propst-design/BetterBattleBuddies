@@ -611,7 +611,8 @@ modded class SCR_AIMedicHealBehavior
    bool smoking = false;
    if (smokeOn && distance > BBB_Medic.ARRIVED_M)
    {
-    if (exposed || hot || threat >= 0.33)
+    // Only for a combat wound: a man caught on wire or hurt in a fall isn't screened (BBB_Wounds).
+    if ((exposed || hot || threat >= 0.33) && BBB_Wounds.CombatWound(casualty))
      BBB_Medic.TryDeploySmoke(healer, casualty);
     float smokeAge = BBB_Medic.SmokeAge(casualty);
     if (smokeAge >= 0 && smokeAge < BBB_Medic.SMOKE_BLOOM_MS)

@@ -31,6 +31,8 @@ class BBB_Combat
 	static const float RADIO_TTL_S = 15;
 	static const int RADIO_MAX_CONTACTS = 8;
 	static const float RESPONSE_COOLDOWN_S = 20;
+	// A damage-only cue (no rounds passing him) counts when his combat hit is this fresh.
+	static const float DAMAGE_CUE_S = 10;
 	static const float RESPONSE_DURATION_S = 6;
 	static const float MIN_RESPONSE_M = 25;
 	static const float MAX_RESPONSE_M = 900;
@@ -273,6 +275,8 @@ class BBB_Combat
 		if (!combat) return;
 		int flags = utility.m_SectorThreatFilter.GetSectorFlags(sectorId);
 		if (!(flags & SCR_EAIThreatSectorFlags.DIRECTED_AT_ME) && !(flags & SCR_EAIThreatSectorFlags.CAUSED_DAMAGE)) return;
+		// Damage alone is a cue only when it was a combat hit (not barbed wire or a fall: BBB_Wounds).
+		if (!(flags & SCR_EAIThreatSectorFlags.DIRECTED_AT_ME) && !BBB_Wounds.HitJustNow(soldier, DAMAGE_CUE_S)) return;
 		bool hasTarget;
 		if (s_bResponse || s_bTestMetrics) hasTarget = combat.GetCurrentTarget() != null;
 		if (s_bTestMetrics)

@@ -224,8 +224,42 @@ class BBB_FeatureAuditTest : BBB_AimTest
 		GetGame().GetCallqueue().CallLater(Prepare, 5000);
 	}
 
+	// Barbed wire or a fall isn't a combat wound (no medic smoke for it); a round from another man is.
+	// On the last enemy, before damage handling is switched off below.
+	void WoundChecks()
+	{
+		array<AIAgent> agents = {};
+		m_Enemy.GetAgents(agents);
+		ChimeraCharacter man = null;
+		if (!agents.IsEmpty()) man = ChimeraCharacter.Cast(agents[agents.Count() - 1].GetControlledEntity());
+		IEntity shooter = m_Group.GetLeaderEntity();
+		SCR_DamageManagerComponent damage = null;
+		if (man) damage = SCR_DamageManagerComponent.Cast(man.GetDamageManager());
+		Audit("wound-fixture", man && shooter && damage);
+		if (!man || !shooter || !damage) return;
+		Hurt(man, damage, EDamageType.COLLISION, null);
+		Hurt(man, damage, EDamageType.MELEE, null);
+		float afterWire = BBB_Wounds.SinceCombatHit(man);
+		Hurt(man, damage, EDamageType.KINETIC, shooter);
+		float afterShot = BBB_Wounds.SinceCombatHit(man);
+		// Only meaningful if the hook records at all, so it also needs the shot below on record.
+		Audit("wire-or-fall-not-a-combat-wound", afterWire < 0 && afterShot >= 0, string.Format("since=%1, after the shot %2", afterWire, afterShot));
+		Audit("bullet-is-a-combat-wound", afterShot >= 0 && afterShot < 1 && BBB_Wounds.CombatWound(man), string.Format("since=%1", afterShot));
+	}
+
+	void Hurt(IEntity victim, SCR_DamageManagerComponent damage, EDamageType type, IEntity by)
+	{
+		vector hit[3];
+		hit[0] = victim.GetOrigin() + "0 1 0";
+		hit[1] = "0 1 0";
+		hit[2] = "0 -1 0";
+		SCR_DamageContext context = new SCR_DamageContext(type, 1, hit, victim, damage.GetDefaultHitZone(), Instigator.CreateInstigator(by), null, -1, -1);
+		damage.HandleDamage(context);
+	}
+
 	void Prepare()
 	{
+		WoundChecks();
 		PinDetail(m_Group); PinDetail(m_Enemy);
 		m_Group.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE); m_Group.GetGroupUtilityComponent().EvaluateCombatMode();
 		m_Enemy.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE); m_Enemy.GetGroupUtilityComponent().EvaluateCombatMode();

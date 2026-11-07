@@ -718,9 +718,14 @@ modded class SCR_DamageManagerComponent
 
 modded class SCR_CharacterDamageManagerComponent
 {
+ // World time (ms) of his last combat wound (BBB_Wounds), -1 if none.
+ float m_fBBBCombatHitMs = -1;
+
  override bool HijackDamageHandling(notnull BaseDamageContext damageContext)
  {
   bool hijacked = super.HijackDamageHandling(damageContext);
+  // Recorded even when another mod takes over the damage (ACE medical): he was still shot at.
+  BBB_Wounds.Record(this, damageContext);
   if (!hijacked && damageContext.damageType == EDamageType.KINETIC && damageContext.damageSource)
   {
    ChimeraCharacter me = ChimeraCharacter.Cast(GetOwner());
