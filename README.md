@@ -156,6 +156,7 @@ server owners reach for most, each turning its feature off with `0`:
 | `-bbbArmorReaction 0` | Fitted smoke and guarded wheeled-vehicle reversal against launcher fire |
 | `-bbbCommanderCrew 0` | Treating turret-linked commander positions as crew |
 | `-bbbExposedFire 0` | Continued spotting and stronger return fire when suppressed without cover |
+| `-bbbFireDiscipline 0` | Fire discipline: soldiers shot at by an unseen enemy get into cover before firing back, only two or three per squad fire blind and only within rifle or machine-gun range, spare magazines are kept, suppressing a spotted group stops at long range, and past 100 m bursts get shorter and aiming pauses longer |
 | `-bbbTrueCover 0` | Cover only counts when it is between the soldier and the enemy he knows about |
 | `-bbbShoreRoutes 0` | Foot routes round water keeping off low shore ground |
 

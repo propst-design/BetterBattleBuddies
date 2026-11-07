@@ -306,6 +306,15 @@ class BBB_Combat
 		if (group && ContactNearBearing(group, from, heard, shared, age)) aim = shared;
 		aim = BBB.Ground(aim);
 		float half = Math.Clamp(distance * 0.04 + age * 1.2, 4, 35);
+		// Fire discipline: cover first, range by weapon, a couple per squad, spare magazines kept.
+		if (BBB_FireDiscipline.On())
+		{
+			if (!BBB_FireDiscipline.StartBlindFire(utility, weapon, aim, half, distance, "contact fire")) return;
+			s_iResponses++;
+			BBB_Perf.Count("combat.returnFire");
+			PrintFormat("[BBB] COMBAT return fire (disciplined): %1 m toward ground contact %2 (%3 s old)", Math.Round(distance), aim, Math.Round(age));
+			return;
+		}
 		vector bbMin = Vector(aim[0] - half, aim[1] - 1, aim[2] - half);
 		vector bbMax = Vector(aim[0] + half, aim[1] + 2.5, aim[2] + half);
 		SCR_AISuppressionVolumeBox volume = new SCR_AISuppressionVolumeBox(bbMin, bbMax);
@@ -329,24 +338,72 @@ class BBB_Combat
 	}
 }
 
+// Fire at a shooter he can't see. Disciplined (BBB_FireDiscipline.StartBlindFire, for contact fire and
+// return fire alike): it waits at 0 while vanilla's hide-from-fire move takes him to cover, then fires
+// its burst from there; it ends early on any target, an order, hold fire or going down.
 class BBB_AIContactFireBehavior : SCR_AISuppressBehavior
 {
 	protected float m_fEndMs;
+	protected float m_fBurstMs;
+	protected float m_fCreatedMs;
+	protected bool m_bDiscipline;
+	protected bool m_bSawMove;	// vanilla moved him (to cover) while the burst waited
+	protected bool m_bFiring;	// selected at least once: the burst runs from then
 
 	void BBB_AIContactFireBehavior(SCR_AIUtilityComponent utility, SCR_AIActivityBase groupActivity, SCR_AISuppressionVolumeBase suppressionVolume, float suppressionDuration, float fireRate, float priorityLevel = PRIORITY_LEVEL_NORMAL)
 	{
-		m_fEndMs = GetGame().GetWorld().GetWorldTime() + suppressionDuration * 1000;
+		m_fCreatedMs = GetGame().GetWorld().GetWorldTime();
+		m_fBurstMs = suppressionDuration * 1000;
+		m_fEndMs = m_fCreatedMs + m_fBurstMs;
 		SetIsUniqueInActionQueue(true);
+	}
+
+	// Cover first: wait up to 'waitS' for him to get there before the burst.
+	void Disciplined(float waitS)
+	{
+		m_bDiscipline = true;
+		m_fEndMs = m_fCreatedMs + waitS * 1000 + m_fBurstMs;
+	}
+
+	override void OnActionSelected()
+	{
+		super.OnActionSelected();
+		if (!m_bDiscipline || m_bFiring) return;
+		m_bFiring = true;
+		m_fEndMs = GetGame().GetWorld().GetWorldTime() + m_fBurstMs;
+	}
+
+	protected void Done()
+	{
+		if (m_bDiscipline && m_Utility) m_Utility.m_fBBBBlindUntil = 0;
+		Complete();
+	}
+
+	// In cover facing the threat, or vanilla moved him and he has stopped, or he never started moving.
+	protected bool Settled()
+	{
+		if (BBB_Cover.InCover(m_Utility)) return true;
+		SCR_AICombatMoveState move = m_Utility.m_CombatMoveState;
+		if (move && move.IsMoving())
+		{
+			if (!m_bSawMove) BBB_FireDiscipline.s_iWaited++;
+			m_bSawMove = true;
+			return false;
+		}
+		if (m_bSawMove) return true;
+		return GetGame().GetWorld().GetWorldTime() - m_fCreatedMs >= BBB_FireDiscipline.SETTLE_S * 1000;
 	}
 
 	override float CustomEvaluate()
 	{
-		if (GetGame().GetWorld().GetWorldTime() > m_fEndMs) { Complete(); return 0; }
-		if (!m_Utility || !m_Utility.m_CombatComponent) { Complete(); return 0; }
-		if (!BBB_Combat.s_bResponse || !BBB.IsAlive(m_Utility.m_OwnerEntity) || BBB.PlayerOf(m_Utility.m_OwnerEntity)) { Complete(); return 0; }
-		if (m_Utility.m_CombatComponent.GetCurrentTarget()) { Complete(); return 0; }
-		if (m_Utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) { Complete(); return 0; }
-		if (!m_Utility.m_AIInfo || m_Utility.m_AIInfo.HasUnitState(EUnitState.IN_TURRET) || m_Utility.m_AIInfo.HasUnitState(EUnitState.PILOT) || m_Utility.m_AIInfo.HasUnitState(EUnitState.UNCONSCIOUS)) { Complete(); return 0; }
+		if (GetGame().GetWorld().GetWorldTime() > m_fEndMs) { Done(); return 0; }
+		if (!m_Utility || !m_Utility.m_CombatComponent) { Done(); return 0; }
+		if ((!m_bDiscipline && !BBB_Combat.s_bResponse) || !BBB.IsAlive(m_Utility.m_OwnerEntity) || BBB.PlayerOf(m_Utility.m_OwnerEntity)) { Done(); return 0; }
+		if (m_Utility.m_CombatComponent.GetCurrentTarget()) { Done(); return 0; }
+		if (m_Utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) { Done(); return 0; }
+		if (!m_Utility.m_AIInfo || m_Utility.m_AIInfo.HasUnitState(EUnitState.IN_TURRET) || m_Utility.m_AIInfo.HasUnitState(EUnitState.PILOT) || m_Utility.m_AIInfo.HasUnitState(EUnitState.UNCONSCIOUS)) { Done(); return 0; }
+		if (m_bDiscipline && (m_Utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || BBB_OrderIntent.Held(m_Utility))) { Done(); return 0; }
+		if (m_bDiscipline && !m_bFiring && !Settled()) return 0;
 		return BBB_Combat.RESPONSE_PRIORITY;
 	}
 }

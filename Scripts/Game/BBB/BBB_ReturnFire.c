@@ -16,6 +16,9 @@
 // civilians, in a vehicle (gunners: BBB's hot AI), at shots from the sky, or from closer than MIN_M.
 // Once per COOLDOWN_S per soldier, CHANCE of the time (a roll seeded by the soldier and the moment).
 // Host option: -bbbReturnFire 1 (off by default until it has been played).
+// With fire discipline on (default, BBB_FireDiscipline, 6 Nov 2026) the burst goes through the same
+// gate as contact fire instead: he gets into cover first, riflemen not past 250 m, a couple per squad,
+// spare magazines kept, one cooldown for both. BBB_AIReturnFireBehavior is then unused.
 class BBB_ReturnFire
 {
 	static int s_iRead;
@@ -78,6 +81,16 @@ class BBB_ReturnFire
 		float error = Math.Clamp(distance * ERROR_PER_M, 1, 15);
 		vector aim = BBB.Ground(from + Vector(roll.RandFloatXY(-error, error), 0, roll.RandFloatXY(-error, error)));
 		float half = Math.Max(1.5, error);
+		// Fire discipline: the same gate as contact fire (one cooldown, cover first, range, squad, ammo).
+		if (BBB_FireDiscipline.On())
+		{
+			BaseWeaponComponent weapon = utility.m_CombatComponent.GetCurrentWeapon();
+			if (!weapon || !weapon.GetCurrentMagazine() || weapon.GetCurrentMagazine().GetAmmoCount() <= 0) { WhyNot("no loaded weapon"); return; }
+			if (!BBB_FireDiscipline.StartBlindFire(utility, weapon, aim, half, distance, "return fire")) { WhyNot("fire discipline"); return; }
+			s_iFires++;
+			PrintFormat("[BBB] RETURN FIRE %1: %2 from an unseen enemy %3 m away, fires back at %4 once in cover", man, how, Math.Round(distance), aim);
+			return;
+		}
 		SCR_AISuppressionVolumeBox volume = new SCR_AISuppressionVolumeBox(Vector(aim[0] - half, aim[1] - 0.3, aim[2] - half), Vector(aim[0] + half, aim[1] + 1.8, aim[2] + half));
 		BBB_AIReturnFireBehavior fire = new BBB_AIReturnFireBehavior(utility, null, volume, BURST_S, FIRE_RATE);
 		utility.AddAction(fire);
