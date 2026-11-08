@@ -145,6 +145,9 @@ class BBB_MoraleTest : BBB_AimTest
 		// (priority 91 for a man with no spare magazine) sends him to loot them before he is cornered.
 		// That is the right order in play; here it would test Rearm, not surrender.
 		BBB_Rearm.s_bOn = false;
+		// Tactic off: after the execution the US squad assaulted, held, then searched and wandered
+		// out of the next subject's sight (one ruse subject in two never saw a captor in 20 s).
+		BBB_Tactic.s_bOn = false;
 		BBB_Morale.s_fSurrenderThreat = 0;
 		BBB_Morale.s_fSurrenderChance = 1;
 		BBB_Morale.s_fPrisonerMinS = 600;
@@ -251,11 +254,37 @@ class BBB_MoraleTest : BBB_AimTest
 		Check(label, BBB_Morale.IsPrisoner(m_Subject));
 		if (!BBB_Morale.IsPrisoner(m_Subject))
 		{
+			LogWhyNot();
 			FinishTest();
 			return -1;
 		}
 		PrintFormat("[BBB] MORALETEST %1 after %2 s", label, m_iWait * 0.5);
 		return 1;
+	}
+
+	// A subject who never gave up: what he perceives (the cornered test is the usual miss).
+	protected void LogWhyNot()
+	{
+		if (!BBB.IsAlive(m_Subject)) { Print("[BBB] MORALETEST why not: subject dead"); return; }
+		SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(m_Subject);
+		if (!utility || !utility.m_PerceptionComponent) { Print("[BBB] MORALETEST why not: no utility"); return; }
+		int spare, inGun;
+		BBB_Morale.PrimaryAmmo(m_Subject, spare, inGun);
+		float threat = -1;
+		if (utility.m_ThreatSystem) threat = utility.m_ThreatSystem.GetThreatMeasure();
+		PrintFormat("[BBB] MORALETEST why not: spare %1 in gun %2 threat %3 health %4", spare, inGun, threat, BBB.Health(m_Subject));
+		array<BaseTarget> targets = {};
+		utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
+		foreach (BaseTarget target : targets)
+		{
+			if (target) PrintFormat("[BBB] MORALETEST   enemy %1 m, seen %2 s ago, trace %3, disarmed %4", Math.Round(target.GetDistance()), target.GetTimeSinceSeen(), target.GetTraceFraction(), target.IsDisarmed());
+		}
+		array<AIAgent> us = {};
+		if (m_SquadUS) m_SquadUS.GetAgents(us);
+		foreach (AIAgent agent : us)
+		{
+			if (agent && agent.GetControlledEntity()) PrintFormat("[BBB] MORALETEST   US soldier at %1 m", Math.Round(vector.Distance(agent.GetControlledEntity().GetOrigin(), m_Subject.GetOrigin())));
+		}
 	}
 
 	// ---- A: genuine
