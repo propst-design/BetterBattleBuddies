@@ -141,6 +141,10 @@ class BBB_MoraleTest : BBB_AimTest
 	{
 		// Withdrawals off (a wiped squad would pull him out of range); surrender runs on its own switch.
 		BBB_Morale.s_bOn = false;
+		// Rearm off: the fixture strips the subject and kills his squadmates beside him, so Rearm
+		// (priority 91 for a man with no spare magazine) sends him to loot them before he is cornered.
+		// That is the right order in play; here it would test Rearm, not surrender.
+		BBB_Rearm.s_bOn = false;
 		BBB_Morale.s_fSurrenderThreat = 0;
 		BBB_Morale.s_fSurrenderChance = 1;
 		BBB_Morale.s_fPrisonerMinS = 600;
@@ -430,7 +434,7 @@ class BBB_MoraleTest : BBB_AimTest
 		Check("executed-prisoner-killed", m_Subject && !BBB.IsAlive(m_Subject));
 		BBB_Morale.s_fRuseRangeM = 40; // the US team stays 30 m off; in play someone walks up
 		BBB_Morale.s_fRuseNerve = 1;
-		BeginNextSubject(Vector(8, 0, -6), BBB_Morale.FATE_RUSE);
+		BeginNextSubject(Vector(8, 0, 8), BBB_Morale.FATE_RUSE); // ~23 m from the US team's spot (was 37: the 40 m edge once it moves)
 	}
 
 	// ---- C: ruse. He keeps a frag (else a pistol) and comes back to life at the nearest enemy.
