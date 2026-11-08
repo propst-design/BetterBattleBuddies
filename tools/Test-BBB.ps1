@@ -7,13 +7,51 @@ param(
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
  [string]$ExtraArgs = '',
  # Folder holding RHS: Status Quo and its content packs (preset launcherinfrhs); searched if empty.
- [string]$RhsAddonsDir
+ [string]$RhsAddonsDir,
+ # Skip the shared test-server lock: for a caller that already holds it (a sequence run under
+ # _wt/lockrun.sh sets BBB_LOCK_HELD=1, which does the same).
+ [switch]$NoLock
 )
 $ErrorActionPreference = 'Stop'
 if (!$AddonRoot) { $AddonRoot = Split-Path $PSScriptRoot -Parent }
 $AddonRoot = [IO.Path]::GetFullPath($AddonRoot)
 $project = Join-Path $AddonRoot 'addon.gproj'
 if (!(Test-Path -LiteralPath $project) -or (Get-Content -LiteralPath $project -Raw) -notmatch 'GUID "BBB0261015000001"') { throw 'Not a BBB addon root.' }
+# Cross-repo test-server lock (same protocol as _wt/lockrun.sh, which ACA's runs use): ACA and AiO
+# watchers also start servers on port 2001. Wait while the lock is fresh (stale after 40 min) or an
+# AiO request is pending, write "<owner> <date>", touch every 5 min, remove it only if still ours.
+# Caller already holds it (lockrun.sh around a sequence): pass -NoLock or set BBB_LOCK_HELD=1.
+$lockOwner = 'bbb-' + $PID
+$lockHeld = $false
+$lockFile = $env:BBB_LOCK_FILE   # test override only
+if (!$lockFile) { $lockFile = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'my games/ArmaReforgerWorkbench/_wt/test-server.lock' }
+$aioRequests = Join-Path (Split-Path (Split-Path $AddonRoot -Parent) -Parent) 'AIOCommandMenu/.aio-requests'
+if ($env:BBB_AIO_REQUESTS) { $aioRequests = $env:BBB_AIO_REQUESTS }   # test override only
+$lockTouched = [DateTime]::UtcNow
+function Test-BbbLockOurs {
+ if (!(Test-Path -LiteralPath $lockFile)) { return $false }
+ $line = Get-Content -LiteralPath $lockFile -TotalCount 1 -ErrorAction SilentlyContinue
+ return ($line -is [string]) -and $line.StartsWith($lockOwner + ' ')
+}
+function Update-BbbLock {
+ if (!$lockHeld -or ([DateTime]::UtcNow - $lockTouched).TotalSeconds -lt 300) { return }
+ if (Test-BbbLockOurs) { (Get-Item -LiteralPath $lockFile).LastWriteTimeUtc = [DateTime]::UtcNow }
+ $script:lockTouched = [DateTime]::UtcNow
+}
+if (!$NoLock -and $env:BBB_LOCK_HELD -ne '1') {
+ New-Item -ItemType Directory -Path (Split-Path $lockFile -Parent) -Force | Out-Null
+ for ($i = 0; $i -lt 120; $i++) {
+  if ((Test-Path -LiteralPath $lockFile) -and ([DateTime]::UtcNow - (Get-Item -LiteralPath $lockFile).LastWriteTimeUtc).TotalSeconds -lt 2400) { Start-Sleep -Seconds 30; continue }
+  if (@(Get-ChildItem -Path (Join-Path $aioRequests '*.request') -ErrorAction SilentlyContinue).Count -gt 0) { Start-Sleep -Seconds 30; continue }
+  Set-Content -LiteralPath $lockFile -Value ($lockOwner + ' ' + (Get-Date).ToString('R')) -Encoding ASCII
+  Start-Sleep -Milliseconds 200   # a racing writer overwrites; the check below tells who won
+  $lockHeld = Test-BbbLockOurs
+  if ($lockHeld) { break }
+ }
+ if (!$lockHeld) { throw 'BBB: could not get the shared test-server lock (waited 60 min).' }
+ $lockTouched = [DateTime]::UtcNow
+}
+try {
 # Serialize BBB runners before the free-port check; two quiet waits can race.
 $serverMutex = New-Object System.Threading.Mutex($false, 'Local\BBB_Acceptance_Server_2001')
 $serverMutexHeld = $false
@@ -171,6 +209,7 @@ $body = ''
 try {
  while (((Get-Date) - $started).TotalSeconds -lt $timeouts[$Preset]) {
   Start-Sleep -Seconds 2
+  Update-BbbLock
   if (!$log) { $log = Get-ChildItem -LiteralPath $profile -Filter console.log -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 }
   if ($log) {
    $body = Get-Content -LiteralPath $log.FullName -Raw
@@ -199,4 +238,8 @@ if ($status -ne 'completed') { exit 1 }
 } finally {
  if ($serverMutexHeld) { $serverMutex.ReleaseMutex() }
  $serverMutex.Dispose()
+}
+
+} finally {
+ if ($lockHeld -and (Test-BbbLockOurs)) { Remove-Item -LiteralPath $lockFile -Force -ErrorAction SilentlyContinue }
 }
