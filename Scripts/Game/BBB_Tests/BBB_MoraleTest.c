@@ -195,6 +195,10 @@ class BBB_MoraleTest : BBB_AimTest
 			if (i != 1 && other) Discard(other.GetControlledEntity());
 		}
 		StripMagazines(m_Subject);
+		// Fixture: he notices his captors promptly (one subject in ten saw a US soldier 15 m off only
+		// after 20 s). Surrender still needs a real sighting.
+		SCR_AIUtilityComponent subjectUtility = BBB_VehiclePosture.Utility(m_Subject);
+		if (subjectUtility && subjectUtility.m_CombatComponent) subjectUtility.m_CombatComponent.SetPerceptionFactor(10);
 		m_aSubjectGuns.Clear();
 		BaseWeaponManagerComponent wm = BaseWeaponManagerComponent.Cast(m_Subject.FindComponent(BaseWeaponManagerComponent));
 		array<IEntity> weapons = {};

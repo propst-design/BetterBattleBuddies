@@ -14,6 +14,7 @@ class BBB_SurrenderPose
 	static float s_fSitAfterS = 12.0;            // without ACE: kneeling with the halt sign this long, then he sits
 	static const int GESTURE_HALT = 2;           // ECharacterGestures.COMMAND_STOP (Gesture_Halt.conf)
 	static const float RISE_TIMEOUT_S = 6.0;     // a ruse stops waiting to be on his feet after this
+	static const float SEAT_WAIT_S = 3.0;        // fates wait this long for ACE's seat to land
 
 	static const int POSE_NONE = 0;
 	static const int POSE_ACE = 1;               // in ACE's surrender helper compartment
@@ -98,6 +99,7 @@ class BBB_SurrenderPose
 		if (controller && AceSet(controller, "ACE_Captives_SetSurrender", true))
 		{
 			state.m_iPose = POSE_ACE;
+			state.m_fPoseSince = GetGame().GetWorld().GetWorldTime() / 1000.0;
 			return;
 		}
 		PrintFormat("[BBB] SURRENDER POSE: ACE refused %1, kneeling instead", soldier);
@@ -147,6 +149,13 @@ class BBB_SurrenderPose
 			if (scripted && scripted.IsLoitering()) scripted.StopLoitering(true);
 		}
 		state.m_iPose = POSE_NONE;
+	}
+
+	// ACE was asked to seat him and hasn't yet (it seats through an RPC to his owner). Releasing then
+	// raced the seat: BBB took him for standing, switched his AI on, and the seat landed after.
+	static bool Seating(BBB_SurrenderState state, float now)
+	{
+		return state.m_iPose == POSE_ACE && !AceHelper(state.m_Soldier) && now - state.m_fPoseSince < SEAT_WAIT_S;
 	}
 
 	// Up and free to move: out of ACE's helper and not sitting. Still parented to the helper counts as

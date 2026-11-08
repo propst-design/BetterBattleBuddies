@@ -94,6 +94,7 @@ class BBB_SurrenderState : Managed
 	Faction m_TrueFaction;          // his side when he gave up (ACE makes a surrendered man CIV)
 	int m_iPose;                    // BBB_SurrenderPose.POSE_*
 	bool m_bRising;                 // a ruse getting to his feet before his AI comes back
+	float m_fPoseSince;             // world time (s) ACE was asked to seat him
 	float m_fRiseSince;
 }
 
@@ -1127,7 +1128,8 @@ class BBB_Morale
 			// Waking from unconsciousness clears the flag (SCR_CharacterPerceivableComponent).
 			if (perceivable && !ss.m_bCondemned && !ss.m_bRising && !perceivable.IsDisarmed()) perceivable.SetDisarmed(true);
 			if (fatePass && BBB.IsConscious(soldier) && !ss.m_bRising) BBB_SurrenderPose.Update(ss, now);
-			if (fatePass && now >= ss.m_fFateAfter && BBB.IsConscious(soldier))
+			// While ACE is still seating him, fates wait a pass.
+			if (fatePass && now >= ss.m_fFateAfter && BBB.IsConscious(soldier) && !BBB_SurrenderPose.Seating(ss, now))
 			{
 				if (ss.m_iFate == FATE_EXECUTED && !ss.m_bCondemned) TryExecute(ss, perceivable);
 				else if (ss.m_iFate == FATE_RUSE && TryRuse(ss, perceivable, now))
