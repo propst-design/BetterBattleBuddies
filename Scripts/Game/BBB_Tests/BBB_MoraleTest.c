@@ -476,11 +476,13 @@ class BBB_MoraleTest : BBB_AimTest
 	protected void WaitExecution()
 	{
 		m_iWait++;
-		if (BBB.IsAlive(m_Subject) && m_iWait < 40)
+		if (BBB.IsAlive(m_Subject) && m_iWait < 80)
 		{
+			if (m_iWait == 40) LogCaptors(); // 20 s and still alive: is anyone even aiming at him?
 			GetGame().GetCallqueue().CallLater(WaitExecution, 500);
 			return;
 		}
+		if (BBB.IsAlive(m_Subject)) LogCaptors();
 		PrintFormat("[BBB] MORALETEST execution: dead after %1 s", m_iWait * 0.5);
 		Check("executed-prisoner-killed", m_Subject && !BBB.IsAlive(m_Subject));
 		BBB_Morale.s_fRuseRangeM = 40; // the US team stays 30 m off; in play someone walks up
@@ -528,6 +530,33 @@ class BBB_MoraleTest : BBB_AimTest
 			Check("ruse-pistol-kept", combat && combat.FindWeaponOfType(EWeaponType.WT_HANDGUN));
 		}
 		FinishTest();
+	}
+
+	// The condemned man as his captors see him.
+	protected void LogCaptors()
+	{
+		if (!m_Subject) return;
+		PerceivableComponent perceivable = PerceivableComponent.Cast(m_Subject.FindComponent(PerceivableComponent));
+		Faction side = SCR_AIFactionHandling.GetEntityPerceivedFaction(m_Subject);
+		string key = "none";
+		if (side) key = side.GetFactionKey();
+		PrintFormat("[BBB] MORALETEST execution: subject faction %1, disarmed %2, in ACE helper %3, stance %4", key, perceivable && perceivable.IsDisarmed(), BBB_SurrenderPose.AceHelper(m_Subject) != null, m_Subject.GetCharacterController().GetStance());
+		array<AIAgent> us = {};
+		m_SquadUS.GetAgents(us);
+		foreach (AIAgent agent : us)
+		{
+			SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+			if (!utility || !utility.m_PerceptionComponent || !utility.m_CombatComponent) continue;
+			array<BaseTarget> targets = {};
+			utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
+			bool perceived;
+			foreach (BaseTarget target : targets)
+			{
+				if (target && target.GetTargetEntity() == m_Subject) perceived = true;
+			}
+			BaseTarget current = utility.m_CombatComponent.GetCurrentTarget();
+			PrintFormat("[BBB] MORALETEST   captor %1 m: enemy target %2, current target is him %3, combat mode %4", Math.Round(vector.Distance(utility.m_OwnerEntity.GetOrigin(), m_Subject.GetOrigin())), perceived, current && current.GetTargetEntity() == m_Subject, utility.m_CombatComponent.GetCombatMode());
+		}
 	}
 
 	// ACE's controller getter by name (false without ACE).

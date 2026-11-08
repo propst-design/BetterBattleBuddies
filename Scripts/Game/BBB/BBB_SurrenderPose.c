@@ -149,10 +149,12 @@ class BBB_SurrenderPose
 		state.m_iPose = POSE_NONE;
 	}
 
-	// Up and free to move: out of ACE's helper and not sitting.
+	// Up and free to move: out of ACE's helper and not sitting. Still parented to the helper counts as
+	// seated (IsInVehicle alone was false there: his AI came back mid get-up and vanilla's vehicle
+	// look-range task hit the helper's missing physics).
 	static bool OnFeet(BBB_SurrenderState state)
 	{
-		if (!state.m_Soldier || state.m_Soldier.IsInVehicle()) return false;
+		if (!state.m_Soldier || state.m_Soldier.IsInVehicle() || AceHelper(state.m_Soldier)) return false;
 		SCR_CharacterControllerComponent controller = SCR_CharacterControllerComponent.Cast(state.m_Soldier.GetCharacterController());
 		return !controller || !controller.IsLoitering();
 	}
