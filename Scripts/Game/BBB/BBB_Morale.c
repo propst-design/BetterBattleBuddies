@@ -91,6 +91,10 @@ class BBB_SurrenderState : Managed
 	EWeaponType m_eHidden;          // what a ruse kept: frag or pistol
 	float m_fFateAfter;             // world time (s) before which his fate waits
 	bool m_bCondemned;              // captors no longer spare him
+	Faction m_TrueFaction;          // his side when he gave up (ACE makes a surrendered man CIV)
+	int m_iPose;                    // BBB_SurrenderPose.POSE_*
+	bool m_bRising;                 // a ruse getting to his feet before his AI comes back
+	float m_fRiseSince;
 }
 
 class BBB_Morale
@@ -122,7 +126,6 @@ class BBB_Morale
 	static const float PRISONER_VIEW_M = 1000.0;    // ...and none this close looking his way
 	static const float PRISONER_VIEW_COS = 0.6;     // about 53 degrees off a player's view
 	static float s_fSurrenderChance = 0.35;         // per check while cornered; tests set 1
-	static const int GESTURE_HALT = 2;              // vanilla gesture state machine (Gesture_Halt.conf)
 	// Not every surrender ends well (-bbbMoraleSurrenderFates 0: all genuine).
 	static const int FATE_GENUINE = 0;
 	static const int FATE_EXECUTED = 1;             // enemy AI close by stop sparing him
@@ -177,6 +180,7 @@ class BBB_Morale
 	static int s_iPrisonersRemoved;
 	static int s_iExecuted;
 	static int s_iRuses;
+	static int s_iHandedToAce;
 
 	static void Read()
 	{
@@ -1034,16 +1038,16 @@ class BBB_Morale
 		PerceivableComponent perceivable = PerceivableComponent.Cast(soldier.FindComponent(PerceivableComponent));
 		if (perceivable) perceivable.SetDisarmed(true);
 
-		// Kneel and stay. Vanilla has no hands-up animation: he gives the halt sign once his
-		// hands are empty (vanilla emotes also wait for the unequip).
-		controller.SetWeaponRaised(false);
-		SCR_AIStanceHandling.SetStance(controller, ECharacterStance.CROUCH);
+		// ACE Captives' surrender when it is loaded, else kneel with the halt sign, then sit
+		// (BBB_SurrenderPose). Before his AI goes off: ACE seats him through his compartment access.
+		BBB_SurrenderPose.Start(state);
 		if (ai && ai.IsAIActivated()) ai.DeactivateAI();
-		GetGame().GetCallqueue().CallLater(SignalHalt, 1500, false, soldier);
 
 		s_Surrendered.Insert(state);
 		s_iSurrenders++;
-		PrintFormat("[BBB] MORALE: %1 surrendered (%2); dropped %3 weapons, fate %4", soldier, why, state.m_iWeaponsDropped, FateName(state));
+		string pose = "kneel";
+		if (state.m_iPose == BBB_SurrenderPose.POSE_ACE) pose = "ACE";
+		PrintFormat("[BBB] MORALE: %1 surrendered (%2); dropped %3 weapons, fate %4, pose %5", soldier, why, state.m_iWeaponsDropped, FateName(state), pose);
 		BBB_Think.Note(soldier, "Morale", "SURRENDERS: " + why);
 	}
 
@@ -1083,13 +1087,6 @@ class BBB_Morale
 		return "genuine";
 	}
 
-	protected static void SignalHalt(ChimeraCharacter soldier)
-	{
-		if (!BBB.IsConscious(soldier) || !IsPrisoner(soldier)) return;
-		CharacterControllerComponent controller = soldier.GetCharacterController();
-		if (controller) controller.TryStartCharacterGesture(GESTURE_HALT, 3000);
-	}
-
 	// Keep prisoners out of the fight, play out their fates, and remove them once no player
 	// would see it happen.
 	protected static void UpdatePrisoners(float now)
@@ -1111,27 +1108,39 @@ class BBB_Morale
 			// and never deleted under them.
 			if (BBB.PlayerOf(soldier))
 			{
+				BBB_SurrenderPose.Release(ss);
 				if (perceivable && BBB.IsConscious(soldier)) perceivable.SetDisarmed(false);
 				s_Surrendered.RemoveOrdered(i);
 				PrintFormat("[BBB] MORALE: prisoner %1 taken over by a player, released", soldier);
 				continue;
 			}
+			// A player took him captive with ACE's zip cuffs: ACE's captive now (CIV, tied, escorted).
+			// No fate, no despawn; his disarmed flag goes, ACE's CIV status protects him.
+			if (fatePass && BBB_SurrenderPose.CuffedByAce(ss))
+			{
+				if (perceivable) perceivable.SetDisarmed(false);
+				s_Surrendered.RemoveOrdered(i);
+				s_iHandedToAce++;
+				PrintFormat("[BBB] MORALE: prisoner %1 taken captive with ACE cuffs, handed to ACE", soldier);
+				continue;
+			}
 			// Waking from unconsciousness clears the flag (SCR_CharacterPerceivableComponent).
-			if (perceivable && !ss.m_bCondemned && !perceivable.IsDisarmed()) perceivable.SetDisarmed(true);
+			if (perceivable && !ss.m_bCondemned && !ss.m_bRising && !perceivable.IsDisarmed()) perceivable.SetDisarmed(true);
+			if (fatePass && BBB.IsConscious(soldier) && !ss.m_bRising) BBB_SurrenderPose.Update(ss, now);
 			if (fatePass && now >= ss.m_fFateAfter && BBB.IsConscious(soldier))
 			{
 				if (ss.m_iFate == FATE_EXECUTED && !ss.m_bCondemned) TryExecute(ss, perceivable);
-				else if (ss.m_iFate == FATE_RUSE && TryRuse(ss, perceivable))
+				else if (ss.m_iFate == FATE_RUSE && TryRuse(ss, perceivable, now))
 				{
 					s_Surrendered.RemoveOrdered(i);
 					continue;
 				}
 			}
-			if (now - ss.m_fSurrenderSince < s_fPrisonerMinS || PlayerSees(soldier)) continue;
+			if (ss.m_bRising || now - ss.m_fSurrenderSince < s_fPrisonerMinS || PlayerSees(soldier)) continue;
 			s_Surrendered.RemoveOrdered(i);
 			s_iPrisonersRemoved++;
 			PrintFormat("[BBB] MORALE: prisoner %1 removed after %2 s, no player near or looking", soldier, Math.Round(now - ss.m_fSurrenderSince));
-			SCR_EntityHelper.DeleteEntityAndChildren(soldier);
+			SCR_EntityHelper.DeleteEntityAndChildren(BBB_SurrenderPose.Remains(soldier)); // ACE's helper goes with him
 		}
 	}
 
@@ -1140,9 +1149,10 @@ class BBB_Morale
 	protected static void TryExecute(BBB_SurrenderState ss, PerceivableComponent perceivable)
 	{
 		float distance;
-		IEntity captor = NearestEnemy(ss.m_Soldier, s_fExecuteRangeM, true, distance);
+		IEntity captor = NearestEnemy(ss.m_Soldier, ss.m_TrueFaction, s_fExecuteRangeM, true, distance);
 		if (!captor || !perceivable) return;
 		ss.m_bCondemned = true;
+		BBB_SurrenderPose.RestoreFaction(ss); // ACE made him CIV, whom AI never shoot
 		perceivable.SetDisarmed(false);
 		PrintFormat("[BBB] MORALE: prisoner %1 is being executed (enemy soldier %2 m away)", ss.m_Soldier, Math.Round(distance));
 		BBB_Think.Note(ss.m_Soldier, "Morale", "EXECUTED by his captors");
@@ -1150,14 +1160,26 @@ class BBB_Morale
 
 	// A fake surrender: once an enemy (player or AI) is close, he comes back to life with what
 	// he hid. The target is a real man standing near him, never a guess.
-	protected static bool TryRuse(BBB_SurrenderState ss, PerceivableComponent perceivable)
+	protected static bool TryRuse(BBB_SurrenderState ss, PerceivableComponent perceivable, float now)
 	{
 		ChimeraCharacter soldier = ss.m_Soldier;
 		float distance;
-		IEntity mark = NearestEnemy(soldier, s_fRuseRangeM, false, distance);
-		if (!mark || Math.RandomFloat01() >= s_fRuseNerve) return false;
 		bool frag = ss.m_eHidden == EWeaponType.WT_FRAGGRENADE;
-		if (frag && distance < RUSE_FRAG_MIN_M) return false; // too close to throw and live: wait
+		IEntity mark;
+		if (!ss.m_bRising)
+		{
+			mark = NearestEnemy(soldier, ss.m_TrueFaction, s_fRuseRangeM, false, distance);
+			if (!mark || Math.RandomFloat01() >= s_fRuseNerve) return false;
+			if (frag && distance < RUSE_FRAG_MIN_M) return false; // too close to throw and live: wait
+			// On his feet first (out of ACE's pose, or up from sitting), then his AI comes back.
+			BBB_SurrenderPose.Release(ss);
+			ss.m_bRising = true;
+			ss.m_fRiseSince = now;
+		}
+		if (!BBB_SurrenderPose.OnFeet(ss) && now - ss.m_fRiseSince < BBB_SurrenderPose.RISE_TIMEOUT_S) return false;
+		// The mark again, now he is up (a real man near him; the range allows for the time it took).
+		mark = NearestEnemy(soldier, ss.m_TrueFaction, s_fRuseRangeM + 10, false, distance);
+		if (frag && mark && distance < RUSE_FRAG_MIN_M) mark = null; // too close now: he fights with what he has
 
 		if (perceivable) perceivable.SetDisarmed(false);
 		AIControlComponent ai = AIControlComponent.Cast(soldier.FindComponent(AIControlComponent));
@@ -1174,8 +1196,9 @@ class BBB_Morale
 		if (agent) utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
 		// The throw is cleared against friendlies like any BBB frag (BBB #40): for the squad he
 		// rejoined, else, his squad gone, for his side (the throw fails closed without either).
-		Faction side = SCR_AIFactionHandling.GetEntityPerceivedFaction(soldier);
-		bool thrown = frag && utility && (squad || side);
+		Faction side = ss.m_TrueFaction;
+		if (!side) side = SCR_AIFactionHandling.GetEntityPerceivedFaction(soldier);
+		bool thrown = frag && utility && mark && (squad || side);
 		if (thrown)
 		{
 			vector landing = mark.GetOrigin();
@@ -1190,7 +1213,8 @@ class BBB_Morale
 		string how = "draws a hidden pistol";
 		if (thrown) how = "throws a hidden frag";
 		else if (frag) how = "fights on with a hidden frag";
-		PrintFormat("[BBB] MORALE: prisoner %1 broke his surrender: %2 at an enemy %3 m away", soldier, how, Math.Round(distance));
+		if (!mark) distance = 0;
+		PrintFormat("[BBB] MORALE: prisoner %1 broke his surrender: %2 at an enemy %3 m away (up after %4 s)", soldier, how, Math.Round(distance), Math.Round(now - ss.m_fRiseSince));
 		BBB_Think.Note(soldier, "Morale", "FAKE SURRENDER: " + how);
 		return true;
 	}
@@ -1202,10 +1226,11 @@ class BBB_Morale
 	protected static float s_fQueryBest;
 	protected static vector s_vQueryFrom;
 
-	// Nearest conscious enemy soldier (not a prisoner) within range.
-	protected static IEntity NearestEnemy(ChimeraCharacter soldier, float range, bool aiOnly, out float distance)
+	// Nearest conscious enemy soldier (not a prisoner) of this side within range.
+	protected static IEntity NearestEnemy(ChimeraCharacter soldier, Faction side, float range, bool aiOnly, out float distance)
 	{
-		s_QuerySide = SCR_AIFactionHandling.GetEntityPerceivedFaction(soldier);
+		s_QuerySide = side; // remembered at surrender: ACE switches him to CIV
+		if (!s_QuerySide) s_QuerySide = SCR_AIFactionHandling.GetEntityPerceivedFaction(soldier);
 		if (!s_QuerySide) return null;
 		s_QuerySelf = soldier;
 		s_bQueryAIOnly = aiOnly;
@@ -1383,18 +1408,19 @@ class BBB_Morale
 	static void Stop()
 	{
 		// Prisoners have left their squads unarmed: nothing to hand them back to, so they go.
-		if (GetGame()) GetGame().GetCallqueue().Remove(SignalHalt);
+		if (GetGame()) GetGame().GetCallqueue().Remove(BBB_SurrenderPose.RaiseHand);
 		foreach (BBB_SurrenderState ss : s_Surrendered)
 		{
 			if (!ss || !ss.m_Soldier) continue;
 			// A body a player (or Game Master) has taken over is his: released, never deleted.
 			if (BBB.PlayerOf(ss.m_Soldier))
 			{
+				BBB_SurrenderPose.Release(ss);
 				PerceivableComponent handBack = PerceivableComponent.Cast(ss.m_Soldier.FindComponent(PerceivableComponent));
 				if (handBack && BBB.IsConscious(ss.m_Soldier)) handBack.SetDisarmed(false);
 				continue;
 			}
-			SCR_EntityHelper.DeleteEntityAndChildren(ss.m_Soldier);
+			SCR_EntityHelper.DeleteEntityAndChildren(BBB_SurrenderPose.Remains(ss.m_Soldier));
 		}
 		s_Surrendered.Clear();
 		s_fNextSurrenderPass = 0;

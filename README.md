@@ -149,6 +149,7 @@ server owners reach for most, each turning its feature off with `0`:
 | `-bbbWithdrawOrder 0` | Covered fall-back when the host mod orders a squad back under fire (only on a host mod's request) |
 | `-bbbMoraleSurrender 0` | Cut-off, pinned soldiers surrendering |
 | `-bbbMoraleSurrenderFates 0` | Surrenders that go wrong: executions and fake surrenders |
+| `-bbbMoraleSurrenderAce 0` | Prisoners using ACE Captives' surrender (hands up, cuffable) when ACE is loaded |
 | `-bbbBuildings 0` | Contact-driven indoor cover movement |
 | `-bbbFlares 0` | BBB's autonomous night-illumination requests |
 | `-bbbDoorUnstick 0` | Opening or flipping doors that block movement |

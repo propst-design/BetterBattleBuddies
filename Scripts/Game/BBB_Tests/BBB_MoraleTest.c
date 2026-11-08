@@ -1,5 +1,7 @@
 // Better Battle Buddies (BBB): Standalone morale, retrograde break-contact
-// withdrawal, and surrender assertions.
+// withdrawal, and surrender assertions. Two arms for the prisoner's pose (BBB_SurrenderPose):
+// base game only (preset morale: kneel with the halt sign, then sit), and with ACE Captives loaded
+// (preset moraleace, -bbbMoraleAce 1: ACE's surrender helper and flag). ACE is named in strings only.
 class BBB_MoraleTest : BBB_AimTest
 {
 	static ref BBB_MoraleTest s_MoraleTest;
@@ -8,7 +10,11 @@ class BBB_MoraleTest : BBB_AimTest
 	protected SCR_AIGroup m_SquadUSSR;
 	protected SCR_AIGroup m_SquadUS;
 	static const ResourceName WP_MOVE = "{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et";
-	static const int EXPECTED = 23;
+	static const int EXPECTED = 27;
+	protected bool m_bAce;                // ACE arm: ACE Captives must be loaded and used
+	protected vector m_vSubjectAt;        // where the prisoner was last seen (helper check after despawn)
+	protected static typename s_HelperType;
+	protected static int s_iHelpers;
 
 	static void MaybeStartMorale()
 	{
@@ -153,6 +159,8 @@ class BBB_MoraleTest : BBB_AimTest
 		BBB_Morale.s_fPrisonerMinS = 600;
 		BBB_Morale.s_fFateDelayMinS = 0;
 		BBB_Morale.s_fFateDelayMaxS = 0;
+		BBB_SurrenderPose.s_fSitAfterS = 6; // the fallback sits down inside the 12 s fire window
+		m_bAce = System.IsCLIParam("bbbMoraleAce");
 		m_iSurrendersBefore = BBB_Morale.s_iSurrenders;
 		m_iRemovedBefore = BBB_Morale.s_iPrisonersRemoved;
 		BBB_Morale.s_iForceFate = BBB_Morale.FATE_GENUINE;
@@ -309,7 +317,10 @@ class BBB_MoraleTest : BBB_AimTest
 	// The US team goes fire-at-will: it should engage the control team and leave him be.
 	protected void BeginFire()
 	{
-		Check("surrender-kneels", m_Subject && m_Subject.GetCharacterController().GetStance() == ECharacterStance.CROUCH);
+		// The pose this arm expects: ACE's surrender helper and flag, or kneeling (base game).
+		Check("pose-arm-matches-mods", BBB_SurrenderPose.AceLoaded() == m_bAce);
+		if (m_bAce) Check("surrender-ace-pose", BBB_SurrenderPose.AceHelper(m_Subject) != null && AceFlag("ACE_Captives_HasSurrendered"));
+		else Check("surrender-kneels", m_Subject && m_Subject.GetCharacterController().GetStance() == ECharacterStance.CROUCH);
 		// Every gun he carried is loose in the world next to him (the drop from his hands animates).
 		int onGround;
 		foreach (IEntity weapon : m_aSubjectGuns)
@@ -374,6 +385,11 @@ class BBB_MoraleTest : BBB_AimTest
 		// Without this the next check proves nothing: the US team must be able to fight here.
 		Check("control-team-engaged", m_iUSShots > 0);
 		Check("prisoner-not-engaged", BBB.IsAlive(m_Subject) && !m_bSubjectTargeted);
+		// Still showing it after 14 s: in ACE's helper, or (base game) sitting on the ground by now.
+		SCR_CharacterControllerComponent poseController;
+		if (m_Subject) poseController = SCR_CharacterControllerComponent.Cast(m_Subject.GetCharacterController());
+		if (m_bAce) Check("pose-held-through-fire", BBB_SurrenderPose.AceHelper(m_Subject) != null);
+		else Check("pose-held-through-fire", poseController && poseController.IsLoitering());
 
 		// No players on a test server: once the hold time passes he is removed.
 		BBB_Morale.s_fPrisonerMinS = 2;
@@ -384,12 +400,16 @@ class BBB_MoraleTest : BBB_AimTest
 	protected void WaitRemoval()
 	{
 		m_iWait++;
+		if (m_Subject) m_vSubjectAt = m_Subject.GetOrigin();
 		if (m_Subject && m_iWait < 16)
 		{
 			GetGame().GetCallqueue().CallLater(WaitRemoval, 500);
 			return;
 		}
 		Check("prisoner-removed-unwatched", !m_Subject && BBB_Morale.s_iPrisonersRemoved > m_iRemovedBefore);
+		int helpers = AceHelpersNear(m_vSubjectAt);
+		PrintFormat("[BBB] MORALETEST ACE helpers left where the prisoner was: %1", helpers);
+		Check("no-helper-left", helpers == 0);
 		BBB_Morale.s_fPrisonerMinS = 600;
 		BeginNextSubject(Vector(-12, 0, 0), BBB_Morale.FATE_EXECUTED);
 	}
@@ -493,6 +513,9 @@ class BBB_MoraleTest : BBB_AimTest
 		if (m_Subject) perceivable = PerceivableComponent.Cast(m_Subject.FindComponent(PerceivableComponent));
 		bool back = m_Subject && !BBB_Morale.IsPrisoner(m_Subject) && ai && ai.IsAIActivated() && perceivable && !perceivable.IsDisarmed();
 		Check("ruse-back-in-the-fight", back && BBB_Morale.s_iRuses > 0);
+		SCR_CharacterControllerComponent ruseController;
+		if (m_Subject) ruseController = SCR_CharacterControllerComponent.Cast(m_Subject.GetCharacterController());
+		Check("ruse-stood-up", m_Subject && !m_Subject.IsInVehicle() && ruseController && !ruseController.IsLoitering());
 		// The frag physically left his kit (a pistol ruse has no frag to count: then this checks
 		// only that he is armed again).
 		if (m_iFrags > 0) Check("ruse-frag-thrown", thrown);
@@ -505,8 +528,35 @@ class BBB_MoraleTest : BBB_AimTest
 		FinishTest();
 	}
 
+	// ACE's controller getter by name (false without ACE).
+	protected bool AceFlag(string method)
+	{
+		if (!m_Subject) return false;
+		bool result;
+		if (!GetGame().GetScriptModule().Call(m_Subject.GetCharacterController(), method, false, result)) return false;
+		return result;
+	}
+
+	// ACE animation helper entities within 10 m (0 without ACE).
+	protected int AceHelpersNear(vector at)
+	{
+		string helperBase = "ACE_AnimationHelperCompartment";
+		s_HelperType = helperBase.ToType();
+		s_iHelpers = 0;
+		if (!s_HelperType) return 0;
+		GetGame().GetWorld().QueryEntitiesBySphere(at, 10, CountHelper, null, EQueryEntitiesFlags.ALL);
+		return s_iHelpers;
+	}
+
+	protected static bool CountHelper(IEntity entity)
+	{
+		if (entity && entity.IsInherited(s_HelperType)) s_iHelpers++;
+		return true;
+	}
+
 	protected void FinishTest()
 	{
+		BBB_SurrenderPose.s_fSitAfterS = 12;
 		BBB_Morale.s_fSurrenderThreat = 0.60;
 		BBB_Morale.s_fSurrenderChance = 0.35;
 		BBB_Morale.s_fPrisonerMinS = 90;
