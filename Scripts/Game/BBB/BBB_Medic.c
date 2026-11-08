@@ -695,7 +695,28 @@ modded class SCR_AIFindMedic
 {
  override protected AIAgent FindAgentMedic(IEntity entToHeal, notnull array<AIAgent> agents, notnull array<AIAgent> agentsToExclude, bool excludeDrivers = false)
  {
-  AIAgent nearest = super.FindAgentMedic(entToHeal, agents, agentsToExclude, excludeDrivers);
+  // The squad leader keeps some men on their job (BBB_SquadLeader.Keeps); if nobody else can go,
+  // vanilla's pick stands.
+  array<AIAgent> exclude = {};
+  string kept;
+  if (BBB_SquadLeader.KeptFromRescue(agents, agentsToExclude, exclude, kept))
+  {
+   AIAgent vanillaPick = super.FindAgentMedic(entToHeal, agents, agentsToExclude, excludeDrivers);
+   AIAgent leaderPick = super.FindAgentMedic(entToHeal, agents, exclude, excludeDrivers);
+   if (!leaderPick) exclude.Copy(agentsToExclude);
+   else if (vanillaPick != leaderPick && vanillaPick && leaderPick.GetControlledEntity())
+   {
+    // Name the man he actually kept back: vanilla's pick.
+    string why;
+    BBB_SquadLeader.Keeps(vanillaPick.GetControlledEntity(), BBB_SquadLeader.JOB_RESCUE, why);
+    BBB_SquadLeader.s_iSpared++;
+    PrintFormat("[BBB] SQUAD LEADER keeps %1 (%2) on his job: %3 goes to %4", BBB_Medic.Name(vanillaPick.GetControlledEntity()), why, BBB_Medic.Name(leaderPick.GetControlledEntity()), BBB_Medic.Name(entToHeal));
+    BBB_Think.Note(leaderPick.GetControlledEntity(), "SquadLeader", "sent to " + BBB_Medic.Name(entToHeal) + " instead of " + BBB_Medic.Name(vanillaPick.GetControlledEntity()) + " (" + why + ")");
+   }
+  }
+  else exclude.Copy(agentsToExclude);
+  AIAgent nearest = super.FindAgentMedic(entToHeal, agents, exclude, excludeDrivers);
+  if (nearest) BBB_SquadLeader.s_LastRescuer = nearest.GetControlledEntity();
   if (!nearest || !entToHeal || !BBB_Medic.On(entToHeal) || !nearest.GetControlledEntity()) return nearest;
   if (BBB_Medic.HealingItems(nearest.GetControlledEntity()) >= BBB_Medic.MEDIC_ITEMS) return nearest;
   float limit = vector.Distance(nearest.GetControlledEntity().GetOrigin(), entToHeal.GetOrigin()) + BBB_Medic.PREFER_M;
@@ -706,7 +727,7 @@ modded class SCR_AIFindMedic
    SCR_ChimeraAIAgent chimera = SCR_ChimeraAIAgent.Cast(agent);
    if (!chimera || !chimera.m_InfoComponent) continue;
    IEntity man = agent.GetControlledEntity();
-   if (!man || man == entToHeal || agentsToExclude.Contains(agent)) continue;
+   if (!man || man == entToHeal || exclude.Contains(agent)) continue;
    SCR_AIInfoComponent info = chimera.m_InfoComponent;
    if (info.HasUnitState(EUnitState.UNCONSCIOUS)) continue;
    if (excludeDrivers && info.HasUnitState(EUnitState.PILOT)) continue;
@@ -719,6 +740,7 @@ modded class SCR_AIFindMedic
    bestDistance = distance;
   }
   if (!best) return nearest;
+  BBB_SquadLeader.s_LastRescuer = best.GetControlledEntity();
   PrintFormat("[BBB] MEDIC %1 (%2 healing items) sent to %3 instead of %4", BBB_Medic.Name(best.GetControlledEntity()), BBB_Medic.HealingItems(best.GetControlledEntity()), BBB_Medic.Name(entToHeal), BBB_Medic.Name(nearest.GetControlledEntity()));
   return best;
  }

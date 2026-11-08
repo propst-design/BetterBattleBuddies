@@ -29,6 +29,13 @@
 //     His own fight, untouched: an enemy within SELF_M, or while he is under fire (his suppression
 //     >= UNDER_FIRE; the hold also gives way to that: infantry have no armour). Not vanilla's
 //     "endangered" flag: hold-fire enemies set it just by aiming, and it blocked every switch (test run 3).
+//  3. Jobs (-bbbSquadJobs, stage 3): who goes to a casualty is vanilla's pick (SCR_AIFindMedic, the
+//     nearest man with a bandage, BBB_Medic preferring the real medic); the drag and medic smoke follow
+//     that man. In a fight the leader keeps some men on their job (Keeps): the machine gunner (the base
+//     of fire), himself, the AT gunner while enemy armour is about, and a man of the second team when it
+//     would drop below SECOND_MIN. The nearest of the rest goes; if nobody else can, vanilla's pick
+//     stands (a casualty is never left alone for it). Static guns (BBB_StaticWeapons) skip the AT
+//     gunner with armour about and a short-handed second team.
 //  The leader calls a split out (vanilla REPORT_TARGET on the second group).
 // Who: AI squads on foot with vanilla's group perception in contact (its most dangerous cluster),
 // not player-led (AiO's), host intent not NONE; per man: AI, conscious, on foot, not on a player or
@@ -56,12 +63,19 @@ class BBB_SquadOrders : Managed
  float m_fSaidAt;
  ref BBB_SquadGroup m_Main;
  ref BBB_SquadGroup m_Other;
+ bool m_bArmour;                 // enemy armour in the picture (<= RECENT_S)
 }
 
 class BBB_SquadLeader
 {
  static bool s_bCue;
  static bool s_bFire;
+ static bool s_bJobs;
+ static const int JOB_RESCUE = 1;
+ static const int JOB_STATIC = 2;
+ static const int SECOND_MIN = 2;
+ static int s_iSpared;   // job picks moved off a man the leader kept on his job
+ static IEntity s_LastRescuer; // tests: the man last sent to a casualty
  protected static int s_iRead;
  protected static ref map<SCR_AIGroup, ref BBB_SquadOrders> s_mOrders;
  protected static ref array<SCR_AIGroup> s_aGroups;
@@ -112,7 +126,8 @@ class BBB_SquadLeader
   string value;
   s_bCue = !(BBB_Settings.Get("bbbSquadCue", value) && value == "0");
   s_bFire = !(BBB_Settings.Get("bbbSquadFire", value) && value == "0");
-  PrintFormat("[BBB] SQUAD LEADER cue=%1 fire=%2", s_bCue, s_bFire);
+  s_bJobs = !(BBB_Settings.Get("bbbSquadJobs", value) && value == "0");
+  PrintFormat("[BBB] SQUAD LEADER cue=%1 fire=%2 jobs=%3", s_bCue, s_bFire, s_bJobs);
  }
 
  static void Stop()
@@ -127,7 +142,7 @@ class BBB_SquadLeader
  static void Tick()
  {
   Read();
-  if ((!s_bCue && !s_bFire) || !BBB.s_Hooks || !s_mOrders) return;
+  if ((!s_bCue && !s_bFire && !s_bJobs) || !BBB.s_Hooks || !s_mOrders) return;
   float now = Now();
   s_aGroups.Clear();
   BBB.s_Hooks.GetGroups(s_aGroups);
@@ -177,6 +192,7 @@ class BBB_SquadLeader
   if (!picture || !picture.m_bHasCentre || picture.m_iConscious < MIN_SQUAD) return;
   Groups(orders, picture, now);
   if (!orders.m_Main) return;
+  if (!s_bCue && !s_bFire) return; // jobs only: the picture is enough
   if (s_bFire) Split(orders, picture, now);
   else orders.m_bSplit = false;
 
@@ -220,6 +236,9 @@ class BBB_SquadLeader
   }
   orders.m_Main = null;
   orders.m_Other = null;
+  orders.m_bArmour = false;
+  foreach (BBB_SquadContact seen : recent)
+   if (seen.m_eType == EAIUnitType.UnitType_VehicleMedium || seen.m_eType == EAIUnitType.UnitType_VehicleHeavy) orders.m_bArmour = true;
   int count = recent.Count();
   if (count == 0) return;
   array<float> scores = {};
@@ -494,6 +513,55 @@ class BBB_SquadLeader
   if (target.GetDistance() < SELF_M || UnderFire(utility) || BBB_OrderIntent.Blocks(utility)) return false;
   utility.m_bBBBSectorHold = true;
   return true;
+ }
+
+ // ------------------------------------------------------------------ jobs (stage 3)
+
+ // Does the leader keep this man on his job instead of sending him to this one? why: the reason.
+ static bool Keeps(IEntity man, int job, out string why)
+ {
+  why = "";
+  Read();
+  if (!s_bJobs || !man || !s_mOrders || BBB.PlayerOf(man)) return false;
+  SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(man);
+  if (!utility || !utility.m_CombatComponent) return false;
+  AIAgent agent = utility.GetAIAgent();
+  if (!agent) return false;
+  SCR_AIGroup group = SCR_AIGroup.Cast(agent.GetParentGroup());
+  BBB_SquadOrders orders = s_mOrders.Get(group);
+  if (!orders || !orders.m_Main) return false; // not a squad in contact
+  if (job == JOB_RESCUE && man == group.GetLeaderEntity()) why = "the leader runs the fight";
+  else if (job == JOB_RESCUE && MachineGunner(utility)) why = "the machine gunner holds the base of fire";
+  else if (orders.m_bArmour && utility.m_CombatComponent.m_WeaponTargetSelector && utility.m_CombatComponent.m_WeaponTargetSelector.HasWeaponOfType(EWeaponType.WT_ROCKETLAUNCHER, false)) why = "AT gunner, enemy armour about";
+  else if (orders.m_bSplit && orders.m_aSecond.Contains(agent) && AbleSecond(orders) <= SECOND_MIN) why = "needed on the second group";
+  return !why.IsEmpty();
+ }
+
+ protected static int AbleSecond(BBB_SquadOrders orders)
+ {
+  int able;
+  foreach (AIAgent agent : orders.m_aSecond)
+   if (Able(agent)) able++;
+  return able;
+ }
+
+ // The medic pick (BBB_Medic's SCR_AIFindMedic): the men the leader keeps, added to the exclusions.
+ // False when he keeps nobody among these agents.
+ static bool KeptFromRescue(notnull array<AIAgent> agents, notnull array<AIAgent> exclude, notnull array<AIAgent> outExclude, out string kept)
+ {
+  kept = "";
+  outExclude.Copy(exclude);
+  bool any;
+  foreach (AIAgent agent : agents)
+  {
+   if (!agent || exclude.Contains(agent)) continue;
+   string why;
+   if (!Keeps(agent.GetControlledEntity(), JOB_RESCUE, why)) continue;
+   outExclude.Insert(agent);
+   if (kept.IsEmpty()) kept = BBB_Medic.Name(agent.GetControlledEntity()) + " (" + why + ")";
+   any = true;
+  }
+  return any;
  }
 
  static bool UnderFire(SCR_AIUtilityComponent utility)

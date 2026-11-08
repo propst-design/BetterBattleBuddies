@@ -354,6 +354,8 @@ class BBB_StaticWeapons
 
 			SCR_AIUtilityComponent util = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
 			if (!util || !IsFitGunner(character, util)) continue;
+			string kept;
+			if (BBB_SquadLeader.Keeps(character, BBB_SquadLeader.JOB_STATIC, kept)) continue; // his squad leader keeps him on his job
 
 			float d = vector.DistanceXZ(character.GetOrigin(), weaponPos);
 			if (d > s_fSearchRadiusM) continue;
