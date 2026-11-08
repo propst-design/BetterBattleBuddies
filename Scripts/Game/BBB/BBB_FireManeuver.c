@@ -268,9 +268,12 @@ class BBB_FireManeuver
   // Of the members' own reports, aim the job at the one on the squad's main front.
   vector front;
   bool hasFront = BBB_Squad.On(group) && BBB_Squad.Threat(group, BBB_Squad.RECENT_S, front);
+  // The squad leader's teams (BBB_SquadLeader, stage 4): his second team keeps its sector, out of the bounds.
+  bool leaderTeams = BBB_SquadLeader.RunsTeams(group);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;
+   if (leaderTeams && BBB_SquadLeader.OnSecond(group, agent)) continue;
    SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
    if (!utility || !utility.IsMilitary() || !utility.m_OwnerEntity || !BBB.IsAlive(utility.m_OwnerEntity)) continue;
    ChimeraCharacter soldier = ChimeraCharacter.Cast(utility.m_OwnerEntity);
@@ -313,6 +316,8 @@ class BBB_FireManeuver
   job.m_fStarted = now;
   job.m_fFresh = now;
   job.m_fPhaseSince = now;
+  array<int> halves = {};
+  if (leaderTeams) BBB_SquadLeader.Halves(job.m_Members, seen, halves);
   foreach (int index, SCR_AIUtilityComponent member : job.m_Members)
   {
    BBB_Claims.Take(member.m_OwnerEntity, BBB_Claims.FIRE);
@@ -320,6 +325,7 @@ class BBB_FireManeuver
    member.m_CombatMoveState.m_BBBFireOwner = member;
    member.m_iBBBFireTeam = 1;
    if (index < job.m_Members.Count() / 2) member.m_iBBBFireTeam = 0;
+   if (leaderTeams) member.m_iBBBFireTeam = halves[index]; // the leader's halves: left and right of the threat line
    member.m_iBBBFirePhase = -1;
    member.m_iBBBFireArrivedPhase = -1;
    member.m_bBBBFireGeometry = false;
@@ -332,7 +338,7 @@ class BBB_FireManeuver
   }
   s_Jobs.Set(group, job);
   s_iStarted++;
-  PrintFormat("[BBB] FIRE MANEUVER %1: %2 + %3, MG cover=%4", BBB.s_Hooks.NameOf(group), job.m_Members.Count() / 2, job.m_Members.Count() - job.m_Members.Count() / 2, mg != null);
+  PrintFormat("[BBB] FIRE MANEUVER %1: %2 + %3, MG cover=%4, leader's teams=%5", BBB.s_Hooks.NameOf(group), job.m_Members.Count() / 2, job.m_Members.Count() - job.m_Members.Count() / 2, mg != null, leaderTeams);
   BBB_Think.NoteGroup(group, "FireManeuver", "starts fire and manoeuvre");
   return job;
  }

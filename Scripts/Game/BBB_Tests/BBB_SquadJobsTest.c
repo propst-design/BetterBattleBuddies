@@ -18,7 +18,7 @@ class BBB_SquadJobsTest : BBB_AimTest
  static const ResourceName US_MG = "{5B1996C05B1E51A4}Prefabs/Characters/Factions/BLUFOR/US_Army/Character_US_AR.et";
  static const ResourceName WP_DEFEND = "{93291E72AC23930F}Prefabs/AI/Waypoints/AIWaypoint_Defend.et";
  static const int EXPECTED = 7;
- static const float WOUND_TRY_S = 20; // wait this long for the gunner to be some rifleman's nearest squadmate
+ static const float WOUND_TRY_S = 30; // wait this long for the gunner to be some rifleman's nearest squadmate
  static const float ENEMY_M = 150;
  static const float CASUALTY_M = 2;
  static const float SETTLE_S = 14;
@@ -186,16 +186,20 @@ class BBB_SquadJobsTest : BBB_AimTest
    return;
   }
   Stay(m_Enemy, m_vEnemyAt, EAIGroupCombatMode.HOLD_FIRE);
-  Stay(m_Squad, m_vFrom, EAIGroupCombatMode.FIRE_AT_WILL);
+  AIWaypoint held = Stay(m_Squad, m_vFrom, EAIGroupCombatMode.FIRE_AT_WILL);
+  // A tight hold keeps the men bunched (a wide one let them spread 20 m in the settle, so the gunner was
+  // often nobody's nearest squadmate and the scene never came: runs 190643, 191849).
+  if (held) held.SetCompletionRadius(6);
   GetGame().GetCallqueue().CallLater(Wound, SETTLE_S * 1000);
  }
 
- protected void Stay(SCR_AIGroup group, vector at, EAIGroupCombatMode mode)
+ protected AIWaypoint Stay(SCR_AIGroup group, vector at, EAIGroupCombatMode mode)
  {
   group.ActivateAI();
   group.GetGroupUtilityComponent().SetCombatMode(mode);
   AIWaypoint stay = AIWaypoint.Cast(Spawn(WP_DEFEND, at, "0 0 1"));
   if (stay) group.AddWaypoint(stay);
+  return stay;
  }
 
  protected SCR_AIUtilityComponent UtilityOf(IEntity man)

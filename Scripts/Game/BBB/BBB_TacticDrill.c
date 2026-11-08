@@ -39,14 +39,50 @@ class BBB_TacticDrill
   members.Clear();
   array<AIAgent> agents = {};
   BBB.s_Hooks.GetMembers(state.m_Group, agents);
+  // The squad leader's teams (BBB_SquadLeader, stage 4): his second team keeps its sector, and the
+  // halves are his (left and right of the threat line) instead of every other man.
+  bool leaderTeams = BBB_SquadLeader.RunsTeams(state.m_Group);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;
    ChimeraCharacter man = ChimeraCharacter.Cast(agent.GetControlledEntity());
    if (!man || !BBB.IsConscious(man) || BBB.PlayerOf(man) || man.IsInVehicle()) continue;
+   if (leaderTeams && BBB_SquadLeader.OnSecond(state.m_Group, agent)) continue;
    SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
    if (utility) members.Insert(utility);
   }
+  vector threat = state.m_vLastThreat;
+  if (!leaderTeams || threat.LengthSq() <= 0)
+  {
+   foreach (SCR_AIUtilityComponent plain : members) plain.m_iBBBDrillHalf = -1;
+   return;
+  }
+  // Halves drawn once and kept (a man crossing the line mid-drill doesn't change half); drawn again
+  // when someone has none, a half has emptied (casualties) or they are a minute old.
+  float now = GetGame().GetWorld().GetWorldTime() / 1000;
+  bool keep = true;
+  int inHalf0;
+  foreach (SCR_AIUtilityComponent member : members)
+  {
+   if (member.m_iBBBDrillHalf < 0 || now - member.m_fBBBDrillHalfAt > 60) keep = false;
+   if (member.m_iBBBDrillHalf == 0) inHalf0++;
+  }
+  if (members.Count() >= 2 && (inHalf0 == 0 || inHalf0 == members.Count())) keep = false;
+  if (keep) return;
+  array<int> halves = {};
+  BBB_SquadLeader.Halves(members, threat, halves);
+  foreach (int i, SCR_AIUtilityComponent drawn : members)
+  {
+   drawn.m_iBBBDrillHalf = halves[i];
+   drawn.m_fBBBDrillHalfAt = now;
+  }
+ }
+
+ // Which half he is in: the leader's, else every other man.
+ static int Half(int index, SCR_AIUtilityComponent utility)
+ {
+  if (utility.m_iBBBDrillHalf >= 0) return utility.m_iBBBDrillHalf;
+  return index % 2;
  }
 
  // Every 15 s the halves swap.
@@ -66,7 +102,7 @@ class BBB_TacticDrill
   if (s_aNoFire.Contains(state.m_Group)) hasReport = false;
   foreach (int i, SCR_AIUtilityComponent utility : members)
   {
-   bool firing = i % 2 == state.m_iFireHalf;
+   bool firing = Half(i, utility) == state.m_iFireHalf;
    utility.m_bBBBFiringHalf = firing;
    if (!firing || !hasReport || now < utility.m_fBBBCoverOrderUntil || Running(utility.m_BBBWithdrawRun)) continue;
    if (!utility.m_CombatComponent || utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE || BBB_OrderIntent.Held(utility)) continue;
@@ -183,7 +219,7 @@ class BBB_TacticDrill
   {
    float left = vector.DistanceXZ(utility.m_OwnerEntity.GetOrigin(), state.m_vFlankPoint);
    if (left > ARRIVE_M) allThere = false;
-   if (i % 2 == state.m_iFireHalf) continue;
+   if (Half(i, utility) == state.m_iFireHalf) continue;
    if (left <= ARRIVE_M) continue;
    if (Running(utility.m_BBBWithdrawRun)) { moversBusy = true; BBB_Claims.Take(utility.m_OwnerEntity, BBB_Claims.FIRE); continue; }
    if (!BBB_Claims.Take(utility.m_OwnerEntity, BBB_Claims.FIRE)) continue;
@@ -273,7 +309,7 @@ class BBB_TacticDrill
   }
   foreach (int i, SCR_AIUtilityComponent utility : members)
   {
-   bool looking = i % 2 != state.m_iFireHalf;
+   bool looking = Half(i, utility) != state.m_iFireHalf;
    utility.BBBSetTacticHold(!looking, state.m_Group); // the watching half stays put
    if (!looking || HasLook(state, utility)) continue;
    SCR_AIMoveAndInvestigateBehavior look = new SCR_AIMoveAndInvestigateBehavior(utility, null, target, radius: POINT_M, isDangerous: true, duration: 4);

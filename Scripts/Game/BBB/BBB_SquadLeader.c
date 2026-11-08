@@ -36,6 +36,11 @@
 //     would drop below SECOND_MIN. The nearest of the rest goes; if nobody else can, vanilla's pick
 //     stands (a casualty is never left alone for it). Static guns (BBB_StaticWeapons) skip the AT
 //     gunner with armour about and a short-handed second team.
+//  4. Teams (-bbbSquadTeams, stage 4): fire and manoeuvre (BBB_FireManeuver) and the flank/search drills
+//     (BBB_TacticDrill) take their halves from the leader (Halves) instead of roster order: left and
+//     right of the line to the enemy, so a half that moves is one body of men; a gunner and his
+//     assistant (BBB_Teams) in the same half; the machine gunner's half covers first. During a split
+//     the second team stays out of both: it keeps its sector.
 //  The leader calls a split out (vanilla REPORT_TARGET on the second group).
 // Who: AI squads on foot with vanilla's group perception in contact (its most dangerous cluster),
 // not player-led (AiO's), host intent not NONE; per man: AI, conscious, on foot, not on a player or
@@ -71,6 +76,8 @@ class BBB_SquadLeader
  static bool s_bCue;
  static bool s_bFire;
  static bool s_bJobs;
+ static bool s_bTeams;
+ static int s_iHalves; // halves drawn by the leader (tests and the log)
  static const int JOB_RESCUE = 1;
  static const int JOB_STATIC = 2;
  static const int SECOND_MIN = 2;
@@ -127,7 +134,8 @@ class BBB_SquadLeader
   s_bCue = !(BBB_Settings.Get("bbbSquadCue", value) && value == "0");
   s_bFire = !(BBB_Settings.Get("bbbSquadFire", value) && value == "0");
   s_bJobs = !(BBB_Settings.Get("bbbSquadJobs", value) && value == "0");
-  PrintFormat("[BBB] SQUAD LEADER cue=%1 fire=%2 jobs=%3", s_bCue, s_bFire, s_bJobs);
+  s_bTeams = !(BBB_Settings.Get("bbbSquadTeams", value) && value == "0");
+  PrintFormat("[BBB] SQUAD LEADER cue=%1 fire=%2 jobs=%3 teams=%4", s_bCue, s_bFire, s_bJobs, s_bTeams);
  }
 
  static void Stop()
@@ -142,7 +150,7 @@ class BBB_SquadLeader
  static void Tick()
  {
   Read();
-  if ((!s_bCue && !s_bFire && !s_bJobs) || !BBB.s_Hooks || !s_mOrders) return;
+  if ((!s_bCue && !s_bFire && !s_bJobs && !s_bTeams) || !BBB.s_Hooks || !s_mOrders) return;
   float now = Now();
   s_aGroups.Clear();
   BBB.s_Hooks.GetGroups(s_aGroups);
@@ -192,9 +200,10 @@ class BBB_SquadLeader
   if (!picture || !picture.m_bHasCentre || picture.m_iConscious < MIN_SQUAD) return;
   Groups(orders, picture, now);
   if (!orders.m_Main) return;
-  if (!s_bCue && !s_bFire) return; // jobs only: the picture is enough
+  // No split without -bbbSquadFire (cleared first, so a split can't outlive the switch: OnSecond reads it).
+  if (!s_bFire) orders.m_bSplit = false;
+  if (!s_bCue && !s_bFire) return; // jobs or teams only: the picture is enough
   if (s_bFire) Split(orders, picture, now);
-  else orders.m_bSplit = false;
 
   s_aAgents.Clear();
   BBB.s_Hooks.GetMembers(group, s_aAgents);
@@ -564,6 +573,79 @@ class BBB_SquadLeader
   return any;
  }
 
+ // ------------------------------------------------------------------ teams (stage 4)
+
+ // Does the leader draw this squad's halves (a squad he runs: in contact, 2+ men)?
+ static bool RunsTeams(SCR_AIGroup group)
+ {
+  Read();
+  if (!s_bTeams || !s_mOrders || !group) return false;
+  BBB_SquadOrders orders = s_mOrders.Get(group);
+  return orders && orders.m_Main;
+ }
+
+ // Two halves for a bound or a drill: 0 or 1 per member, in members' order. Left and right of the line
+ // from the men's centre to the threat (so each half is one body of men), a gunner and his assistant
+ // in the same half, the machine gunner's half 0 (bounds and drills start with half 0 covering).
+ static void Halves(notnull array<SCR_AIUtilityComponent> members, vector threat, notnull array<int> outHalf)
+ {
+  outHalf.Clear();
+  int count = members.Count();
+  if (count == 0) return;
+  vector centre;
+  foreach (SCR_AIUtilityComponent member : members) centre = centre + member.m_OwnerEntity.GetOrigin();
+  centre = centre * (1.0 / count);
+  vector ahead = threat - centre;
+  ahead[1] = 0;
+  if (ahead.LengthSq() < 1) ahead = "0 0 1";
+  ahead.Normalize();
+  vector right = Vector(ahead[2], 0, -ahead[0]);
+  array<float> side = {};
+  foreach (SCR_AIUtilityComponent man : members)
+  {
+   side.Insert(vector.Dot(man.m_OwnerEntity.GetOrigin() - centre, right));
+   outHalf.Insert(1);
+  }
+  // The left half: the count / 2 men furthest left.
+  array<bool> taken = {};
+  foreach (float unused : side) taken.Insert(false);
+  for (int k = 0; k < count / 2; k++)
+  {
+   int leftmost = -1;
+   for (int i = 0; i < count; i++)
+    if (!taken[i] && (leftmost < 0 || side[i] < side[leftmost])) leftmost = i;
+   taken[leftmost] = true;
+   outHalf[leftmost] = 0;
+  }
+  // A gunner and his assistant together: the assistant joins his gunner's half, and the man of that
+  // half nearest the dividing line (not in a pair) takes the assistant's place.
+  for (int a = 0; a < count; a++)
+  {
+   BBB_Pair pair = BBB_Teams.PairOf(members[a].m_OwnerEntity);
+   if (!pair || pair.m_Assistant != members[a].m_OwnerEntity) continue;
+   int gunner = -1;
+   for (int g = 0; g < count; g++)
+    if (members[g].m_OwnerEntity == pair.m_Gunner) gunner = g;
+   if (gunner < 0 || outHalf[gunner] == outHalf[a]) continue;
+   int swap = -1;
+   for (int s = 0; s < count; s++)
+   {
+    if (outHalf[s] != outHalf[gunner] || s == gunner || BBB_Teams.PairOf(members[s].m_OwnerEntity)) continue;
+    if (swap < 0 || Math.AbsFloat(side[s]) < Math.AbsFloat(side[swap])) swap = s;
+   }
+   if (swap >= 0) outHalf[swap] = outHalf[a];
+   outHalf[a] = outHalf[gunner];
+  }
+  // The machine gunner's half covers first.
+  for (int m = 0; m < count; m++)
+  {
+   if (!MachineGunner(members[m]) || outHalf[m] == 0) continue;
+   for (int f = 0; f < count; f++) outHalf[f] = 1 - outHalf[f];
+   break;
+  }
+  s_iHalves++;
+ }
+
  static bool UnderFire(SCR_AIUtilityComponent utility)
  {
   return utility && utility.m_ThreatSystem && utility.m_ThreatSystem.GetSuppressionMeasure() >= UNDER_FIRE;
@@ -641,6 +723,8 @@ class BBB_SquadLeader
 
 modded class SCR_AIUtilityComponent
 {
+ int m_iBBBDrillHalf = -1; // the half BBB_TacticDrill gives him (BBB_SquadLeader.Halves), -1: roster order
+ float m_fBBBDrillHalfAt;  // world s it was drawn
  float m_fBBBCueNext; // world s the squad leader may cue his look again
  float m_fBBBLayNext; // world s the squad leader may send a burst onto his group again
  float m_fBBBSectorUntil;   // HoldsBack cache

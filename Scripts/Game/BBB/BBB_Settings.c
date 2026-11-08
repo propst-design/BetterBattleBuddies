@@ -317,6 +317,7 @@ class BBB_Settings
   On(g, "bbbSquadCue", "Leader points out the enemy", "A man who hasn't spotted the enemy his squad is fighting is told where it is and looks there.");
   On(g, "bbbSquadFire", "Leader splits the fire", "The squad leader puts the squad's fire on the most dangerous group and, when a second group comes from another side, sends a fireteam's fire onto it; machine gunners stay on the main threat.");
   On(g, "bbbSquadJobs", "Leader picks who helps a casualty", "In a fight the machine gunner, the leader, the AT gunner (with enemy armour about) and a short-handed flank team stay on their job; someone else goes to the casualty, or to a static gun.");
+  On(g, "bbbSquadTeams", "Leader draws the bounding teams", "Fire and manoeuvre and the flank and search drills move in the leader's halves: left and right of the line to the enemy, gunner and assistant together, the machine gunner's half covering first; a fireteam on the flank keeps its sector.");
   On(g, "bbbTactic", "Squad plans", "A short pause on first contact, then assault when the odds are fair, or hold and fight from cover when outnumbered, flanked or pinned.");
   On(g, "bbbTacticFlank", "Fix and flank", "A squad held by a dug-in enemy fixes it and sends a team round the side.");
   On(g, "bbbTacticSearch", "Search after losing contact", "A squad that loses contact searches where the enemy was last seen.");
