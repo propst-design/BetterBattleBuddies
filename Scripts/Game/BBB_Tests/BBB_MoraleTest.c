@@ -476,18 +476,35 @@ class BBB_MoraleTest : BBB_AimTest
 	protected void WaitExecution()
 	{
 		m_iWait++;
-		if (BBB.IsAlive(m_Subject) && m_iWait < 80)
+		// Shot down: dead, or downed by the shots (vanilla AI don't finish the unconscious, and
+		// vanilla flags a downed man disarmed again; one ACE run left him unconscious, not dead).
+		bool shot = m_Subject && (!BBB.IsAlive(m_Subject) || (!BBB.IsConscious(m_Subject) && BBB.Health(m_Subject) < 1));
+		if (!shot && m_iWait < 80)
 		{
-			if (m_iWait == 40) LogCaptors(); // 20 s and still alive: is anyone even aiming at him?
+			if (m_iWait == 40) LogCaptors(); // 20 s and still up: is anyone even aiming at him?
 			GetGame().GetCallqueue().CallLater(WaitExecution, 500);
 			return;
 		}
-		if (BBB.IsAlive(m_Subject)) LogCaptors();
-		PrintFormat("[BBB] MORALETEST execution: dead after %1 s", m_iWait * 0.5);
-		Check("executed-prisoner-killed", m_Subject && !BBB.IsAlive(m_Subject));
-		BBB_Morale.s_fRuseRangeM = 40; // the US team stays 30 m off; in play someone walks up
+		if (!shot) LogCaptors();
+		PrintFormat("[BBB] MORALETEST execution: shot down after %1 s (dead %2)", m_iWait * 0.5, m_Subject && !BBB.IsAlive(m_Subject));
+		Check("executed-prisoner-killed", shot);
+		BBB_Morale.s_fRuseRangeM = 40; // the US team stays 20 m off; in play someone walks up
 		BBB_Morale.s_fRuseNerve = 1;
-		BeginNextSubject(Vector(8, 0, 8), BBB_Morale.FATE_RUSE); // ~23 m from the US team's spot (was 37: the 40 m edge once it moves)
+		// 20 m south of where the US team stands now (it moves during the execution; once it ended
+		// up 5 m from a fixed spot, too close for a frag ruse to break, which waits as it should).
+		vector usCentre = m_vOrigin + Vector(0, 0, 30);
+		array<AIAgent> us = {};
+		m_SquadUS.GetAgents(us);
+		vector sum;
+		int counted;
+		foreach (AIAgent agent : us)
+		{
+			if (!agent || !agent.GetControlledEntity()) continue;
+			sum = sum + agent.GetControlledEntity().GetOrigin();
+			counted++;
+		}
+		if (counted > 0) usCentre = sum * (1.0 / counted);
+		BeginNextSubject(usCentre + Vector(0, 0, -20) - m_vOrigin, BBB_Morale.FATE_RUSE);
 	}
 
 	// ---- C: ruse. He keeps a frag (else a pistol) and comes back to life at the nearest enemy.
@@ -540,7 +557,7 @@ class BBB_MoraleTest : BBB_AimTest
 		Faction side = SCR_AIFactionHandling.GetEntityPerceivedFaction(m_Subject);
 		string key = "none";
 		if (side) key = side.GetFactionKey();
-		PrintFormat("[BBB] MORALETEST execution: subject faction %1, disarmed %2, in ACE helper %3, stance %4", key, perceivable && perceivable.IsDisarmed(), BBB_SurrenderPose.AceHelper(m_Subject) != null, m_Subject.GetCharacterController().GetStance());
+		PrintFormat("[BBB] MORALETEST execution: subject faction %1, disarmed %2, in ACE helper %3, stance %4, conscious %5, health %6", key, perceivable && perceivable.IsDisarmed(), BBB_SurrenderPose.AceHelper(m_Subject) != null, m_Subject.GetCharacterController().GetStance(), BBB.IsConscious(m_Subject), BBB.Health(m_Subject));
 		array<AIAgent> us = {};
 		m_SquadUS.GetAgents(us);
 		foreach (AIAgent agent : us)
