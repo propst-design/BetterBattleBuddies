@@ -20,6 +20,8 @@ class BBB_SurrenderPose
 	static const int POSE_KNEEL = 2;             // crouched, halt sign held
 	static const int POSE_STANDING = 3;          // getting up to sit
 	static const int POSE_SIT = 4;               // sitting on the ground (vanilla emote)
+	static const int POSE_ACE_PENDING = 5;       // kneeling while his weapons hit the ground, then ACE
+	static const int ACE_AFTER_MS = 2000;        // the animated weapon drop first: seating him cut it short
 
 	static void Read()
 	{
@@ -62,8 +64,10 @@ class BBB_SurrenderPose
 		return result;
 	}
 
-	// Shows he gives up. Call it before his AI is switched off: ACE seats him through his own
-	// compartment access, and the fallback's stance and gesture are character commands.
+	// Shows he gives up, right after his guns are dropped. He kneels first either way; with ACE he
+	// enters ACE's surrender once the (animated) drop is done: seating him at once cut the drop short
+	// and left the rifle in his hands. ACE seats him through his compartment access, so it works
+	// with BBB's AI switch already off.
 	static void Start(BBB_SurrenderState state)
 	{
 		ChimeraCharacter soldier = state.m_Soldier;
@@ -71,20 +75,40 @@ class BBB_SurrenderPose
 		if (!controller) return;
 		state.m_TrueFaction = SCR_AIFactionHandling.GetEntityPerceivedFaction(soldier);
 		controller.SetWeaponRaised(false);
-		if (UseAce() && AceSet(controller, "ACE_Captives_SetSurrender", true))
+		controller.SelectWeapon(null); // empty hands: a kept pistol stays holstered
+		SCR_AIStanceHandling.SetStance(controller, ECharacterStance.CROUCH);
+		if (UseAce())
+		{
+			state.m_iPose = POSE_ACE_PENDING;
+			GetGame().GetCallqueue().CallLater(EnterAce, ACE_AFTER_MS, false, state);
+			return;
+		}
+		state.m_iPose = POSE_KNEEL;
+		// Once his hands are empty (vanilla emotes wait for the unequip too); held until he sits.
+		GetGame().GetCallqueue().CallLater(RaiseHand, 1500, false, state);
+	}
+
+	// ACE's own surrender (called by name). If ACE refuses, he keeps BBB's kneel and halt sign.
+	static void EnterAce(BBB_SurrenderState state)
+	{
+		if (!state || state.m_iPose != POSE_ACE_PENDING) return; // released or gone meanwhile
+		ChimeraCharacter soldier = state.m_Soldier;
+		if (!BBB.IsConscious(soldier) || !BBB_Morale.IsPrisoner(soldier)) return;
+		CharacterControllerComponent controller = soldier.GetCharacterController();
+		if (controller && AceSet(controller, "ACE_Captives_SetSurrender", true))
 		{
 			state.m_iPose = POSE_ACE;
 			return;
 		}
+		PrintFormat("[BBB] SURRENDER POSE: ACE refused %1, kneeling instead", soldier);
 		state.m_iPose = POSE_KNEEL;
-		controller.SelectWeapon(null); // empty hands: a kept pistol stays holstered
-		SCR_AIStanceHandling.SetStance(controller, ECharacterStance.CROUCH);
-		// Once his hands are empty (vanilla emotes wait for the unequip too); held until he sits.
-		GetGame().GetCallqueue().CallLater(RaiseHand, 1500, false, soldier);
+		RaiseHand(state);
 	}
 
-	static void RaiseHand(ChimeraCharacter soldier)
+	static void RaiseHand(BBB_SurrenderState state)
 	{
+		if (!state || state.m_iPose != POSE_KNEEL) return; // released, sitting or gone meanwhile
+		ChimeraCharacter soldier = state.m_Soldier;
 		if (!BBB.IsConscious(soldier) || !BBB_Morale.IsPrisoner(soldier)) return;
 		CharacterControllerComponent controller = soldier.GetCharacterController();
 		if (controller) controller.TryStartCharacterGesture(GESTURE_HALT, 0); // 0: until StopCharacterGesture
@@ -113,7 +137,6 @@ class BBB_SurrenderPose
 	static void Release(BBB_SurrenderState state)
 	{
 		if (!state.m_Soldier) return;
-		GetGame().GetCallqueue().Remove(RaiseHand);
 		CharacterControllerComponent controller = state.m_Soldier.GetCharacterController();
 		if (!controller) return;
 		if (state.m_iPose == POSE_ACE) AceSet(controller, "ACE_Captives_SetSurrender", false);

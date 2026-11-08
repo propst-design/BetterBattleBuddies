@@ -310,7 +310,9 @@ class BBB_MoraleTest : BBB_AimTest
 
 		PerceivableComponent perceivable = PerceivableComponent.Cast(m_Subject.FindComponent(PerceivableComponent));
 		Check("surrender-disarmed-for-perception", perceivable && perceivable.IsDisarmed());
-		GetGame().GetCallqueue().CallLater(BeginFire, 2500);
+		int poseWait = 2500;
+		if (m_bAce) poseWait = 4500; // ACE's pose starts once the weapon drop is done (2 s), then seats him
+		GetGame().GetCallqueue().CallLater(BeginFire, poseWait);
 	}
 
 	// Control: an armed USSR team 15 m east of him (on hold fire, so it can't kill the US team).

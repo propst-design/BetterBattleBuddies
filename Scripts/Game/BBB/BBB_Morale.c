@@ -1046,7 +1046,7 @@ class BBB_Morale
 		s_Surrendered.Insert(state);
 		s_iSurrenders++;
 		string pose = "kneel";
-		if (state.m_iPose == BBB_SurrenderPose.POSE_ACE) pose = "ACE";
+		if (state.m_iPose == BBB_SurrenderPose.POSE_ACE_PENDING) pose = "ACE (after the drop)";
 		PrintFormat("[BBB] MORALE: %1 surrendered (%2); dropped %3 weapons, fate %4, pose %5", soldier, why, state.m_iWeaponsDropped, FateName(state), pose);
 		BBB_Think.Note(soldier, "Morale", "SURRENDERS: " + why);
 	}
@@ -1152,7 +1152,12 @@ class BBB_Morale
 		IEntity captor = NearestEnemy(ss.m_Soldier, ss.m_TrueFaction, s_fExecuteRangeM, true, distance);
 		if (!captor || !perceivable) return;
 		ss.m_bCondemned = true;
-		BBB_SurrenderPose.RestoreFaction(ss); // ACE made him CIV, whom AI never shoot
+		// ACE made him CIV, whom AI never shoot; and seated in ACE's pose he was not reliably taken as a
+		// target (one test run in two): his captors make him stand, which also ends ACE's surrendered
+		// flag (nobody cuffs a condemned man).
+		bool seated = ss.m_iPose == BBB_SurrenderPose.POSE_ACE;
+		BBB_SurrenderPose.RestoreFaction(ss);
+		if (seated || ss.m_iPose == BBB_SurrenderPose.POSE_ACE_PENDING) BBB_SurrenderPose.Release(ss);
 		perceivable.SetDisarmed(false);
 		PrintFormat("[BBB] MORALE: prisoner %1 is being executed (enemy soldier %2 m away)", ss.m_Soldier, Math.Round(distance));
 		BBB_Think.Note(ss.m_Soldier, "Morale", "EXECUTED by his captors");
@@ -1408,7 +1413,11 @@ class BBB_Morale
 	static void Stop()
 	{
 		// Prisoners have left their squads unarmed: nothing to hand them back to, so they go.
-		if (GetGame()) GetGame().GetCallqueue().Remove(BBB_SurrenderPose.RaiseHand);
+		if (GetGame())
+		{
+			GetGame().GetCallqueue().Remove(BBB_SurrenderPose.RaiseHand);
+			GetGame().GetCallqueue().Remove(BBB_SurrenderPose.EnterAce);
+		}
 		foreach (BBB_SurrenderState ss : s_Surrendered)
 		{
 			if (!ss || !ss.m_Soldier) continue;
