@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.10 — unreleased
+## 0.1.11 — unreleased
+
+## 0.1.10 — released
 
 - The squad leader draws the teams that bound. When a squad moves by fire and manoeuvre or flanks, its halves used to be every other man on the roster, and the fireteam the leader had just sent to watch a second enemy group got pulled into the bounds and walked off its sector. Now the leader splits the squad into the left and right halves of the line to the enemy, keeps a gunner and his assistant together, has the machine gunner's half cover first, and leaves the fireteam on the flank out of the bounds so it keeps watching. In five test runs the flank team's men spent 12 to 68 man-seconds bounding with the main body without this, and none with it. Option: `-bbbSquadTeams 0` (or the Battle Buddies settings tab, Squad tactics).
 - The squad leader picks who goes to a casualty. The game sends the nearest man with a bandage, so a squad's machine gunner would leave his gun mid-fight to patch up the rifleman lying next to him. Now, in a fight, the leader keeps the machine gunner, himself, the AT gunner (while enemy armour is about) and a short-handed flank team on their jobs, and the nearest of the rest goes; if nobody else can, the nearest man still goes, so nobody is left lying. The same men aren't pulled away to crew a static gun. In a test where a rifleman went down next to the machine gunner, the gunner went to him without the leader and a rifleman went with him, and help reached the casualty both times. Option: `-bbbSquadJobs 0` (or the Battle Buddies settings tab, Squad tactics).
