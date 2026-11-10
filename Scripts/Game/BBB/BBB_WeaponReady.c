@@ -40,6 +40,8 @@ class BBB_WeaponReady
 		if (soldier.IsInVehicle() || controller.GetCurrentItemInHands() || controller.IsChangingItem() || controller.IsGadgetInHands() || controller.IsReloading() || controller.GetDisableWeaponControls()) return;
 		if (controller.IsClimbing() || controller.IsSwimming()) return;
 		if (BBB.PlayerOf(soldier)) return;
+		// A dragger's drag move is an SCR_AIMoveIndividuallyBehavior, but drawing makes ACE drop his casualty.
+		if (BBB_Drag.Busy(soldier)) return;
 		SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
 		if (!utility || !utility.IsMilitary() || !utility.m_AIInfo || !utility.m_CombatComponent) return;
 		if (utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || utility.m_AIInfo.HasUnitState(EUnitState.IN_TURRET) || utility.m_AIInfo.HasUnitState(EUnitState.PILOT)) return;
