@@ -1,13 +1,15 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
  [string]$ExtraArgs = '',
  # Folder holding RHS: Status Quo and its content packs (preset launcherinfrhs); searched if empty.
- [string]$RhsAddonsDir
+ [string]$RhsAddonsDir,
+ # Folder holding ACE Core and ACE Captives (preset moraleace); searched if empty.
+ [string]$AceAddonsDir
 )
 $ErrorActionPreference = 'Stop'
 if (!$AddonRoot) { $AddonRoot = Split-Path $PSScriptRoot -Parent }
@@ -61,7 +63,7 @@ $profile = Join-Path $root ('.local-testserver/' + $id)
 $resultDir = Join-Path $root '.bbb-results'
 New-Item -ItemType Directory -Path $profile,$resultDir -Force | Out-Null
 $flags = @{ vanilla = '-bbbVanillaTest 1'; rearm = '-bbbRearmTest 1'; seatdiag = '-bbbSeatDiag 1 -bbbTurretTrace 1'; seatfire = '-bbbSeatDiag 1 -bbbTurretTrace 1 -bbbSeatDiagFireOnly 1'; seatidle = '-bbbSeatDiag 1 -bbbTurretTrace 1 -bbbSeatDiagIdleOnly 1'; look = '-acrBbbLookTest 1'; firemaneuverperf = '-acrBbbFireManeuverPerfTest 1'; morale = '-bbbMoraleTest 1 -bbbPerf 1'; smoke = '-bbbSmokeTest 1 -bbbPerf 1'; staticweapons = '-bbbStaticWeaponsTest 1 -bbbPerf 1'; grenades = '-bbbGrenadeTest 1 -bbbPerf 1'; featureaudit = '-bbbFeatureAuditTest 1 -bbbPerf 1'; reactions = '-bbbReactionTest 1 -bbbPerf 1'; compile = '' }
-$timeouts = @{ vanilla = 100; rearm = 65; seatdiag = 330; seatfire = 150; seatidle = 150; look = 90; firemaneuverperf = 160; morale = 120; smoke = 120; staticweapons = 120; grenades = 120; featureaudit = 200; reactions = 160; compile = 45 }
+$timeouts = @{ vanilla = 100; rearm = 65; seatdiag = 330; seatfire = 150; seatidle = 150; look = 90; firemaneuverperf = 160; morale = 180; smoke = 120; staticweapons = 120; grenades = 120; featureaudit = 200; reactions = 160; compile = 45 }
 $sourceSnapshot = Join-Path $resultDir ($id + '.source.json')
 $sourceFiles = @('Scripts','Configs/BBB','Prefabs/BBB','Prefabs/BBB_Tests') | ForEach-Object {
  $sourcePath = Join-Path $AddonRoot $_
@@ -147,6 +149,8 @@ $timeouts.squadleader = 200
 $flags.squadjobs = '-bbbSquadJobsTest 1 -bbbPerf 1'
 $timeouts.squadjobs = 200
 $flags.squadteams = '-bbbSquadTeamsTest 1 -bbbPerf 1'
+$flags.moraleace = '-bbbMoraleTest 1 -bbbMoraleAce 1 -bbbPerf 1'
+$timeouts.moraleace = 180
 $timeouts.squadteams = 230
 $world ='{AC230926A00100E0}Worlds/BBB_TestArland.ent'
 if ($Preset -eq 'compile') { $world = '{77C41EA429B6AC35}worlds/GameMaster/GM_Arland.ent' }
@@ -161,6 +165,17 @@ if ($Preset -eq 'launcherinfrhs') {
  if (!$RhsAddonsDir) { throw 'RHS: Status Quo not found; supply -RhsAddonsDir.' }
  if ($RhsAddonsDir -ne $addonsDir) { $addonsDir += ',' + $RhsAddonsDir }
  $addons += ',595F2BF2F44836FB,1337C0DE5DABBEEF,BADC0DEDABBEDA5E'
+}
+if ($Preset -eq 'moraleace') {
+ # The only preset that loads another mod's surrender: ACE Core + ACE Captives (GPL, never shipped with BBB).
+ if (!$AceAddonsDir) {
+  foreach ($candidate in @($addonsDir, (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games/ArmaReforger/addons'), 'E:\ArmaReforgerMods\addons')) {
+   if ($candidate -and (Test-Path -LiteralPath $candidate) -and (Get-ChildItem -LiteralPath $candidate -Directory -Filter 'ACECaptives_*' -ErrorAction SilentlyContinue)) { $AceAddonsDir = $candidate; break }
+  }
+ }
+ if (!$AceAddonsDir) { throw 'ACE Captives not found; supply -AceAddonsDir.' }
+ if ($AceAddonsDir -ne $addonsDir) { $addonsDir += ',' + $AceAddonsDir }
+ $addons += ',60C4CE4888FF4621,646D52AF8BB3FF15'
 }
 $argsLine = '-server "' + $world + '" -addonsDir "' + $addonsDir + '" -addons ' + $addons + ' -profile "' + $profile + '" -maxFPS 60 -noBackend ' + $flags[$Preset] + ' ' + $ExtraArgs
 $process = Start-Process -FilePath $ServerPath -ArgumentList $argsLine -WorkingDirectory (Split-Path $ServerPath -Parent) -WindowStyle Hidden -PassThru

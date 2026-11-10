@@ -145,7 +145,7 @@ class BBB_Squad
    utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
    foreach (BaseTarget target : targets)
    {
-    if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY) continue;
+    if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY || target.IsDisarmed()) continue;
     float age = target.GetTimeSinceDetected();
     if (age < 0 || age > MEMORY_S) continue;
     IEntity enemy = target.GetTargetEntity();
@@ -174,7 +174,8 @@ class BBB_Squad
   }
   foreach (BBB_SquadContact kept : before)
   {
-   if (!kept.m_Enemy || byEnemy.Contains(kept.m_Enemy) || !BBB.StillFighting(kept.m_Enemy)) continue;
+   // A man remembered from before he went down or gave up is no longer a contact.
+   if (!kept.m_Enemy || byEnemy.Contains(kept.m_Enemy) || !BBB.StillFighting(kept.m_Enemy) || BBB.Disarmed(kept.m_Enemy)) continue;
    kept.m_fAge = kept.m_fAge + since;
    kept.m_bShooting = false; // nobody perceives him now
    if (kept.m_fAge > MEMORY_S) continue;

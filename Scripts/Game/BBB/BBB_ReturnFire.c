@@ -121,7 +121,7 @@ class BBB_ReturnFire
 		utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
 		foreach (BaseTarget target : targets)
 		{
-			if (!target || target.GetTimeSinceSeen() > SEEN_S) continue;
+			if (!target || target.IsDisarmed() || target.GetTimeSinceSeen() > SEEN_S) continue;
 			if (vector.DistanceXZ(target.GetLastSeenPosition(), from) < SEEN_M) return true;
 		}
 		return false;

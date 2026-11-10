@@ -41,6 +41,9 @@ class BBB_Hooks : Managed
  bool AllowRelaxedMarch(SCR_AIGroup group) { return true; }
  // Host orders or commander retreats may handle morale for this group.
  bool AllowMorale(SCR_AIGroup group) { return true; }
+ // A cornered, cut-off soldier of this group may surrender (BBB_Morale). Separate from
+ // AllowMorale: a host that runs its own squad retreats can still let men give up.
+ bool AllowSurrender(SCR_AIGroup group) { return true; }
  // Host tactical doctrines may veto autonomous tactical smoke.
  bool AllowSmoke(SCR_AIGroup group) { return true; }
  // Host tactical doctrines may veto static weapon crewing.
@@ -301,6 +304,15 @@ class BBB
   if (!entity) return false;
   if (ChimeraCharacter.Cast(entity)) return IsAlive(entity);
   return Health(entity) > 0;
+ }
+
+ // The engine's "disarmed" flag: set for the unconscious and for a man who surrendered
+ // (BBB_Morale). Vanilla AI stops engaging such a target; BBB's own pictures skip it too.
+ static bool Disarmed(IEntity entity)
+ {
+  if (!entity) return false;
+  PerceivableComponent perceivable = PerceivableComponent.Cast(entity.FindComponent(PerceivableComponent));
+  return perceivable && perceivable.IsDisarmed();
  }
 
  // Alive and awake: a downed soldier can't lead, walk or regroup.
