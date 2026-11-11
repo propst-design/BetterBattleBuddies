@@ -138,6 +138,8 @@ class BBB_RearmWeaponTest
   // Rearm has seen all three armed (it remembers each man's gun on its rounds).
   bool seen = !BBB_Rearm.LostPrimary(m_ManA) && !BBB_Rearm.LostPrimary(m_ManB) && !BBB_Rearm.LostPrimary(m_ManC);
   Check("seen-armed", seen && BBB_Rearm.LastPrimary(m_ManA) == BBB_Rearm.PrimaryOf(m_ManA));
+  // Recovery paused until the rifle lies 6 m off: else he grabs it back at his feet first.
+  BBB_Rearm.s_bWeaponOn = false;
   m_Dropped = Drop(m_ManA);
   m_Wait = 0;
   GetGame().GetCallqueue().CallLater(PlaceDropped, 1000, true);
@@ -151,12 +153,13 @@ class BBB_RearmWeaponTest
   GetGame().GetCallqueue().Remove(PlaceDropped);
   bool dropped = Loose(m_Dropped) && !BBB_Rearm.PrimaryOf(m_ManA);
   Check("a-dropped", dropped, "loose=" + Loose(m_Dropped));
-  if (!dropped) { CaseB(); return; }
+  if (!dropped) { BBB_Rearm.s_bWeaponOn = true; CaseB(); return; }
   vector away = BBB.Ground(m_ManA.GetOrigin() + Vector(6, 0, 0));
   m_Dropped.SetOrigin(away + Vector(0, 0.15, 0));
   m_Dropped.Update();
   Physics physics = m_Dropped.GetPhysics();
   if (physics) physics.SetVelocity(vector.Zero);
+  BBB_Rearm.s_bWeaponOn = true;
   m_vStart = m_ManA.GetOrigin();
   m_fMoved = 0;
   m_Wait = 0;
