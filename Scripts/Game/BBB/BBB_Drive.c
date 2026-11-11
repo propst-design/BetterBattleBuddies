@@ -738,7 +738,8 @@ class BBB_Drive : Managed
  // Bushes, and gates the vehicle can go through.
  protected bool Passable(IEntity hit, string prefab)
  {
-  if (prefab.Contains("/Vegetation/Bush/") || prefab.Contains("/Vegetation/Clutter/")) return true;
+  // Arland's bushes are under Vegetation/Bush/, Everon's under Vegetation/Bushes/ (11 Nov).
+  if (prefab.Contains("/Vegetation/Bush") || prefab.Contains("/Vegetation/Clutter/")) return true;
   IEntity e = hit;
   for (int up = 0; up < 3 && e; up++)
   {
