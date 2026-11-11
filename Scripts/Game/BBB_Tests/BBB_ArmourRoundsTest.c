@@ -24,6 +24,7 @@ class BBB_ArmourRoundsTest : BBB_AimTest
  protected float m_fHealthStart;
  protected int m_iChecks;
  protected int m_iFailures;
+ static const int EXPECTED = 8; // apds 3, m72 3, ball 2
 
  static void Start()
  {
@@ -162,8 +163,8 @@ class BBB_ArmourRoundsTest : BBB_AimTest
  {
   if (m_Btr) SCR_EntityHelper.DeleteEntityAndChildren(m_Btr);
   string verdict = "PASS";
-  if (m_iFailures > 0 || m_iChecks < 8) verdict = "FAIL";
-  PrintFormat("[ACR] VERDICT %1 test=bbb-armourrounds checks=%2 failed=%3", verdict, m_iChecks, m_iFailures);
+  if (m_iFailures > 0 || m_iChecks != EXPECTED) verdict = "FAIL";
+  PrintFormat("[ACR] VERDICT %1 test=bbb-armourrounds checks=%2 failed=%3 expected=%4", verdict, m_iChecks, m_iFailures, EXPECTED);
   Print("[ACR] TEST COMPLETE");
  }
 }

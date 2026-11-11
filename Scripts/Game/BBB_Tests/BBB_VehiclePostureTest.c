@@ -458,10 +458,14 @@ class BBB_VehiclePostureTest : BBB_AimTest
   if (m_Vehicle) SCR_EntityHelper.DeleteEntityAndChildren(m_Vehicle);
   if (m_Move) SCR_EntityHelper.DeleteEntityAndChildren(m_Move);
   string verdict = "FAIL";
-  if (m_iFailures == 0 && m_iChecks >= 8) verdict = "PASS";
+  // Checks a full run makes: turnout 19, alignment 22, alignment run to completion 19.
+  int expected = 22;
+  if (m_bTurnout) expected = 19;
+  else if (m_bCompletion) expected = 19;
+  if (m_iFailures == 0 && m_iChecks == expected) verdict = "PASS";
   string label = "driveralign";
   if (m_bTurnout) label = "crewturnout";
-  PrintFormat("[ACR] VERDICT %1 test=%2 checks=%3 failed=%4", verdict, label, m_iChecks, m_iFailures);
+  PrintFormat("[ACR] VERDICT %1 test=%2 checks=%3 failed=%4 expected=%5", verdict, label, m_iChecks, m_iFailures, expected);
   Print("[ACR] TEST COMPLETE");
  }
 }

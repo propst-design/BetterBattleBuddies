@@ -35,10 +35,17 @@ class BBB_VanillaTest
  static void FinishRearmOnly(IEntity spawned)
  {
   SCR_AIGroup group = SCR_AIGroup.Cast(spawned);
-  bool ok = BBB.IsStarted() && BBB_VanillaHooks.Cast(BBB.s_Hooks) && TestRearm(group);
+  // Three conditions, each counted (the rearm itself only runs once BBB started with its own hooks).
+  bool started = BBB.IsStarted();
+  bool hooks = BBB_VanillaHooks.Cast(BBB.s_Hooks) != null;
+  bool rearmed = started && hooks && TestRearm(group);
+  int passed;
+  if (started) passed++;
+  if (hooks) passed++;
+  if (rearmed) passed++;
   string verdict = "FAIL";
-  if (ok) verdict = "PASS";
-  PrintFormat("[ACR] VERDICT %1 test=bbbrearm", verdict);
+  if (passed == 3) verdict = "PASS";
+  PrintFormat("[ACR] VERDICT %1 test=bbbrearm passed=%2 failed=%3 expected=3 started=%4 hooks=%5 rearmed=%6", verdict, passed, 3 - passed, started, hooks, rearmed);
   if (spawned) SCR_EntityHelper.DeleteEntityAndChildren(spawned);
   Print("[ACR] TEST COMPLETE");
  }
@@ -863,10 +870,20 @@ class BBB_VanillaTest
   PrintFormat("[BBB] TURRET regression ok=%1 setup=%2 ammo=%3 emptyPromote=%4 downReplace=%5", turretOK, s_bSetupOK, s_bAmmoOK, s_bPromote1OK, downReplaceOK);
 
   bool found = mine != null;
+  // The run's twelve conditions, each counted; the names of any that failed are logged.
+  array<bool> conditions = {BBB.IsStarted(), BBB_VanillaHooks.Cast(BBB.s_Hooks) != null, found, s_iFramesCounted > 30, s_bSelectorOK, s_bThreatOK, s_bExposedFireOK, s_bTrueCoverOK, turretOK, s_bAntiArmorOK, s_bRearmOK, anchorOK};
+  array<string> names = {"started", "hooks", "found", "frames", "selector", "threat", "exposed-fire", "true-cover", "turret", "anti-armour", "rearm", "anchor"};
+  int passed;
+  string failedNames = "";
+  foreach (int c, bool condition : conditions)
+  {
+   if (condition) passed++;
+   else failedNames += " " + names[c];
+  }
   string verdict = "FAIL";
-  if (BBB.IsStarted() && BBB_VanillaHooks.Cast(BBB.s_Hooks) && found && s_iFramesCounted > 30 && s_bSelectorOK && s_bThreatOK && s_bExposedFireOK && s_bTrueCoverOK && turretOK && s_bAntiArmorOK && s_bRearmOK && anchorOK) verdict = "PASS";
-  PrintFormat("[BBB] VANILLATEST %1", verdict);
-  PrintFormat("[ACR] VERDICT %1 test=bbbvanilla started=%2 found=%3 frames=%4", verdict, BBB.IsStarted(), found, s_iFramesCounted);
+  if (passed == conditions.Count()) verdict = "PASS";
+  PrintFormat("[BBB] VANILLATEST %1%2", verdict, failedNames);
+  PrintFormat("[ACR] VERDICT %1 test=bbbvanilla started=%2 found=%3 frames=%4 passed=%5 failed=%6 expected=%7", verdict, BBB.IsStarted(), found, s_iFramesCounted, passed, conditions.Count() - passed, conditions.Count());
   if (s_SpawnedTruck) SCR_EntityHelper.DeleteEntityAndChildren(s_SpawnedTruck);
   if (s_SpawnedGroup) SCR_EntityHelper.DeleteEntityAndChildren(s_SpawnedGroup);
   if (s_AnchorGroup) SCR_EntityHelper.DeleteEntityAndChildren(s_AnchorGroup);

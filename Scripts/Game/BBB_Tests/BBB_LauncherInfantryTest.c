@@ -651,9 +651,13 @@ class BBB_LauncherInfantryTest : BBB_AimTest
   PrintFormat("[BBB] LAUNCHTEST BBB on infantry=%1 swap=%2 combatLoad=%3: picks %4, rockets fired %5 (anti-personnel %6), swaps %7, armour swaps %8, unloaded %9", BBB_LauncherUse.s_bOn, BBB_LauncherUse.s_bSwap, BBB_LauncherUse.s_bCombatLoad, BBB_LauncherUse.s_iPicked, BBB_LauncherUse.s_iFired, BBB_LauncherUse.s_iFiredAP, BBB_LauncherUse.s_iSwapped, BBB_LauncherUse.s_iArmourSwaps, BBB_LauncherUse.s_iUnloaded);
   PrintFormat("[BBB] LAUNCHTEST dugIn=%1: picks for a man dug in %2", BBB_LauncherUse.s_bDugIn, BBB_LauncherUse.s_iDugIn);
   if (s_bRhs) Assert("rhs-cases-ran", m_iRhsRun == 5, string.Format("%1 of 5", m_iRhsRun));
+  // Checks a full run makes with default settings: the 3 vanilla cases 11 (4 + 4 + 3); with RHS
+  // required, its 5 cases add 18 (3 + 5 + 3 + 2 + 5) and rhs-cases-ran 1.
+  int expected = 11;
+  if (s_bRhs) expected = 30;
   string verdict = "PASS";
-  if (m_iFailures > 0 || m_iChecks < 5) verdict = "FAIL";
-  PrintFormat("[ACR] VERDICT %1 test=bbb-launcherinfantry checks=%2 failed=%3", verdict, m_iChecks, m_iFailures);
+  if (m_iFailures > 0 || m_iChecks != expected) verdict = "FAIL";
+  PrintFormat("[ACR] VERDICT %1 test=bbb-launcherinfantry checks=%2 failed=%3 expected=%4", verdict, m_iChecks, m_iFailures, expected);
   Print("[ACR] TEST COMPLETE");
  }
 }
