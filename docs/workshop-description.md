@@ -20,7 +20,7 @@ LOOK AFTER EACH OTHER
 - Medics and teammates throw smoke before approaching exposed casualties. Medics fight nearby visible enemies first and limit backtracking during a firefight.
 - Keep spotting and fighting when pinned in the open; keep heads down when cover is available. Elevated and flanking fire, ambushes and explosions affect suppression.
 - Get low as nearby blasts arrive. Against recently seen armour, riflemen reduce their profile while AT specialists retain their firing stance.
-- Fetch magazines from friendly casualties when out, even mid-fight; scavenge launchers and rockets when short. One job per soldier at a time.
+- Fetch magazines from friendly casualties when out, even mid-fight; scavenge launchers and rockets when short. A soldier who loses his rifle goes back for it, or takes one from a body or the ground. One job per soldier at a time.
 - Follow an awake squad member when the leader is knocked out. Open a house door fully, or flip it to the other side, when it blocks movement.
 
 KEEP THE VEHICLE WORKING

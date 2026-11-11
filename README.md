@@ -51,7 +51,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full version history.
 - **Explosions with a beat of distance.** Foot soldiers hit the dirt as the blast wave reaches them using a 343 m/s acoustic delay: prone close in, crouched farther out.
 - **Keep the vehicle fighting.** Available AI squadmates autonomously replace empty or incapacitated turret gunners on operational armed vehicles.
 - **Get low against heavy armor.** Soldiers caught without anti-armor weapons adopt low stances (crouch out to 450 m, prone within 120 m) to minimize profile when facing armored vehicles, while rocket specialists hold position to engage.
-- **Opportunistic combat rearming.** Soldiers running critically low on ammunition or lacking AT scavenge compatible magazines and rocket launchers from nearby casualties, retrying routes if interrupted.
+- **Opportunistic combat rearming.** Soldiers running critically low on ammunition or lacking AT scavenge compatible magazines and rocket launchers from nearby casualties, retrying routes if interrupted. A soldier who has lost his primary weapon goes back for his own if it is nearby, otherwise takes the nearest usable rifle or machine gun from a body or the ground; with none to be had he is kept out of bounds and building moves.
 - **Specialist teams.** Machine gunners and AT gunners keep the assistant who carries their ammunition close; he hands ammunition across before the gun runs dry and takes up the launcher if the gunner falls (`-bbbSpecialistTeams 0` turns it off).
 - **Squad plans.** A squad pauses on first contact, then assaults when the odds are fair or holds and fights from cover when outnumbered, flanked or pinned; a squad held by a dug-in enemy fixes it and sends a team round the side, and one that loses contact searches where the enemy was last seen.
 - **Cover that faces the enemy.** A soldier only counts as in cover when the cover is between him and the enemy; one caught on an open road in a firefight moves off it, and a gunner on a dry static gun gets off and fights on foot.
@@ -127,6 +127,7 @@ server owners reach for most, each turning its feature off with `0`:
 | `-bbbThreat 0` | All of BBB's suppression changes (vanilla suppression) |
 | `-bbbExplosionReflex 0` | Hitting the dirt as a blast wave arrives |
 | `-bbbRearm 0` | Rearming from fallen friendlies |
+| `-bbbRearmWeapon 0` | Soldiers who lost their weapon picking one up |
 | `-bbbSpecialistTeams 0` | Gunner and ammo-bearer teams |
 | `-bbbDrag 0` | Dragging casualties to cover |
 | `-bbbGunnerReplace 0` | Squadmates taking over an empty gunner seat |

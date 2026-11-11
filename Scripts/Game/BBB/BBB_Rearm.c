@@ -3,6 +3,12 @@
 // and Vcom AI (fn_RearmSelf) to Reforger. When AI soldiers run low on ammunition
 // (< 2 magazines) or face armored threats without operational AT, they search nearby
 // corpses and supply sources within 25 m to scavenge ammunition and AT weapons.
+// Weapon recovery (-bbbRearmWeapon 0 off): a soldier seen with a primary weapon who no
+// longer has one goes back for his own gun if it is still lying nearby, else takes the
+// nearest primary off a body or the ground (one he carries ammunition for first) with its
+// magazines. Unarmed, he holds the REARM claim so fire teams and building moves leave him
+// out; vanilla already gives an unarmed soldier no attack and backs him off seen enemies.
+// In heavy contact or a withdrawal he only grabs a gun within reach.
 
 // Failure history is per soldier/body, expires, and has a fixed memory bound.
 class BBB_RearmFailure
@@ -20,6 +26,9 @@ class BBB_Rearm
  static int s_iRearmCount;
  static int s_iMagazinesLooted;
  static int s_iLaunchersLooted;
+ static bool s_bWeaponOn = true;
+ static int s_iWeaponsRecovered;
+ static int s_iOwnWeaponsRecovered;
 
  static float s_fSearchRadius = 25.0;
  static const float LOOT_REACH_M = 3.5;
@@ -31,6 +40,12 @@ class BBB_Rearm
  static const float REARM_COOLDOWN_MS = 15000.0;
  static const int TARGET_MAGAZINE_COUNT = 4;
  static const int CRITICAL_MAGAZINE_COUNT = 2;
+ static const float HEAVY_CONTACT = 0.85;
+ static const float WEAPON_RECHECK_MS = 3000.0;
+ static const float WEAPON_AFTER_GRAB_MS = 1500.0;
+ static const float OWN_WEAPON_BONUS_M = 1000.0; // his own gun beats any other in reach
+ static const float AMMO_BONUS_M = 15.0;         // a gun he carries magazines for beats a nearer one
+ static const float NEAR_WEAPON_M = 10.0;        // close enough to outrank vanilla's retreat-from-target
 
  protected static ref map<IEntity, float> s_mNextRearmCheck;
  protected static ref map<IEntity, IEntity> s_mTargetCorpse;
@@ -38,6 +53,8 @@ class BBB_Rearm
  protected static ref map<ChimeraCharacter, float> s_mTripStarted;
  protected static ref array<ref BBB_RearmFailure> s_aFailures;
  protected static ref array<IEntity> s_aQueryCorpseHits;
+ protected static ref map<ChimeraCharacter, IEntity> s_mPrimary;      // the primary last seen on him
+ protected static ref map<ChimeraCharacter, IEntity> s_mTargetWeapon; // the gun he is walking to
  // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
  static void BBB_InitStatics()
  {
@@ -47,6 +64,8 @@ class BBB_Rearm
   s_mTripStarted = new map<ChimeraCharacter, float>();
   s_aFailures = {};
   s_aQueryCorpseHits = {};
+  s_mPrimary = new map<ChimeraCharacter, IEntity>();
+  s_mTargetWeapon = new map<ChimeraCharacter, IEntity>();
  }
 
  static void Read()
@@ -55,7 +74,8 @@ class BBB_Rearm
   string val;
   s_bOn = !(BBB_Settings.Get("bbbRearm", val) && val == "0");
   if (BBB_Settings.Get("bbbRearmRadius", val)) s_fSearchRadius = Math.Clamp(val.ToFloat(), 5.0, 100.0);
-  PrintFormat("[BBB] REARM on=%1 radius=%2", s_bOn, s_fSearchRadius);
+  s_bWeaponOn = !(BBB_Settings.Get("bbbRearmWeapon", val) && val == "0");
+  PrintFormat("[BBB] REARM on=%1 radius=%2 weapon=%3", s_bOn, s_fSearchRadius, s_bWeaponOn);
  }
 
  static bool NeedsAmmo(ChimeraCharacter soldier, out BaseMuzzleComponent outMuzzle, out int outCount)
@@ -265,25 +285,35 @@ class BBB_Rearm
  // chained drop operation. Failed insertion restores the launcher to the body.
  static bool EquipLauncher(SCR_InventoryStorageManagerComponent inv, IEntity launcher, IEntity corpse)
  {
+  return EquipFreeSlot(inv, launcher, corpse);
+ }
+
+ // A weapon into a free weapon slot, from a body (corpse) or off the ground (corpse null).
+ static bool EquipFreeSlot(SCR_InventoryStorageManagerComponent inv, IEntity weapon, IEntity corpse)
+ {
+  if (!inv || !weapon) return false;
   array<BaseInventoryStorageComponent> storages = {};
   inv.GetStorages(storages, EStoragePurpose.PURPOSE_WEAPON_PROXY);
-  InventoryItemComponent itemComp = InventoryItemComponent.Cast(launcher.FindComponent(InventoryItemComponent));
+  InventoryItemComponent itemComp = InventoryItemComponent.Cast(weapon.FindComponent(InventoryItemComponent));
   BaseInventoryStorageComponent source = null;
   if (itemComp && itemComp.GetParentSlot()) source = itemComp.GetParentSlot().GetStorage();
-  InventoryStorageManagerComponent corpseInv = InventoryStorageManagerComponent.Cast(corpse.FindComponent(InventoryStorageManagerComponent));
+  InventoryStorageManagerComponent corpseInv = null;
+  if (corpse) corpseInv = InventoryStorageManagerComponent.Cast(corpse.FindComponent(InventoryStorageManagerComponent));
+  // A gun on the ground must really be loose: anything slotted belongs to someone.
+  if (!corpse && source) return false;
   // Corpses may disallow direct storage moves. As for magazines, detach once
   // and restore on failure, without replacing any weapon the soldier carries.
-  if (source && (!corpseInv || !corpseInv.TryRemoveItemFromStorage(launcher, source))) return false;
+  if (source && (!corpseInv || !corpseInv.TryRemoveItemFromStorage(weapon, source))) return false;
   foreach (BaseInventoryStorageComponent storage : storages)
   {
    for (int i = 0; i < storage.GetSlotsCount(); i++)
    {
     InventoryStorageSlot slot = storage.GetSlot(i);
     if (!slot || slot.GetAttachedEntity()) continue;
-    if (inv.TryInsertItemInStorage(launcher, storage, i)) return true;
+    if (inv.TryInsertItemInStorage(weapon, storage, i)) return true;
    }
   }
-  RestoreItem(corpseInv, source, launcher, corpse.GetOrigin());
+  if (corpse) RestoreItem(corpseInv, source, weapon, corpse.GetOrigin());
   return false;
  }
 
@@ -308,22 +338,7 @@ class BBB_Rearm
   SCR_InventoryStorageManagerComponent soldierInv = SCR_InventoryStorageManagerComponent.Cast(soldier.FindComponent(SCR_InventoryStorageManagerComponent));
   if (!soldierInv) return false;
   int magsMoved = 0;
-  if (needsAmmo && muzzle)
-  {
-   array<IEntity> mags = {};
-   CorpseHasMatchingMag(corpse, muzzle, mags);
-   int currentCount = soldierInv.GetMagazineCountByMuzzle(soldier, muzzle);
-   foreach (IEntity mag : mags)
-   {
-    if (currentCount >= TARGET_MAGAZINE_COUNT) break;
-    if (TransferItem(soldierInv, mag, corpse))
-    {
-     currentCount++;
-     magsMoved++;
-     s_iMagazinesLooted++;
-    }
-   }
-  }
+  if (needsAmmo && muzzle) magsMoved = TakeMags(soldier, soldierInv, corpse, muzzle);
   int atMoved = 0;
   if (needsAT)
   {
@@ -376,6 +391,284 @@ class BBB_Rearm
    return true;
   }
   return false;
+ }
+
+ // Magazines for this muzzle off the body, up to the target count.
+ static int TakeMags(ChimeraCharacter soldier, SCR_InventoryStorageManagerComponent soldierInv, IEntity corpse, BaseMuzzleComponent muzzle)
+ {
+  int moved = 0;
+  if (!soldier || !soldierInv || !corpse || !muzzle) return 0;
+  array<IEntity> mags = {};
+  CorpseHasMatchingMag(corpse, muzzle, mags);
+  int currentCount = soldierInv.GetMagazineCountByMuzzle(soldier, muzzle);
+  foreach (IEntity mag : mags)
+  {
+   if (currentCount >= TARGET_MAGAZINE_COUNT) break;
+   if (TransferItem(soldierInv, mag, corpse))
+   {
+    currentCount++;
+    moved++;
+    s_iMagazinesLooted++;
+   }
+  }
+  return moved;
+ }
+
+ // ---- Weapon recovery ----
+
+ static bool IsPrimaryType(EWeaponType type)
+ {
+  return type == EWeaponType.WT_RIFLE || type == EWeaponType.WT_MACHINEGUN || type == EWeaponType.WT_SNIPERRIFLE;
+ }
+
+ static BaseWeaponComponent PrimaryComponent(IEntity weapon)
+ {
+  if (!weapon) return null;
+  BaseWeaponComponent w = BaseWeaponComponent.Cast(weapon.FindComponent(BaseWeaponComponent));
+  if (!w || !IsPrimaryType(w.GetWeaponType())) return null;
+  return w;
+ }
+
+ // The primary in his weapon slots (null: none).
+ static IEntity PrimaryOf(ChimeraCharacter soldier)
+ {
+  if (!soldier) return null;
+  BaseWeaponManagerComponent wm = BaseWeaponManagerComponent.Cast(soldier.FindComponent(BaseWeaponManagerComponent));
+  if (!wm) return null;
+  array<IEntity> weapons = {};
+  wm.GetWeaponsList(weapons);
+  foreach (IEntity wEnt : weapons)
+  {
+   if (PrimaryComponent(wEnt)) return wEnt;
+  }
+  return null;
+ }
+
+ // Lost it: seen with a primary before, none now. Men who never carried one (pistol-only
+ // crews and pilots) are left as they are.
+ static bool LostPrimary(ChimeraCharacter soldier)
+ {
+  if (!soldier) return false;
+  IEntity primary = PrimaryOf(soldier);
+  if (primary)
+  {
+   s_mPrimary.Set(soldier, primary);
+   return false;
+  }
+  return s_mPrimary.Contains(soldier);
+ }
+
+ static IEntity LastPrimary(ChimeraCharacter soldier)
+ {
+  if (!soldier) return null;
+  return s_mPrimary.Get(soldier);
+ }
+
+ static BaseMuzzleComponent WellMuzzle(BaseWeaponComponent weapon)
+ {
+  if (!weapon) return null;
+  array<BaseMuzzleComponent> muzzles = {};
+  weapon.GetMuzzlesList(muzzles);
+  foreach (BaseMuzzleComponent m : muzzles)
+  {
+   if (m && m.GetMagazineWell()) return m;
+  }
+  return null;
+ }
+
+ // 2: he carries magazines for it; 1: loaded, or the body has magazines for it; 0: useless.
+ static int WeaponAmmo(ChimeraCharacter soldier, BaseWeaponComponent weapon, IEntity corpse)
+ {
+  BaseMuzzleComponent muzzle = WellMuzzle(weapon);
+  if (!muzzle) return 0;
+  array<IEntity> mags = {};
+  if (CorpseHasMatchingMag(soldier, muzzle, mags)) return 2;
+  BaseMagazineComponent loaded = muzzle.GetMagazine();
+  if (loaded && loaded.GetAmmoCount() > 0) return 1;
+  if (corpse && CorpseHasMatchingMag(corpse, muzzle, mags)) return 1;
+  return 0;
+ }
+
+ // Someone else in BBB is already walking to this gun.
+ static bool WeaponTaken(ChimeraCharacter soldier, IEntity weapon)
+ {
+  for (int i = 0; i < s_mTargetWeapon.Count(); i++)
+  {
+   ChimeraCharacter other = s_mTargetWeapon.GetKey(i);
+   if (other && other != soldier && s_mTargetWeapon.GetElement(i) == weapon) return true;
+  }
+  return false;
+ }
+
+ // The best usable primary within radius: his own first, then one he has ammunition for,
+ // then the nearest. outSource is the body it is on, or the weapon itself when loose.
+ static IEntity FindWeapon(ChimeraCharacter soldier, float radius, out IEntity outSource)
+ {
+  outSource = null;
+  if (!soldier) return null;
+  s_aQueryCorpseHits.Clear();
+  GetGame().GetWorld().QueryEntitiesBySphere(soldier.GetOrigin(), radius, QueryCorpseHit, null, EQueryEntitiesFlags.ALL);
+  IEntity ownGun = LastPrimary(soldier);
+  vector soldierPos = soldier.GetOrigin();
+  IEntity best = null;
+  float bestScore = radius + 1.0;
+  foreach (IEntity ent : s_aQueryCorpseHits)
+  {
+   if (!ent || ent == soldier || BodyBlocked(soldier, ent)) continue;
+   array<IEntity> candidates = {};
+   IEntity corpse = null;
+   ChimeraCharacter ch = ChimeraCharacter.Cast(ent);
+   if (ch)
+   {
+    CharacterControllerComponent ctl = ch.GetCharacterController();
+    if (!ctl || !ctl.IsDead()) continue;
+    InventoryStorageManagerComponent corpseInv = InventoryStorageManagerComponent.Cast(ch.FindComponent(InventoryStorageManagerComponent));
+    if (!corpseInv) continue;
+    array<IEntity> items = {};
+    corpseInv.GetItems(items);
+    foreach (IEntity item : items)
+    {
+     if (PrimaryComponent(item)) candidates.Insert(item);
+    }
+    corpse = ent;
+   }
+   else
+   {
+    if (!PrimaryComponent(ent)) continue;
+    InventoryItemComponent itemComp = InventoryItemComponent.Cast(ent.FindComponent(InventoryItemComponent));
+    if (!itemComp || itemComp.GetParentSlot()) continue; // slotted: carried, racked or in a crate
+    candidates.Insert(ent);
+   }
+   float d = vector.Distance(soldierPos, ent.GetOrigin());
+   if (d > radius) continue;
+   foreach (IEntity gun : candidates)
+   {
+    if (WeaponTaken(soldier, gun)) continue;
+    int ammo = WeaponAmmo(soldier, PrimaryComponent(gun), corpse);
+    if (ammo == 0) continue;
+    float score = d;
+    if (gun == ownGun) score -= OWN_WEAPON_BONUS_M;
+    if (ammo == 2) score -= AMMO_BONUS_M;
+    if (score < bestScore)
+    {
+     bestScore = score;
+     best = gun;
+     outSource = ent;
+    }
+   }
+  }
+  s_aQueryCorpseHits.Clear();
+  return best;
+ }
+
+ // Takes the gun (and its magazines off a body). Same safety gates as LootFromCorpse.
+ static bool PickUpWeapon(ChimeraCharacter soldier, IEntity weapon, IEntity source, SCR_AIGroup group)
+ {
+  if (!soldier || !weapon || !source || !CanLoot(soldier, source) || BBB.HasPlayer(group)) return false;
+  AIControlComponent control = AIControlComponent.Cast(soldier.FindComponent(AIControlComponent));
+  AIAgent agent = null;
+  if (control) agent = control.GetAIAgent();
+  SCR_AIUtilityComponent utility = null;
+  if (agent) utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+  CharacterControllerComponent controller = soldier.GetCharacterController();
+  if (!controller || controller.IsPlayerControlled() || BBB.PlayerOf(soldier) || BBB_OrderIntent.Blocks(utility) || BBB_Morale.IsPrisoner(soldier)) return false;
+  if (PrimaryOf(soldier)) return false;
+  SCR_InventoryStorageManagerComponent inv = SCR_InventoryStorageManagerComponent.Cast(soldier.FindComponent(SCR_InventoryStorageManagerComponent));
+  if (!inv) return false;
+  IEntity corpse = null;
+  if (source != weapon) corpse = source;
+  bool ownGun = weapon == LastPrimary(soldier);
+  if (!EquipFreeSlot(inv, weapon, corpse)) return false;
+  BaseWeaponManagerComponent wm = BaseWeaponManagerComponent.Cast(soldier.FindComponent(BaseWeaponManagerComponent));
+  array<IEntity> equipped = {};
+  if (wm) wm.GetWeaponsList(equipped);
+  if (!equipped.Contains(weapon)) return false;
+  BaseWeaponComponent weaponComp = PrimaryComponent(weapon);
+  int mags = 0;
+  if (corpse) mags = TakeMags(soldier, inv, corpse, WellMuzzle(weaponComp));
+  // Shoulder it if his hands are empty or hold a pistol (BBB_WeaponReady covers the rest).
+  BaseWeaponComponent inHand = null;
+  if (wm) inHand = wm.GetCurrentWeapon();
+  if (weaponComp && (!inHand || inHand.GetWeaponType() == EWeaponType.WT_HANDGUN) && !controller.IsChangingItem())
+   controller.SelectWeapon(weaponComp);
+  s_mPrimary.Set(soldier, weapon);
+  s_iWeaponsRecovered++;
+  if (ownGun) s_iOwnWeaponsRecovered++;
+  BBB_Perf.Count("rearm.weapon");
+  string fromWhere = "the ground";
+  if (corpse) fromWhere = "a body";
+  string whose = "a";
+  if (ownGun) whose = "his own";
+  string gName = "group";
+  if (group) gName = BBB.s_Hooks.NameOf(group);
+  PrintFormat("[BBB] REARM %1: %2 picked up %3 weapon from %4 (mags=%5)", gName, soldier, whose, fromWhere, mags);
+  BBB_Think.Note(soldier, "Rearm", "picked up " + whose + " weapon from " + fromWhere);
+  return true;
+ }
+
+ // Unarmed: hold him out of BBB's fight jobs and send him for a gun.
+ static void CheckWeaponFor(ChimeraCharacter soldier, SCR_AIUtilityComponent utility, SCR_AIGroup group, float nowMs)
+ {
+  // A rescue or a static gun outranks this (an unarmed man can drag or crew a gun).
+  if (!BBB_Claims.Can(soldier, BBB_Claims.REARM))
+  {
+   CancelRearmAction(soldier);
+   return;
+  }
+  // Just disarmed (not held yet): look now, not after an ammo check's cooldown.
+  if (BBB_Claims.s_bOn && BBB_Claims.Role(soldier) != BBB_Claims.REARM) s_mNextRearmCheck.Remove(soldier);
+  BBB_Claims.Take(soldier, BBB_Claims.REARM);
+  if (s_mNextRearmCheck.Contains(soldier) && nowMs < s_mNextRearmCheck.Get(soldier)) return;
+  bool reachOnly = BBB_Morale.IsWithdrawing(group);
+  if (utility && utility.m_ThreatSystem)
+  {
+   float sup, sh, inVal, en;
+   utility.m_ThreatSystem.GetThreatValues(sup, sh, inVal, en);
+   if (sup >= HEAVY_CONTACT) reachOnly = true;
+  }
+  ExpireTrip(soldier, nowMs);
+  float radius = s_fSearchRadius;
+  if (reachOnly) radius = LOOT_REACH_M;
+  IEntity source;
+  IEntity weapon = FindWeapon(soldier, radius, source);
+  SCR_AIMoveIndividuallyBehavior curAction = s_mRearmAction.Get(soldier);
+  bool actionActive = curAction && !curAction.GetRemoveAction() && curAction.GetActionState() != EAIActionState.FAILED && curAction.GetActionState() != EAIActionState.COMPLETED;
+  if (!weapon)
+  {
+   CancelRearmAction(soldier);
+   BBB_Claims.Take(soldier, BBB_Claims.REARM);
+   s_mNextRearmCheck.Set(soldier, nowMs + WEAPON_RECHECK_MS);
+   BBB_Think.Note(soldier, "Rearm", "no weapon: staying out of the fight");
+   return;
+  }
+  if (CanLoot(soldier, source))
+  {
+   if (actionActive) curAction.Complete();
+   CancelRearmAction(soldier);
+   if (!PickUpWeapon(soldier, weapon, source, group))
+   {
+    RecordFailure(soldier, source, nowMs);
+    BBB_Claims.Take(soldier, BBB_Claims.REARM);
+   }
+   s_mNextRearmCheck.Set(soldier, nowMs + WEAPON_AFTER_GRAB_MS);
+   return;
+  }
+  if (reachOnly || !utility) return;
+  if (actionActive && s_mTargetWeapon.Get(soldier) == weapon) return;
+  if (actionActive) curAction.Fail();
+  s_mTargetCorpse.Set(soldier, source);
+  s_mTargetWeapon.Set(soldier, weapon);
+  s_mTripStarted.Set(soldier, nowMs);
+  // As an out-of-spares run (91, over attacking); a gun a few steps away also beats
+  // vanilla's retreat-from-target (110). Danger, medical and player orders still outrank it.
+  float tripPriority = 91;
+  if (vector.Distance(soldier.GetOrigin(), source.GetOrigin()) <= NEAR_WEAPON_M) tripPriority = SCR_AIActionBase.PRIORITY_BEHAVIOR_RETREAT_FROM_TARGET + 1;
+  SCR_AIMoveIndividuallyBehavior moveAction = new SCR_AIMoveIndividuallyBehavior(utility, null, source.GetOrigin(), priority: tripPriority, ent: source, radius: 1.0);
+  s_mRearmAction.Set(soldier, moveAction);
+  utility.AddAction(moveAction);
+  string what = "a weapon";
+  if (weapon == LastPrimary(soldier)) what = "his own weapon";
+  BBB_Think.Note(soldier, "Rearm", "going for " + what);
  }
 
  protected static bool QueryCorpseHit(IEntity entity)
@@ -477,6 +770,7 @@ class BBB_Rearm
    s_mRearmAction.Remove(soldier);
   }
   s_mTargetCorpse.Remove(soldier);
+  s_mTargetWeapon.Remove(soldier);
   s_mTripStarted.Remove(soldier);
   BBB_Claims.Release(soldier, BBB_Claims.REARM);
  }
@@ -548,6 +842,10 @@ class BBB_Rearm
    if (!s_mTripStarted.GetKey(k)) s_mTripStarted.RemoveElement(k);
   for (int n = s_mTargetCorpse.Count() - 1; n >= 0; n--)
    if (!s_mTargetCorpse.GetKey(n)) s_mTargetCorpse.RemoveElement(n);
+  for (int w = s_mTargetWeapon.Count() - 1; w >= 0; w--)
+   if (!s_mTargetWeapon.GetKey(w)) s_mTargetWeapon.RemoveElement(w);
+  for (int p = s_mPrimary.Count() - 1; p >= 0; p--)
+   if (!s_mPrimary.GetKey(p) || !BBB.IsAlive(s_mPrimary.GetKey(p))) s_mPrimary.RemoveElement(p);
  }
 
  static void CheckRearmFor(SCR_AIGroup group)
@@ -589,6 +887,12 @@ class BBB_Rearm
    if (BBB_OrderIntent.Blocks(utility))
    {
     CancelRearmAction(soldier);
+    continue;
+   }
+   // No primary any more: get one back before anything else this system does.
+   if (s_bWeaponOn && LostPrimary(soldier) && !BBB_Morale.IsPrisoner(soldier))
+   {
+    CheckWeaponFor(soldier, utility, group, nowMs);
     continue;
    }
    // A bounding or withdrawing man isn't sent to loot a body mid-move, unless he is out of
@@ -687,8 +991,12 @@ class BBB_Rearm
   s_aFailures.Clear();
   s_mNextRearmCheck.Clear();
   s_mTargetCorpse.Clear();
+  s_mTargetWeapon.Clear();
+  s_mPrimary.Clear();
   s_aQueryCorpseHits.Clear();
   s_iRearmCount = 0;
+  s_iWeaponsRecovered = 0;
+  s_iOwnWeaponsRecovered = 0;
   s_iMagazinesLooted = 0;
   s_iLaunchersLooted = 0;
  }
