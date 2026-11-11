@@ -1038,7 +1038,7 @@ class BBB_VehicleHelpers : Managed
    return;
   }
 
-  bool eligible = driver != null && BBB.IsAlive(driver) && !BBB.PlayerOf(driver);
+  bool eligible = driver != null && BBB.IsAlive(driver) && !BBB.PlayerOf(driver) && !BBB_Drive.Driving(vehicle); // BBB_Drive watches its own stalls
   bool wantsToMove = false;
   if (eligible)
   {

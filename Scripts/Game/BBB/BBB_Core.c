@@ -86,6 +86,9 @@ class BBB_Hooks : Managed
   if (anchor && BBB_Tactic.Advancing(group, anchor.GetOrigin())) return BBB_EIntent.PUSH;
   return BBB_EIntent.HOLD;
  }
+ // BBB may drive this group's vehicle itself on a long move (BBB_Drive, -bbbDriver). Asked when a
+ // drive would start and every second while it runs: false hands the vehicle back to the game's driver.
+ bool AllowScriptedDriving(SCR_AIGroup group, IEntity vehicle) { return true; }
  // Host mod manages its own vehicle stall/unstick and tactical cargo dismount for this group.
  bool ManagesVehicleDriving(SCR_AIGroup group) { return false; }
  // Binding host orders always outrank tactical deviations. Existing driving hosts
@@ -145,6 +148,7 @@ class BBB
   BBB_RoadExit.Read();
   BBB_Think.Read();
   BBB_DoorUnstick.Read();
+  BBB_Drive.Read();
   BBB_HotAI.InitStatics();
   BBB_ContactRelay.Read();
   BBB_Claims.Read();
@@ -168,6 +172,7 @@ class BBB
   if (GetGame()) GetGame().GetCallqueue().Remove(Tick);
   BBB_DriverAlignment.Stop();
   BBB_CrewTurnout.Stop();
+  BBB_Drive.StopAll();
   BBB_Unstick.StopAll();
   BBB_FireManeuver.Stop();
   BBB_Drag.Stop();
@@ -229,6 +234,8 @@ class BBB
   t = BBB_Perf.Lap("tick.crewTurnout", t);
   BBB_DriverAlignment.Tick();
   t = BBB_Perf.Lap("tick.driverAlign", t);
+  BBB_Drive.Tick();
+  t = BBB_Perf.Lap("tick.driver", t);
   if (s_VehicleHelpers) s_VehicleHelpers.Tick();
   t = BBB_Perf.Lap("tick.vehicleHelpers", t);
 		if (s_Launchers) s_Launchers.Tick();
@@ -290,6 +297,7 @@ class BBB
   s_iLastFrame = frame;
   s_iFrames++;
   BBB_Perf.OnFrame();
+  BBB_Drive.FrameAll();
   BBB_Unstick.FrameAll();
   BBB_PullOver.FrameAll();
   int armorStarted = System.GetTickCount();
