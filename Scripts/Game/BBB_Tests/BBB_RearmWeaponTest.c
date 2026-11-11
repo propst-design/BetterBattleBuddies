@@ -16,7 +16,7 @@ class BBB_RearmWeaponTest
 {
  static ref BBB_RearmWeaponTest s_Test;
  static const int EXPECTED = 13;
- static const float TRIP_LIMIT_S = 35;
+ static const int TRIP_LIMIT_S = 35;
  static const string TEAM = "{657590C1EC9E27D3}Prefabs/Groups/OPFOR/Group_USSR_LightFireTeam.et";
  static const string RIFLEMAN = "{DCB41B3746FDD1BE}Prefabs/Characters/Factions/OPFOR/USSR_Army/Character_USSR_Rifleman.et";
  ref BBB_RearmWeaponTestHooks m_Hooks;
