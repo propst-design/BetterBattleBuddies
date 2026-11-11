@@ -26,6 +26,7 @@ class BBB_DrivePath : Managed
  ref array<float> m_aV;      // speed limit at each point (m/s), after braking distances
  ref array<float> m_aK;      // curvature at each point (1/m)
  float m_fLength;
+ int m_iDropped;              // plan points dropped as spikes or near-duplicates
 
  void BBB_DrivePath()
  {
@@ -41,6 +42,11 @@ class BBB_DrivePath : Managed
   m_aPts.Clear();
   m_aS.Clear();
   if (raw.Count() < 2) return;
+  array<vector> pts = {};
+  pts.Copy(raw);
+  Despike(pts);
+  m_iDropped = raw.Count() - pts.Count();
+  raw = pts;
   float s = 0;
   m_aPts.Insert(raw[0]);
   m_aS.Insert(0);
@@ -61,6 +67,41 @@ class BBB_DrivePath : Managed
    }
   }
   m_fLength = s;
+ }
+
+ // The game's plans overshoot some corners and double straight back (2-13 m spikes, Everon 11 Nov):
+ // the pursuit point then lands behind the vehicle and it circles at full lock off the line. Drop
+ // points under 1 m from the one before, and any point the line turns back through (over 120 degrees),
+ // or within the next 3 m, stepping back after each drop so a long overshoot peels off point by point.
+ static void Despike(notnull array<vector> pts)
+ {
+  int i = 1;
+  int guard = 0;
+  while (i < pts.Count() - 1 && guard < 100000)
+  {
+   guard++;
+   vector u = pts[i] - pts[i - 1];
+   u[1] = 0;
+   float lu = u.Length();
+   // The next point, and the first one 3 m on (a U-turn spread over a couple of points).
+   int j = i + 1;
+   while (j < pts.Count() - 1 && vector.DistanceXZ(pts[j], pts[i]) < 3) j++;
+   if (lu < 1 || TurnsBack(u, lu, pts[i + 1] - pts[i]) || TurnsBack(u, lu, pts[j] - pts[i]))
+   {
+    pts.RemoveOrdered(i);
+    i = Math.Max(1, i - 1);
+    continue;
+   }
+   i++;
+  }
+ }
+
+ // More than 120 degrees between the way in (u, length lu) and the way on (w).
+ protected static bool TurnsBack(vector u, float lu, vector w)
+ {
+  w[1] = 0;
+  float lw = w.Length();
+  return lw > 0.01 && vector.Dot(u, w) < -0.5 * lu * lw;
  }
 
  // Curvature from points ~SPAN m either side, a speed limit from grip, then braking distances
@@ -407,7 +448,7 @@ class BBB_Drive : Managed
   m_iIdx = m_Path.Nearest(vehicle.GetOrigin(), 0, 30);
   Measure();
   s_iStarted++;
-  PrintFormat("[BBB] DRIVER %1: driving %2 m (%3, %4 points), steer gain %5", BBB.s_Hooks.NameOf(group), (int)m_Path.m_fLength, source, m_Path.Count(), m_fGain);
+  PrintFormat("[BBB] DRIVER %1: driving %2 m (%3, %4 points, %5 spike points dropped), steer gain %6", BBB.s_Hooks.NameOf(group), (int)m_Path.m_fLength, source, m_Path.Count(), m_Path.m_iDropped, m_fGain);
   BBB_Think.NoteGroup(group, "Vehicle", "BBB drives the vehicle on the planned route");
   return true;
  }
