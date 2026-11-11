@@ -27,7 +27,12 @@ $lockOwner = 'bbb-' + $PID
 $lockHeld = $false
 $lockFile = $env:BBB_LOCK_FILE   # test override only
 if (!$lockFile) { $lockFile = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'my games/ArmaReforgerWorkbench/_wt/test-server.lock' }
+# The Workbench addons folder holding AIOCommandMenu: two levels up from the main checkout, further
+# from a worktree (.claude/worktrees/<name>).
 $aioRequests = Join-Path (Split-Path (Split-Path $AddonRoot -Parent) -Parent) 'AIOCommandMenu/.aio-requests'
+for ($up = Split-Path $AddonRoot -Parent; $up; $up = Split-Path $up -Parent) {
+ if (Test-Path -LiteralPath (Join-Path $up 'AIOCommandMenu')) { $aioRequests = Join-Path $up 'AIOCommandMenu/.aio-requests'; break }
+}
 if ($env:BBB_AIO_REQUESTS) { $aioRequests = $env:BBB_AIO_REQUESTS }   # test override only
 $lockTouched = [DateTime]::UtcNow
 function Test-BbbLockOurs {
@@ -52,6 +57,21 @@ if (!$NoLock -and $env:BBB_LOCK_HELD -ne '1') {
  }
  if (!$lockHeld) { throw 'BBB: could not get the shared test-server lock (waited 60 min).' }
  $lockTouched = [DateTime]::UtcNow
+}
+# Per-run -addonsDir folders (see $stageDir below). Only ever delete the junction itself
+# (non-recursive), never through it: that would delete the addon it points to.
+$stageBase = Join-Path ([IO.Path]::GetTempPath()) 'bbb-test-addons'
+function Clear-BbbStage {
+ foreach ($dir in @(Get-ChildItem -LiteralPath $stageBase -Directory -ErrorAction SilentlyContinue)) {
+  try {
+   $link = Join-Path $dir.FullName 'BetterBattleBuddies'
+   if (Test-Path -LiteralPath $link) {
+    if (!((Get-Item -LiteralPath $link -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { continue }
+    [IO.Directory]::Delete($link, $false)
+   }
+   [IO.Directory]::Delete($dir.FullName, $false)
+  } catch { Write-Warning ('BBB: left ' + $dir.FullName + ': ' + $_) }
+ }
 }
 try {
 # Serialize BBB runners before the free-port check; two quiet waits can race.
@@ -192,11 +212,21 @@ $timeouts.moraleace = 180
 $timeouts.squadteams = 230
 $world ='{AC230926A00100E0}Worlds/BBB_TestArland.ent'
 if ($Preset -eq 'compile') { $world = '{77C41EA429B6AC35}worlds/GameMaster/GM_Arland.ent' }
-$addonsDir = Split-Path $AddonRoot -Parent
+# The game loads the first addon with BBB's GUID it finds in -addonsDir, and the parent folder can
+# hold several: every sibling worktree under .claude/worktrees has the same GUID (9 Nov: a run from
+# one worktree tested another). So -addonsDir is a per-run folder outside the addon holding only a
+# junction to $AddonRoot, and the run fails if the log shows BBB loaded from anywhere else.
+$parentDir = Split-Path $AddonRoot -Parent
+Clear-BbbStage
+$stageDir = Join-Path $stageBase $id
+$stagedRoot = Join-Path $stageDir 'BetterBattleBuddies'
+New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
+New-Item -ItemType Junction -Path $stagedRoot -Target $AddonRoot | Out-Null
+$addonsDir = $stageDir
 $addons = 'BBB0261015000001'
 if ($Preset -eq 'launcherinfrhs') {
  if (!$RhsAddonsDir) {
-  foreach ($candidate in @($addonsDir, (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games/ArmaReforger/addons'), 'E:\ArmaReforgerMods\addons')) {
+  foreach ($candidate in @($parentDir, (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games/ArmaReforger/addons'), 'E:\ArmaReforgerMods\addons')) {
    if ($candidate -and (Test-Path -LiteralPath $candidate) -and (Get-ChildItem -LiteralPath $candidate -Directory -Filter 'RHS-StatusQuo_*' -ErrorAction SilentlyContinue)) { $RhsAddonsDir = $candidate; break }
   }
  }
@@ -207,7 +237,7 @@ if ($Preset -eq 'launcherinfrhs') {
 if ($Preset -eq 'moraleace') {
  # The only preset that loads another mod's surrender: ACE Core + ACE Captives (GPL, never shipped with BBB).
  if (!$AceAddonsDir) {
-  foreach ($candidate in @($addonsDir, (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games/ArmaReforger/addons'), 'E:\ArmaReforgerMods\addons')) {
+  foreach ($candidate in @($parentDir, (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games/ArmaReforger/addons'), 'E:\ArmaReforgerMods\addons')) {
    if ($candidate -and (Test-Path -LiteralPath $candidate) -and (Get-ChildItem -LiteralPath $candidate -Directory -Filter 'ACECaptives_*' -ErrorAction SilentlyContinue)) { $AceAddonsDir = $candidate; break }
   }
  }
@@ -229,6 +259,11 @@ try {
   if ($log) {
    $body = Get-Content -LiteralPath $log.FullName -Raw
    if ($body -match "SCRIPT\s+\(E\)|Can't compile|Unable to start replication") { $status = 'error'; break }
+   $loaded = [regex]::Match($body, "gproj: '([^']+)' guid: 'BBB0261015000001'")
+   if ($loaded.Success) {
+    $loadedDir = Split-Path ([IO.Path]::GetFullPath($loaded.Groups[1].Value)) -Parent
+    if (!$loadedDir.Equals($stagedRoot, [StringComparison]::OrdinalIgnoreCase) -and !$loadedDir.Equals($AddonRoot, [StringComparison]::OrdinalIgnoreCase)) { $status = 'wrong addon: ' + $loaded.Groups[1].Value; break }
+   }
    if ($Preset -eq 'compile' -and $body -match '\[BBB\] started on its own') { $status = 'completed'; break }
    if ($body -match '\[ACR\] TEST COMPLETE') {
     $status = 'failed'
@@ -240,6 +275,7 @@ try {
  }
 } finally {
  if (!$process.HasExited) { Stop-Process -Id $process.Id -ErrorAction SilentlyContinue }
+ $process.WaitForExit(15000) | Out-Null
 }
 $result = Join-Path $resultDir ($id + '.result.txt')
 $sha = 'uncommitted extraction'
@@ -251,6 +287,7 @@ Write-Output "BBB $Preset : $status; result=$result"
 if ($status -ne 'completed') { exit 1 }
 
 } finally {
+ if ($serverMutexHeld) { Clear-BbbStage }
  if ($serverMutexHeld) { $serverMutex.ReleaseMutex() }
  $serverMutex.Dispose()
 }
