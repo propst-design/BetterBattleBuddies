@@ -9,6 +9,7 @@ NEW
 - Zombies: with Project Outbreak (or another Creature Melee AI mod) loaded, soldiers fight zombies like zombies. Nobody surrenders to them, a soldier backs away from one closing in, squads hold together and shoot instead of bounding or flanking, and medics clear a zombie before they treat or drag a casualty. Men are still fought the usual way in the same fight. Option: -bbbZombies auto, 1 or 0.
 - Squad leader callouts: AI squad leaders voice orders, contacts, men down, suppressing fire, flanks and fall-backs in the game's own radio voices, and a man answers. No new recordings, never in a player's voice. Options: -bbbCallouts 0, -bbbCalloutRate.
 - Soldiers who lose their rifle or machine gun go back for it, or take one from a fallen soldier along with its magazines. Option: -bbbRearmWeapon 0.
+- Experimental, off by default: BBB can drive AI wheeled vehicles itself on long moves along the game's route (-bbbDriver 1, or the settings tab). Tested on 12 route trips only; convoys, towns, combat and multiplayer are untested.
 
 FIXED
 
@@ -19,4 +20,4 @@ FIXED
 - New option -bbbDropTubes 0 keeps spent single-shot launchers; AI in a player's squad keep theirs anyway.
 - Stopping Battle Buddies mid-match hands vehicles and drivers back cleanly, and the server does less work checking for men stuck on truck beds.
 
-For mod makers: new hooks AllowSurrender, AllowCallouts, ZombieRules and IsZombie, plus BBB_Morale.IsPrisoner and BBB_Zombies.
+For mod makers: new hooks AllowSurrender, AllowCallouts, ZombieRules, IsZombie and AllowScriptedDriving, plus BBB_Morale.IsPrisoner and BBB_Zombies.

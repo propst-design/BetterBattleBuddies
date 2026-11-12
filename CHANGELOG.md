@@ -18,6 +18,7 @@
 - New option: `-bbbDropTubes 0` (or the Battle Buddies settings tab, Awareness and aim) stops AI dropping a spent single-shot launcher. AI in a player's squad now keep theirs.
 - Battle Buddies shuts down cleanly when a host stops it: vehicles pulled over or giving way drive on, and their drivers' AI comes back.
 - Less work for the server: the check for soldiers stuck standing on a truck bed only looks at men who just got out of a vehicle, instead of everyone on an upper floor, a bridge or a tower every second.
+- Experimental, off by default: Better Battle Buddies can drive AI wheeled vehicles itself on long moves (300 m or more), along the route the game plans. It keeps the line through bends and slows for them, brakes for anything in the way, pulls away on hills and backs out when stuck; in contact, on a new order elsewhere, or when a player or Game Master takes the wheel, the game's own driver takes over again. Turn it on with `-bbbDriver 1` (or the Battle Buddies settings tab, Vehicles and crews, "BBB drives vehicles (experimental)"); with it on, `-bbbDriverGM 0` leaves Game Master moves to the game's driver. Tested so far on 12 route trips only: convoys, driving through towns, driving in combat and multiplayer are untested. For mod makers: the hook `AllowScriptedDriving(group, vehicle)` lets a host mod say which vehicles BBB may drive.
 
 ## 0.1.10 — released
 
