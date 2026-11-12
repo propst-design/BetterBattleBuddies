@@ -13,5 +13,10 @@ NEW
 FIXED
 
 - Medics dragging a casualty with ACE Carrying no longer drop him a second into the drag.
+- With AC: Actual, a player's own squad is left alone again after he takes over its leader: his men follow him instead of looting, crewing guns or surrendering on their own.
+- Soldiers in an unarmed truck no longer all pile out whenever an enemy is known to be near; they get out when the truck is hit or an armed enemy is seen, and climb back in afterwards.
+- A faked surrender's grenade goes only at an enemy the soldier can see, medics no longer surrender mid-drag, and long fights keep room for new prisoners.
+- New option -bbbDropTubes 0 keeps spent single-shot launchers; AI in a player's squad keep theirs anyway.
+- Stopping Battle Buddies mid-match hands vehicles and drivers back cleanly, and the server does less work checking for men stuck on truck beds.
 
 For mod makers: new hooks AllowSurrender, AllowCallouts, ZombieRules and IsZombie, plus BBB_Morale.IsPrisoner and BBB_Zombies.
