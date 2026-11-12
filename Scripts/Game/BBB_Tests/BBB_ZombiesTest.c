@@ -11,8 +11,9 @@
 //    with a shambler 20 m off: he must not give up (and BBB must have reached the zombie-captor rule). Then a
 //    USSR team on hold fire 25 m off: he gives up to them (the rule is per threat, men still take prisoners).
 //  4 heal: a casualty 10 m to his squadmate's side, a shambler 18 m in front of him; the casualty goes down once
-//    he has seen it. The heal is held (vanilla asked, BBB held it) and he doesn't go to the casualty; the
-//    shambler removed, he goes.
+//    he has seen it. The heal is held (vanilla asked, BBB held it) and he doesn't go to the casualty; with the
+//    rules lifted (host says 0) he goes. Not covered: going once the zombie is dead (Outbreak's dead get up).
+//  Keep distance passes when the zombie reached him with the rules off and ends 8 m or more off with them on.
 // Not covered: drag itself (needs ACE Carrying; its refusal goes through the same HoldHeal call as the heal),
 // rearm, cluster suppression, squad tactics, vehicles (code paths only), hordes, sprinters, and how a real
 // fight against a horde plays out: that's Jacob's play-test.
@@ -52,6 +53,7 @@ class BBB_ZombiesTest : BBB_AimTest
  protected float m_fBack;
  protected float m_fBackOff;
  protected float m_fGapOff;
+ protected float m_fMinGap;
  protected int m_iSteps;
  protected int m_iPolls;
  protected int m_iCounter;
@@ -241,6 +243,7 @@ class BBB_ZombiesTest : BBB_AimTest
   m_Man = SpawnMan(m_vManStart, m_vDir);
   m_Zombie = SpawnZombie(m_vZombieStart, -m_vDir);
   m_fBack = 0;
+  m_fMinGap = 1000;
   m_iPolls = 0;
   m_bPerceived = false;
   m_iSteps = BBB_Zombies.s_iBackSteps;
@@ -261,6 +264,7 @@ class BBB_ZombiesTest : BBB_AimTest
   away[1] = 0;
   away.Normalize();
   if (m_Man) m_fBack = Math.Max(m_fBack, vector.Dot(m_Man.GetOrigin() - m_vManStart, away));
+  if (m_Man && m_Zombie) m_fMinGap = Math.Min(m_fMinGap, vector.DistanceXZ(m_Man.GetOrigin(), m_Zombie.GetOrigin()));
   if (KEEP_S * 2 > m_iPolls) return;
   GetGame().GetCallqueue().Remove(KeepPoll);
   float gap = -1;
@@ -271,7 +275,7 @@ class BBB_ZombiesTest : BBB_AimTest
   if (!on)
   {
    m_fBackOff = m_fBack;
-   m_fGapOff = gap;
+   m_fGapOff = m_fMinGap;
    Check("keep-off-zombie-perceived", m_bPerceived, "the rifleman saw the shambler as an enemy");
    Check("keep-off-no-zombie-steps", steps == 0, string.Format("%1 back-steps counted with the rules off", steps));
    Clean();
@@ -284,7 +288,9 @@ class BBB_ZombiesTest : BBB_AimTest
   Check("keep-on-got-back", m_fBack >= 4, string.Format("%1 m back from where he stood", m_fBack));
   // What the player sees: where the zombie is at the end. Off, it was on him in every run (2-4 m, 11 Nov); his
   // own retreat distance differs less (vanilla also backs off at 3 m and wanders in the fight).
-  Check("keep-ab", gap >= 8 && m_fGapOff >= 0 && gap >= m_fGapOff + 4, string.Format("zombie at the end: rules on %1 m, off %2 m (got back on %3 m, off %4 m)", gap, m_fGapOff, m_fBack, m_fBackOff));
+  // Rules off, the shambler must have reached him (else this arm didn't test anything: one run in eight it never
+  // came in); rules on, it ends at least 8 m off.
+  Check("keep-ab", m_fGapOff <= 4 && gap >= 8, string.Format("closest the zombie got with the rules off %1 m; with them on it ends %2 m off (got back on %3 m, off %4 m)", m_fGapOff, gap, m_fBack, m_fBackOff));
   Clean();
   GetGame().GetCallqueue().CallLater(SurrenderStart, 1000);
  }
@@ -448,9 +454,10 @@ class BBB_ZombiesTest : BBB_AimTest
   int held = BBB_Zombies.s_iHealsHeld - m_iCounter;
   bool down = m_Casualty && ChimeraCharacter.Cast(m_Casualty).GetCharacterController().IsUnconscious();
   Check("heal-held-near-zombie", held > 0 && !m_bReached && down, string.Format("held %1 times, went to the casualty %2, casualty down %3, had seen the shambler first %4", held, m_bReached, down, m_bPerceived));
-  // The shambler is killed, as in play. Deleting it (the first version) left a live entry in the healer's
-  // perception: the hold went on for 25 s with no zombie there.
-  if (m_Zombie) Kill(m_Zombie);
+  // A/B inside the case: the rules lifted (host says 0), the heal must go. Removing the shambler didn't work as a
+  // "clear" (deleted or killed, a live zombie was still about in four runs of six: Outbreak's dead may get up),
+  // and a heal held for a live zombie close by is the rule working.
+  m_Hooks.m_iRules = 0;
   m_iCounter = BBB_Zombies.s_iHealsHeld;
   m_iPolls = 0;
   GetGame().GetCallqueue().CallLater(ClearPoll, 500, true);
@@ -461,8 +468,8 @@ class BBB_ZombiesTest : BBB_AimTest
   m_iPolls++;
   if (!AtCasualty() && m_iPolls < 50) return;
   GetGame().GetCallqueue().Remove(ClearPoll);
-  float nearest = BBB_Zombies.Nearest(BBB_VehiclePosture.Utility(m_Man), 200);
-  Check("heal-goes-when-clear", AtCasualty(), string.Format("reached the casualty after %1 s (shambler dead %2, held %3 more times, nearest live zombie he knows of %4 m)", m_iPolls * 0.5, m_Zombie && !BBB.IsConscious(m_Zombie), BBB_Zombies.s_iHealsHeld - m_iCounter, nearest));
+  Check("heal-goes-once-rule-lifts", AtCasualty() && BBB_Zombies.s_iHealsHeld == m_iCounter, string.Format("reached the casualty after %1 s with the rules off, held %2 times since", m_iPolls * 0.5, BBB_Zombies.s_iHealsHeld - m_iCounter));
+  m_Hooks.m_iRules = -1;
   Clean();
   Finish();
  }
