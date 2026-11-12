@@ -10,7 +10,7 @@ class BBB_MoraleTest : BBB_AimTest
 	protected SCR_AIGroup m_SquadUSSR;
 	protected SCR_AIGroup m_SquadUS;
 	static const ResourceName WP_MOVE = "{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et";
-	static const int EXPECTED = 27;
+	static const int EXPECTED = 30;
 	protected bool m_bAce;                // ACE arm: ACE Captives must be loaded and used
 	protected vector m_vSubjectAt;        // where the prisoner was last seen (helper check after despawn)
 	protected static typename s_HelperType;
@@ -141,6 +141,7 @@ class BBB_MoraleTest : BBB_AimTest
 	protected int m_iRemovedBefore;
 	protected int m_iFrags;
 	protected int m_iWait;
+	protected bool m_bRuseSeenArmed;
 	protected vector m_vOrigin;
 
 	protected void BeginSurrender(array<AIAgent> agents)
@@ -459,6 +460,18 @@ class BBB_MoraleTest : BBB_AimTest
 		}
 		BBB_Morale.s_iForceFate = m_iFateForNext;
 		PrepareSubject(agents);
+		if (m_bUnarmedNext)
+		{
+			DisarmSubject();
+			BBB_Morale.s_fSurrenderChance = 0;
+			m_iUnarmedRollsBefore = BBB_Morale.s_iUnarmedRolls;
+			m_iWait = 0;
+			GetGame().GetCallqueue().CallLater(WaitUnarmedHolds, 500);
+			return;
+		}
+		// Rearm's rounds remember the rifle he carries (as in play, where Rearm is on); surrender
+		// must make it forget it, or a ruse who rejoins is sent back for it (review 0.5.13 #18).
+		m_bRuseSeenArmed = m_iFateForNext == BBB_Morale.FATE_RUSE && m_Subject && !BBB_Rearm.LostPrimary(m_Subject) && BBB_Rearm.LastPrimary(m_Subject) != null;
 		m_iWait = 0;
 		if (m_iFateForNext == BBB_Morale.FATE_EXECUTED) GetGame().GetCallqueue().CallLater(WaitExecutionSurrender, 500);
 		else GetGame().GetCallqueue().CallLater(WaitRuseSurrender, 500);
@@ -519,6 +532,9 @@ class BBB_MoraleTest : BBB_AimTest
 		if (state == 0) GetGame().GetCallqueue().CallLater(WaitRuseSurrender, 500);
 		if (state != 1) return;
 		PrintFormat("[BBB] MORALETEST ruse subject carries %1 frags", m_iFrags);
+		// Rearm back on for the ruse (review 0.5.13 #18): once he rejoins, weapon recovery must not
+		// send him for the rifle he dropped, nor an ammo run take him off the frag or pistol.
+		BBB_Rearm.s_bOn = true;
 		m_iWait = 0;
 		GetGame().GetCallqueue().CallLater(WaitRuse, 500);
 	}
@@ -543,6 +559,10 @@ class BBB_MoraleTest : BBB_AimTest
 		Check("ruse-stood-up", m_Subject && !m_Subject.IsInVehicle() && ruseController && !ruseController.IsLoitering());
 		// The frag physically left his kit (a pistol ruse has no frag to count: then this checks
 		// only that he is armed again).
+		bool rejoined = ai && ai.GetAIAgent() && ai.GetAIAgent().GetParentGroup() != null;
+		bool noRun = m_Subject && !BBB_Rearm.InRearmAction(m_Subject) && !BBB_Rearm.PrimaryOf(m_Subject) && !BBB_Rearm.LostPrimary(m_Subject);
+		PrintFormat("[BBB] MORALETEST ruse rearm: seenArmed=%1 noRun=%2 rejoined=%3 rearmOn=%4", m_bRuseSeenArmed, noRun, rejoined, BBB_Rearm.s_bOn);
+		Check("ruse-no-rearm-run", m_bRuseSeenArmed && noRun);
 		if (m_iFrags > 0) Check("ruse-frag-thrown", thrown);
 		else
 		{
@@ -550,6 +570,73 @@ class BBB_MoraleTest : BBB_AimTest
 			if (m_Subject) combat = SCR_AICombatComponent.Cast(m_Subject.FindComponent(SCR_AICombatComponent));
 			Check("ruse-pistol-kept", combat && combat.FindWeaponOfType(EWeaponType.WT_HANDGUN));
 		}
+		BeginUnarmedSubject();
+	}
+
+	// ---- D: unarmed (review 0.5.13 #19, Jacob: "roll like everyone"). A cut-off soldier with no
+	// gun at all once gave up automatically; now he takes the nerve roll. Nerve 0: he must hold
+	// out; nerve 1: he gives up (so the cornering itself was real).
+	protected bool m_bUnarmedNext;
+
+	protected void BeginUnarmedSubject()
+	{
+		m_bUnarmedNext = true;
+		// The ruse is still fighting (pistol or frag) beside where D stands: one run lost D to it.
+		if (m_Subject && BBB.IsAlive(m_Subject)) Discard(m_Subject);
+		vector usCentre = m_vOrigin + Vector(0, 0, 30);
+		array<AIAgent> us = {};
+		if (m_SquadUS) m_SquadUS.GetAgents(us);
+		vector sum;
+		int counted;
+		foreach (AIAgent agent : us)
+		{
+			if (!agent || !agent.GetControlledEntity()) continue;
+			sum = sum + agent.GetControlledEntity().GetOrigin();
+			counted++;
+		}
+		if (counted > 0) usCentre = sum * (1.0 / counted);
+		// Where the ruse stood, 20 m in front of the US team (a spot 21 m off at an angle once
+		// never gave him a sighting, so the nerve-1 half could not run).
+		BeginNextSubject(usCentre + Vector(0, 0, -20) - m_vOrigin, BBB_Morale.FATE_GENUINE);
+	}
+
+	// Every gun dropped the engine's way, as a real loss (Rearm off, or he would pick one up).
+	// Not deleted: deleting the gun his attack behaviour has selected trips a vanilla null in
+	// SCR_AIUpdateTargetAttackData.
+	protected void DisarmSubject()
+	{
+		BBB_Rearm.s_bOn = false;
+		BaseWeaponManagerComponent wm = BaseWeaponManagerComponent.Cast(m_Subject.FindComponent(BaseWeaponManagerComponent));
+		CharacterControllerComponent controller = m_Subject.GetCharacterController();
+		array<WeaponSlotComponent> slots = {};
+		if (wm) wm.GetWeaponsSlots(slots);
+		foreach (WeaponSlotComponent slot : slots)
+		{
+			if (!slot || !slot.GetWeaponEntity() || !BBB_Morale.IsGun(slot.GetWeaponType())) continue;
+			if (controller) controller.DropWeapon(slot);
+		}
+	}
+
+	protected int m_iUnarmedRollsBefore;
+
+	protected void WaitUnarmedHolds()
+	{
+		m_iWait++;
+		int rolls = BBB_Morale.s_iUnarmedRolls - m_iUnarmedRollsBefore;
+		if (!BBB_Morale.IsPrisoner(m_Subject) && BBB.IsAlive(m_Subject) && rolls < 3 && m_iWait < 40)
+		{
+			GetGame().GetCallqueue().CallLater(WaitUnarmedHolds, 500);
+			return;
+		}
+		int spare, inGun;
+		bool known = BBB_Morale.PrimaryAmmo(m_Subject, spare, inGun);
+		PrintFormat("[BBB] MORALETEST unarmed subject: primary %1, ammo known %2 spare %3 in gun %4, prisoner %5", BBB_Rearm.PrimaryOf(m_Subject) != null, known, spare, inGun, BBB_Morale.IsPrisoner(m_Subject));
+		PrintFormat("[BBB] MORALETEST unarmed subject reached the nerve roll %1 times in %2 s", rolls, m_iWait * 0.5);
+		// Cornered and eligible (he reached the roll: before, an unarmed man gave up right there)...
+		Check("unarmed-cornered-rolled", rolls >= 1);
+		// ...and with nerve 0 he holds out: no automatic give-up.
+		Check("unarmed-no-automatic-surrender", BBB.IsAlive(m_Subject) && !BBB_Rearm.PrimaryOf(m_Subject) && !BBB_Morale.IsPrisoner(m_Subject));
+		BBB_Morale.s_fSurrenderChance = 1;
 		FinishTest();
 	}
 
