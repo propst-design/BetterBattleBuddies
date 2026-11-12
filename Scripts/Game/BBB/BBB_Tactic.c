@@ -281,7 +281,7 @@ class BBB_Tactic
   s_iChanges++;
   PrintFormat("[BBB] TACTIC %1: %2 -> %3 (%4)", BBB.s_Hooks.NameOf(state.m_Group), Name(old), Name(tactic), why);
   BBB_Think.NoteGroup(state.m_Group, "Tactic", Name(tactic) + ": " + why);
-  CallOut(state.m_Group, tactic, threat);
+  CallOut(state, tactic, threat);
   StatStart(state);
  }
 
@@ -374,43 +374,50 @@ class BBB_Tactic
   s_mStat.Clear();
  }
 
- // The leader (or the next conscious man) says the order, through vanilla's comms queue.
- protected static void CallOut(SCR_AIGroup group, int tactic, vector threat)
+ // The AI squad leader says the plan through BBB_Callouts (his own comms queue, throttled; never a
+ // player's squad). The flank goes to a man of the moving half by callsign, with the side.
+ protected static void CallOut(BBB_TacticState state, int tactic, vector threat)
  {
-  ECommunicationType type = ECommunicationType.NONE;
-  if ((tactic == ASSAULT || tactic == FLANK) && threat.LengthSq() > 0) type = ECommunicationType.REPORT_MOVE;
-  else if (tactic == SEARCH) type = ECommunicationType.REPORT_SEARCH_AND_DESTROY;
-  else if (tactic == HOLD) type = ECommunicationType.REPORT_DEFEND;
-  else if (tactic == WITHDRAW) type = ECommunicationType.REPORT_RETURN;
-  Say(group, type, threat);
+  SCR_AIGroup group = state.m_Group;
+  if (tactic == FLANK)
+  {
+   BBB_SquadPicture picture = BBB_Squad.Get(group);
+   IEntity leader = group.GetLeaderEntity();
+   vector from = state.m_vLastThreat;
+   if (leader) from = leader.GetOrigin();
+   if (picture && picture.m_bHasCentre) from = picture.m_vCentre;
+   BBB_Callouts.Flank(group, Runner(group), from, state.m_vLastThreat, state.m_vFlankPoint);
+   return;
+  }
+  bool said;
+  if (tactic == ASSAULT && threat.LengthSq() > 0) said = BBB_Callouts.Tactic(group, "assault", ECommunicationType.REPORT_MOVE, "", null, threat, 0);
+  else if (tactic == SEARCH) said = BBB_Callouts.Tactic(group, "search", ECommunicationType.REPORT_SEARCH_AND_DESTROY, "", null, vector.Zero, 0);
+  else if (tactic == HOLD) said = BBB_Callouts.Tactic(group, "hold", ECommunicationType.REPORT_DEFEND, "", null, vector.Zero, 0);
+  else if (tactic == WITHDRAW) said = BBB_Callouts.FallBack(group);
+  if (said) s_iCallouts++;
  }
 
  protected static void Say(SCR_AIGroup group, ECommunicationType type, vector threat)
  {
   if (type == ECommunicationType.NONE) return;
-  SCR_AIUtilityComponent speaker = Speaker(group);
-  if (!speaker || !speaker.m_CommsHandler || speaker.m_CommsHandler.CanBypass()) return;
-  speaker.m_CommsHandler.AddRequest(new SCR_AITalkRequest(type, null, threat, 0, true, false, SCR_EAITalkRequestPreset.MANDATORY));
-  s_iCallouts++;
+  if (BBB_Callouts.Say(group, BBB_Callouts.TACTIC, "search-over", type, "", null, threat, 0)) s_iCallouts++;
  }
 
- protected static SCR_AIUtilityComponent Speaker(SCR_AIGroup group)
+ // A man to name in the flank call: an AI rifleman who isn't the leader (the drill's movers are
+ // picked a moment later from its halves; any of them carries the call).
+ protected static IEntity Runner(SCR_AIGroup group)
  {
   IEntity leader = group.GetLeaderEntity();
   array<AIAgent> agents = {};
   BBB.s_Hooks.GetMembers(group, agents);
-  SCR_AIUtilityComponent first;
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;
-   ChimeraCharacter man = ChimeraCharacter.Cast(agent.GetControlledEntity());
-   if (!man || !BBB.IsAlive(man) || man.GetCharacterController().IsUnconscious()) continue;
-   SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
-   if (!utility) continue;
-   if (man == leader) return utility;
-   if (!first) first = utility;
+   IEntity man = agent.GetControlledEntity();
+   if (!man || man == leader || !BBB.IsAlive(man) || BBB_Callouts.IsPlayer(man)) continue;
+   return man;
   }
-  return first;
+  return null;
  }
 
  // The tactic stands aside: no hold, the squad's order and vanilla (and fire and manoeuvre on its

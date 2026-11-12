@@ -651,6 +651,7 @@ class BBB_Morale
 		PrintFormat("[BBB] MORALE: Squad %1 morale broke (score=%2, initial=%3), withdrawing away from %4 to %5",
 			BBB.s_Hooks.NameOf(state.m_Group), state.m_fMorale, state.m_iInitialCount, threatCenter, state.m_vWithdrawPos);
 			BBB_Think.NoteGroup(state.m_Group, "Morale", "MORALE BROKE (score " + state.m_fMorale.ToString(4, 2) + "): withdrawing");
+		BBB_Callouts.FallBack(state.m_Group);
 
 		ExecuteBoundingPhase(state);
 	}
@@ -712,6 +713,7 @@ class BBB_Morale
 		PrintFormat("[BBB] MORALE: Squad %1 falls back on orders under fire, %2 m to go (threat %3 m), bounding to %4",
 			BBB.s_Hooks.NameOf(state.m_Group), Math.Round(vector.DistanceXZ(squadCenter, state.m_vOrderDest)), Math.Round(vector.DistanceXZ(squadCenter, threatCenter)), state.m_vWithdrawPos);
 		BBB_Think.NoteGroup(state.m_Group, "Morale", "falling back on orders: covered bounds");
+		BBB_Callouts.FallBack(state.m_Group);
 
 		ExecuteBoundingPhase(state);
 		if (!state.m_bWithdrawing) state.m_bOrdered = false;

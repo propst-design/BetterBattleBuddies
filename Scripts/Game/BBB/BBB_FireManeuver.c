@@ -343,6 +343,7 @@ class BBB_FireManeuver
   s_iStarted++;
   PrintFormat("[BBB] FIRE MANEUVER %1: %2 + %3, MG cover=%4, leader's teams=%5", BBB.s_Hooks.NameOf(group), job.m_Members.Count() / 2, job.m_Members.Count() - job.m_Members.Count() / 2, mg != null, leaderTeams);
   BBB_Think.NoteGroup(group, "FireManeuver", "starts fire and manoeuvre");
+  if (s_bCoverOrders) BBB_Callouts.Suppress(group, seen);
   return job;
  }
 

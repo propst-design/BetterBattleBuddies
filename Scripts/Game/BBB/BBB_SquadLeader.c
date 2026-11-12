@@ -705,9 +705,7 @@ class BBB_SquadLeader
   if (now - orders.m_fSaidAt < SAY_EVERY_S || !group.m_Key) return;
   IEntity leader = orders.m_Group.GetLeaderEntity();
   if (!BBB.IsConscious(leader) || BBB.PlayerOf(leader)) return;
-  SCR_AIUtilityComponent speaker = BBB_VehiclePosture.Utility(leader);
-  if (!speaker || !speaker.m_CommsHandler || speaker.m_CommsHandler.CanBypass()) return;
-  speaker.m_CommsHandler.AddRequest(new SCR_AITalkRequest(ECommunicationType.REPORT_TARGET, group.m_Key, group.m_vAim, 0, true, false, SCR_EAITalkRequestPreset.MEDIUM));
+  if (!BBB_Callouts.Say(orders.m_Group, BBB_Callouts.TACTIC, "split-target", ECommunicationType.REPORT_TARGET, "", group.m_Key, group.m_vAim, 0)) return;
   orders.m_fSaidAt = now;
   s_iSaid++;
  }

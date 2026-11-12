@@ -18,6 +18,7 @@ class BBB_StaticInit : Managed
   BBB_Armour.BBB_InitStatics();
   BBB_Bios.BBB_InitStatics();
   BBB_Buildings.BBB_InitStatics();
+  BBB_Callouts.BBB_InitStatics();
   BBB_Claims.BBB_InitStatics();
   BBB_ContactRelay.BBB_InitStatics();
   BBB_CoverFire.BBB_InitStatics();

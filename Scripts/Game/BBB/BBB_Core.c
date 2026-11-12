@@ -105,6 +105,8 @@ class BBB_Hooks : Managed
  int ZombieRules() { return -1; }
  // An entity the host counts as a zombie, on top of the creature components BBB finds itself.
  bool IsZombie(IEntity entity) { return false; }
+ // The AI squad leader of this group may voice orders and calls (BBB_Callouts). False: the host keeps it quiet.
+ bool AllowCallouts(SCR_AIGroup group) { return true; }
 }
 
 class BBB
@@ -151,6 +153,7 @@ class BBB
   BBB_Tactic.Read();
   BBB_CoverFire.Read();
   BBB_Zombies.Read();
+  BBB_Callouts.Read();
 		s_VehicleHelpers = new BBB_VehicleHelpers();
 		s_Launchers = new BBB_Launchers();
 		s_Combat = new BBB_Combat();
@@ -195,6 +198,7 @@ class BBB
   BBB_CrewLeader.Stop();
   BBB_SquadLeader.Stop();
   BBB_Zombies.Stop();
+  BBB_Callouts.Stop();
   BBB_Transport.ClearHits();
   BBB_VehicleHelpers.Reset();
   BBB_PilotHold.GiveAll(); // after every manoeuvre has ended
@@ -267,6 +271,8 @@ class BBB
   t = BBB_Perf.Lap("tick.contactRelay", t);
   BBB_Zombies.Tick();
   t = BBB_Perf.Lap("tick.zombies", t);
+  BBB_Callouts.Tick();
+  t = BBB_Perf.Lap("tick.callouts", t);
   BBB_Traffic.Read(); // starts its own quarter-second tick
   BBB_Think.Tick();
 		BBB_Perf.OnTick();

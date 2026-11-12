@@ -420,6 +420,7 @@ modded class SCR_AIGroupUtilityComponent
 		super.OnEnemyDetectedFiltered(group, target, reporter);
 		BBB_Combat.OnEnemyDetectedFiltered(group, target, reporter);
 		BBB_Armour.CheckGroupAntiArmor(group);
+		BBB_Callouts.OnContact(group, target, reporter);
 	}
 }
 
