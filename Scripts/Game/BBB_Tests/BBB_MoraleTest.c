@@ -505,6 +505,9 @@ class BBB_MoraleTest : BBB_AimTest
 		if (!shot) LogCaptors();
 		PrintFormat("[BBB] MORALETEST execution: shot down after %1 s (dead %2)", m_iWait * 0.5, m_Subject && !BBB.IsAlive(m_Subject));
 		Check("executed-prisoner-killed", shot);
+		// A downed (not dead) prisoner is a live friendly beside the US team: the ruse's frag is rightly
+		// called off when he lies in its blast area (integration run 12 Nov). Clear him for the ruse.
+		if (m_Subject && BBB.IsAlive(m_Subject)) Discard(m_Subject);
 		BBB_Morale.s_fRuseRangeM = 40; // the US team stays 20 m off; in play someone walks up
 		BBB_Morale.s_fRuseNerve = 1;
 		// 20 m south of where the US team stands now (it moves during the execution; once it ended

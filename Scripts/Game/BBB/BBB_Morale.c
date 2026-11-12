@@ -126,6 +126,9 @@ class BBB_Morale
 	static const float RUSE_SEEN_S = 2.0;          // a ruse throws only at an enemy he saw this recently
 	static const float RUSE_THROW_POLL_MS = 500;
 	static const int RUSE_THROW_POLLS = 12;         // 6 s for his perception to pick the enemy up
+	static const float RUSE_THROW_CLEAR_M = 3.0;    // past the frag safety radius: he counts as his own friendly
+	static const float RUSE_THROW_WATCH_MS = 1000;
+	static const int RUSE_THROW_WATCHES = 8;        // a queued throw that hasn't left in 8 s is dropped
 	static float s_fPrisonerMinS = 90.0;            // kept at least this long; tests shorten it
 	static const float PRISONER_NEAR_M = 200.0;     // no player this close...
 	static const float PRISONER_VIEW_M = 1000.0;    // ...and none this close looking his way
@@ -1278,13 +1281,16 @@ class BBB_Morale
 		array<BaseTarget> targets = {};
 		utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
 		BaseTarget best;
+		// The frag's safety check counts him too: a target inside its radius (or one he closes on
+		// before the throw starts) gets the throw called off, so pick one with room to spare.
+		float minD = Math.Max(RUSE_FRAG_MIN_M, BBB_Grenades.s_fFriendlySafetyDistM + RUSE_THROW_CLEAR_M);
 		foreach (BaseTarget target : targets)
 		{
 			if (!target || target.IsDisarmed() || !target.GetTargetEntity()) continue;
 			float seen = target.GetTimeSinceSeen();
 			if (seen < 0 || seen > RUSE_SEEN_S || target.GetTraceFraction() < 0.8) continue;
 			float d = target.GetDistance();
-			if (d < RUSE_FRAG_MIN_M || d > s_fRuseRangeM + 10) continue;
+			if (d < minD || d > s_fRuseRangeM + 10) continue;
 			if (!best || d < best.GetDistance()) best = target;
 		}
 		if (!best)
@@ -1301,6 +1307,24 @@ class BBB_Morale
 		utility.AddAction(toss);
 		s_iRuseThrows++;
 		PrintFormat("[BBB] MORALE: ruse %1 throws his hidden frag at an enemy he sees %2 m away", soldier, Math.Round(best.GetDistance()));
+		GetGame().GetCallqueue().CallLater(RuseWatch, RUSE_THROW_WATCH_MS, false, soldier, squad, side, toss, attempt + 1, 0);
+	}
+
+	// A ruse's queued throw called off (a friendly, or he himself, in the blast area): he looks for
+	// another clear target while his polls last, instead of giving up the frag.
+	static void RuseWatch(ChimeraCharacter soldier, SCR_AIGroup squad, Faction side, BBB_AIThrowFrag toss, int attempt, int watch)
+	{
+		if (!soldier || !BBB.IsConscious(soldier) || !toss) return;
+		EAIActionState state = toss.GetActionState();
+		if (state == EAIActionState.COMPLETED) return;
+		if (state == EAIActionState.FAILED)
+		{
+			if (attempt >= RUSE_THROW_POLLS) return;
+			PrintFormat("[BBB] MORALE: ruse %1's throw was called off; looks for a clear target", soldier);
+			RuseThrow(soldier, squad, side, attempt);
+			return;
+		}
+		if (watch + 1 < RUSE_THROW_WATCHES) GetGame().GetCallqueue().CallLater(RuseWatch, RUSE_THROW_WATCH_MS, false, soldier, squad, side, toss, attempt, watch + 1);
 	}
 
 	protected static Faction s_QuerySide;
