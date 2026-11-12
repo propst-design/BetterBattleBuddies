@@ -1,6 +1,6 @@
-0.1.11
+0.2.0
 
-Surrender that happens and matters, soldiers who fight zombies like zombies, squad leaders who talk, and soldiers who pick a weapon back up. Works with AC: Actual 0.5.13.
+Surrender that happens and matters, soldiers who fight zombies like zombies, squad leaders who talk, and soldiers who pick a weapon back up. Works with AC: Actual 0.6.0.
 
 NEW
 
