@@ -6,6 +6,7 @@ BBB gives Arma Reforger's AI more initiative in a firefight: squad plans, flanki
 
 FIGHT AS A SQUAD
 
+- Squad leaders run the fight: they point their men at the enemy, put a fireteam on a second group, pick who goes to a casualty and call it out in the game's own radio voices.
 - Commit to a plan on contact: assault when the odds are fair, hold from cover when outnumbered, flanked or pinned.
 - Fix a dug-in enemy and flank him; search where contact was lost. Warn nearby squads by radio: reports are last-seen positions, never targets.
 - Alternate covering fire and movement toward reported contacts. Covering soldiers can keep firing on a recent enemy position after the enemy ducks.
@@ -28,16 +29,13 @@ KEEP THE VEHICLE WORKING
 - Replace a lost turret gunner with an eligible AI squadmate. Commander seats count as crew.
 - Passengers dismount under fire while crews stay aboard: drivers no longer get out to open gates, nor crews to treat the wounded.
 - Supported armoured crew positions turn out when quiet and button up when danger returns.
-- Idle wheeled-vehicle drivers can make a small guarded adjustment for a gunner's visible target outside a limited turret arc.
 - Supported vehicles use fitted smoke weapons against launcher fire; slow wheeled vehicles can also make a short guarded reverse.
 
-Also: scanning, quiet marching, weapon readiness and personal bios.
+Also: zombies fought as zombies (with Project Outbreak), scanning, quiet marching, weapon readiness and personal bios.
 
 YOUR ORDERS COME FIRST
 
-Autonomous features respect player control, explicit player/GM orders and host-mod policy. BBB does not recruit soldiers, create a squad or replace your battle plan. AC: Actual supplies map-level command and logistics; the optional AiO Command Menu gives orders to your linked squad. BBB needs neither.
-
-Buildings and vehicle movement still depend on Reforger's navigation, equipment and current orders. Grenades, smoke and flares use equipment the soldiers carry; vehicle smoke needs a supported fitted weapon. Host scenarios can restrict features.
+Autonomous features respect player control, explicit player/GM orders and host-mod policy. BBB does not recruit soldiers, create a squad or replace your battle plan. AC: Actual supplies map-level command and logistics; the optional AiO Command Menu gives orders to your linked squad. BBB needs neither. Host scenarios can restrict features.
 
 GET STARTED AND TUNE IT
 
@@ -45,14 +43,11 @@ Enable BBB and start a scenario with AI, such as Conflict or Game Master. Multip
 
 Tune it in Settings > Battle Buddies: every feature has a switch or slider with a short description. Save, share and export presets; BBB default and Vanilla (all off) are built in. Presets apply in singleplayer and games you host. Servers use -bbbPreset <name>; -bbb... launch parameters still win.
 
-Hosts can use -bbbThink 1 and look at a soldier to see BBB's decisions (-bbbThink 2 also logs them).
-
 GUIDE, FEEDBACK AND CREDITS
 
 Source and guide: https://github.com/propst-design/BetterBattleBuddies
 Discord: https://discord.gg/WK8xGSztB
 Use #issues for BBB bugs and #suggestions for ideas. No GitHub account needed.
 GitHub alternative: https://github.com/propst-design/BetterBattleBuddies/issues
-Reports: include versions, scenario, mods, host/client role, steps and console.log/script.log.
 
 Directed and tested by Jacob, co-developed by SlyZilla; built with Claude, Codex and Antigravity. Extracted from AC: Actual. Arma Public License Share Alike (APL-SA); original attribution and full credits are retained in LICENSE.md.
