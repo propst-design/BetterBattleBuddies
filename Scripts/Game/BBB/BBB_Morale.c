@@ -96,6 +96,7 @@ class BBB_SurrenderState : Managed
 	bool m_bRising;                 // a ruse getting to his feet before his AI comes back
 	float m_fPoseSince;             // world time (s) ACE was asked to seat him
 	float m_fRiseSince;
+	bool m_bAIOff;                  // BBB deactivated his AI when he gave up (only then may a ruse wake it)
 }
 
 class BBB_Morale
@@ -122,6 +123,9 @@ class BBB_Morale
 	static const float SURRENDER_WOUNDED = 0.5;     // health below this counts as unable to fight on
 	static const float SURRENDER_SEEN_S = 10.0;     // enemy seen this recently
 	static const int MAX_PRISONERS = 24;
+	static const float RUSE_SEEN_S = 2.0;          // a ruse throws only at an enemy he saw this recently
+	static const float RUSE_THROW_POLL_MS = 500;
+	static const int RUSE_THROW_POLLS = 12;         // 6 s for his perception to pick the enemy up
 	static float s_fPrisonerMinS = 90.0;            // kept at least this long; tests shorten it
 	static const float PRISONER_NEAR_M = 200.0;     // no player this close...
 	static const float PRISONER_VIEW_M = 1000.0;    // ...and none this close looking his way
@@ -183,6 +187,7 @@ class BBB_Morale
 	static int s_iPrisonersRemoved;
 	static int s_iExecuted;
 	static int s_iRuses;
+	static int s_iRuseThrows;  // frags a ruse threw at an enemy he saw (tests read it)
 	static int s_iHandedToAce;
 
 	static void Read()
@@ -953,6 +958,8 @@ class BBB_Morale
 		if (!BBB.IsConscious(soldier) || soldier.IsInVehicle() || BBB.PlayerOf(soldier) || BBB_OrderIntent.Blocks(utility)) return;
 		if (utility.m_ThreatSystem.GetThreatMeasure() < s_fSurrenderThreat) return;
 		if (IsPrisoner(soldier)) return;
+		// A healer mid-drag finishes the drag first (review #19).
+		if (BBB_Drag.Busy(soldier)) return;
 
 		// Unable to fight on: no spare magazines for his primary, or badly hurt.
 		int spareMags, inGun;
@@ -1067,7 +1074,11 @@ class BBB_Morale
 		// ACE Captives' surrender when it is loaded, else kneel with the halt sign, then sit
 		// (BBB_SurrenderPose). Before his AI goes off: ACE seats him through his compartment access.
 		BBB_SurrenderPose.Start(state);
-		if (ai && ai.IsAIActivated()) ai.DeactivateAI();
+		if (ai && ai.IsAIActivated())
+		{
+			ai.DeactivateAI();
+			state.m_bAIOff = true; // BBB's to give back (a ruse); never someone else's
+		}
 
 		s_Surrendered.Insert(state);
 		s_iSurrenders++;
@@ -1163,7 +1174,10 @@ class BBB_Morale
 					continue;
 				}
 			}
-			if (ss.m_bRising || now - ss.m_fSurrenderSince < s_fPrisonerMinS || PlayerSees(soldier)) continue;
+			// At the cap a player merely nearby no longer keeps a prisoner (only one looking at him
+			// does), or with players about surrender would stop for good (review #19).
+			bool full = s_Surrendered.Count() >= MAX_PRISONERS;
+			if (ss.m_bRising || now - ss.m_fSurrenderSince < s_fPrisonerMinS || PlayerSees(soldier, !full)) continue;
 			s_Surrendered.RemoveOrdered(i);
 			s_iPrisonersRemoved++;
 			PrintFormat("[BBB] MORALE: prisoner %1 removed after %2 s, no player near or looking", soldier, Math.Round(now - ss.m_fSurrenderSince));
@@ -1198,6 +1212,9 @@ class BBB_Morale
 		float distance;
 		bool frag = ss.m_eHidden == EWeaponType.WT_FRAGGRENADE;
 		IEntity mark;
+		// Only BBB wakes a man BBB put to sleep: if his AI was already off when he gave up (a host
+		// holds it), the ruse never comes (review #19).
+		if (!ss.m_bAIOff) return false;
 		if (!ss.m_bRising)
 		{
 			mark = NearestEnemy(soldier, ss.m_TrueFaction, s_fRuseRangeM, false, distance);
@@ -1217,6 +1234,7 @@ class BBB_Morale
 		AIControlComponent ai = AIControlComponent.Cast(soldier.FindComponent(AIControlComponent));
 		if (!ai) return false;
 		if (!ai.IsAIActivated()) ai.ActivateAI();
+		ss.m_bAIOff = false;
 		SCR_AIGroup squad;
 		if (ss.m_FormerGroup && ss.m_FormerGroup.GetAgentsCount() > 0)
 		{
@@ -1230,28 +1248,59 @@ class BBB_Morale
 		// rejoined, else, his squad gone, for his side (the throw fails closed without either).
 		Faction side = ss.m_TrueFaction;
 		if (!side) side = SCR_AIFactionHandling.GetEntityPerceivedFaction(soldier);
+		// The frag goes where HE sees an enemy, not where the world says one stands (BBB's first
+		// hard rule; review #19): his perception, back on with his AI, is asked over the next
+		// seconds (RuseThrow). The man the world query found only told him it was time.
 		bool thrown = frag && utility && mark && (squad || side);
-		if (thrown)
-		{
-			vector landing = mark.GetOrigin();
-			landing[1] = GetGame().GetWorld().GetSurfaceY(landing[0], landing[2]) + 0.1;
-			BBB_AIThrowFrag toss = new BBB_AIThrowFrag(utility, null, landing, EWeaponType.WT_FRAGGRENADE, 0.1, SCR_AIActionBase.PRIORITY_BEHAVIOR_THROW_GRENADE);
-			toss.m_Group = squad;
-			toss.m_Side = side;
-			utility.AddAction(toss);
-		}
+		if (thrown) GetGame().GetCallqueue().CallLater(RuseThrow, RUSE_THROW_POLL_MS, false, soldier, squad, side, 0);
 		// The pistol: his AI is back with an enemy in front of him and picks the only gun he has.
 		// Rearm leaves him to it: no run for pistol magazines off a body mid-ruse (his rifle it
 		// already forgot when he surrendered).
 		BBB_Rearm.Hold(soldier, RUSE_REARM_HOLD_MS);
 		s_iRuses++;
 		string how = "draws a hidden pistol";
-		if (thrown) how = "throws a hidden frag";
+		if (thrown) how = "goes for a hidden frag";
 		else if (frag) how = "fights on with a hidden frag";
 		if (!mark) distance = 0;
 		PrintFormat("[BBB] MORALE: prisoner %1 broke his surrender: %2 at an enemy %3 m away (up after %4 s)", soldier, how, Math.Round(distance), Math.Round(now - ss.m_fRiseSince));
 		BBB_Think.Note(soldier, "Morale", "FAKE SURRENDER: " + how);
 		return true;
+	}
+
+	// A ruse's frag, once he perceives an enemy (seen in the last RUSE_SEEN_S, far enough to throw
+	// and live, clear line): it lands where he last saw him. No sighting within the polls: no throw,
+	// he fights on with what his AI picks.
+	static void RuseThrow(ChimeraCharacter soldier, SCR_AIGroup squad, Faction side, int attempt)
+	{
+		if (!soldier || !BBB.IsConscious(soldier) || BBB.PlayerOf(soldier)) return;
+		SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(soldier);
+		if (!utility || !utility.m_PerceptionComponent) return;
+		array<BaseTarget> targets = {};
+		utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
+		BaseTarget best;
+		foreach (BaseTarget target : targets)
+		{
+			if (!target || target.IsDisarmed() || !target.GetTargetEntity()) continue;
+			float seen = target.GetTimeSinceSeen();
+			if (seen < 0 || seen > RUSE_SEEN_S || target.GetTraceFraction() < 0.8) continue;
+			float d = target.GetDistance();
+			if (d < RUSE_FRAG_MIN_M || d > s_fRuseRangeM + 10) continue;
+			if (!best || d < best.GetDistance()) best = target;
+		}
+		if (!best)
+		{
+			if (attempt + 1 < RUSE_THROW_POLLS) GetGame().GetCallqueue().CallLater(RuseThrow, RUSE_THROW_POLL_MS, false, soldier, squad, side, attempt + 1);
+			else PrintFormat("[BBB] MORALE: ruse %1 saw no enemy to throw at; fights on", soldier);
+			return;
+		}
+		vector landing = best.GetLastSeenPosition();
+		landing[1] = GetGame().GetWorld().GetSurfaceY(landing[0], landing[2]) + 0.1;
+		BBB_AIThrowFrag toss = new BBB_AIThrowFrag(utility, null, landing, EWeaponType.WT_FRAGGRENADE, 0.1, SCR_AIActionBase.PRIORITY_BEHAVIOR_THROW_GRENADE);
+		toss.m_Group = squad;
+		toss.m_Side = side;
+		utility.AddAction(toss);
+		s_iRuseThrows++;
+		PrintFormat("[BBB] MORALE: ruse %1 throws his hidden frag at an enemy he sees %2 m away", soldier, Math.Round(best.GetDistance()));
 	}
 
 	protected static Faction s_QuerySide;
@@ -1297,7 +1346,7 @@ class BBB_Morale
 
 	// A player close by, or within view range and facing him (no line trace: hills and walls
 	// only make this keep a prisoner longer).
-	protected static bool PlayerSees(IEntity soldier)
+	protected static bool PlayerSees(IEntity soldier, bool nearCounts = true)
 	{
 		vector origin = soldier.GetOrigin();
 		array<int> players = {};
@@ -1307,7 +1356,7 @@ class BBB_Morale
 			ChimeraCharacter player = ChimeraCharacter.Cast(GetGame().GetPlayerManager().GetPlayerControlledEntity(id));
 			if (!player) continue;
 			float distance = vector.Distance(player.GetOrigin(), origin);
-			if (distance < PRISONER_NEAR_M) return true;
+			if (nearCounts && distance < PRISONER_NEAR_M) return true;
 			if (distance > PRISONER_VIEW_M) continue;
 			AimingComponent head = player.GetHeadAimingComponent();
 			if (!head) return true;

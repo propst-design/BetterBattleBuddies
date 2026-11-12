@@ -1,10 +1,20 @@
 // Disposable launchers (M72, RPG-22, RPG-75): an AI soldier who has fired his
 // drops the empty tube, like a real one would. The soldier is then owed one of the
 // same kind; the host decides how he gets it back (in AC: Actual an ammo truck or
-// a base restock). Players handle their own launchers. Server only.
+// a base restock). Players handle their own launchers, and their squads' AI keep theirs.
+// Server only. -bbbDropTubes 0: nobody drops a spent tube.
 class BBB_Launchers : Managed
 {
  static const int CHECK_MS = 2000;
+ static bool s_bOn = true;
+ static int s_iRead;
+
+ static void Read()
+ {
+  if (!BBB_Settings.Due(s_iRead)) return;
+  string value;
+  s_bOn = !(BBB_Settings.Get("bbbDropTubes", value) && value == "0");
+ }
  protected float m_fNextCheck;
  protected ref map<IEntity, ResourceName> m_Owed = new map<IEntity, ResourceName>();
  protected ref map<IEntity, int> m_EmptyChecks = new map<IEntity, int>();
@@ -78,17 +88,21 @@ class BBB_Launchers : Managed
   float now = GetGame().GetWorld().GetWorldTime();
   if (now < m_fNextCheck) return;
   m_fNextCheck = now + CHECK_MS;
+  Read();
   array<SCR_AIGroup> groups = {};
   BBB.s_Hooks.GetGroups(groups);
   foreach (SCR_AIGroup group : groups)
   {
    array<AIAgent> agents = {};
    BBB.s_Hooks.GetMembers(group, agents);
+   // Off, or a player's squad: his men keep their tubes (the player decides).
+   bool drops = s_bOn && !BBB.HasPlayer(group);
    foreach (AIAgent agent : agents)
    {
     IEntity soldier = agent.GetControlledEntity();
     if (!soldier || !BBB.IsAlive(soldier) || BBB.PlayerOf(soldier) != 0) continue;
     BBB_LauncherUse.Settle(group, soldier);
+    if (!drops) continue;
     IEntity launcher = DisposableOf(soldier);
     if (!launcher) continue;
     if (Loaded(launcher) > 0) { m_EmptyChecks.Remove(launcher); continue; }
@@ -118,7 +132,7 @@ class BBB_Launchers : Managed
   m_Owed.Set(soldier, prefab);
   m_iDropped++;
   BBB.s_Hooks.OnLitter(launcher);
-  PrintFormat("[ACR] LAUNCHER %1: a soldier dropped his spent %2", BBB.s_Hooks.NameOf(group), WeaponName(launcher));
+  PrintFormat("[BBB] LAUNCHER %1: a soldier dropped his spent %2", BBB.s_Hooks.NameOf(group), WeaponName(launcher));
  }
 
 }

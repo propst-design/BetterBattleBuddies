@@ -238,6 +238,14 @@ class BBB_HotAI
 		PrintFormat("[BBB] HOT AI %1: quiet for %2 s, road speed again", vehicle, s_fUnderFireS);
 	}
 
+	// BBB.Stop: the one-second loop ends; Read() starts it again.
+	static void Stop()
+	{
+		if (GetGame()) GetGame().GetCallqueue().Remove(Loop);
+		s_bTraceLoop = false;
+		s_iRead = -1;
+	}
+
 	// Every second: gunner fire control; every other second, the trace.
 	static void Loop()
 	{

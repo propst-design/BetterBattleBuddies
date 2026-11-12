@@ -201,7 +201,7 @@ class BBB_Roads
   float direct = vector.DistanceXZ(a, b);
   if (s_fLastLength > direct * MAX_DETOUR + 250)
   {
-   PrintFormat("[ACR] ROAD detour too long: %1 m by road for %2 m direct, driving direct", (int)s_fLastLength, (int)direct);
+   PrintFormat("[BBB] ROAD detour too long: %1 m by road for %2 m direct, driving direct", (int)s_fLastLength, (int)direct);
    s_bLastDetour = true;
    return false;
   }

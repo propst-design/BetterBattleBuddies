@@ -159,6 +159,7 @@ server owners reach for most, each turning its feature off with `0`:
 | `-bbbContactRelay 0` | Squads sharing spotted enemies by radio |
 | `-bbbCrewTurnout 0` | Quiet-period crew turnout and danger-driven buttoning up |
 | `-bbbDriverAlign 0` | Small idle-driver adjustments for a gunner's visible target |
+| `-bbbDropTubes 0` | AI dropping a spent single-shot launcher |
 | `-bbbArmorReaction 0` | Fitted smoke and guarded wheeled-vehicle reversal against launcher fire |
 | `-bbbCommanderCrew 0` | Treating turret-linked commander positions as crew |
 | `-bbbExposedFire 0` | Continued spotting and stronger return fire when suppressed without cover |

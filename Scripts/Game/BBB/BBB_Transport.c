@@ -89,7 +89,7 @@ class BBB_Transport
   float bottom = pos[1];
   if (maxs[1] > mins[1] && mins[1] < 0 && mins[1] > -10) bottom = pos[1] + mins[1];
   height = Math.Max(0, bottom - below);
-  if (System.IsCLIParam("acrTransportTest")) PrintFormat("[ACR] SETTLE origin %1 underside %2 below %3 -> %4 m", pos[1], bottom, below, height);
+  if (System.IsCLIParam("acrTransportTest")) PrintFormat("[BBB] SETTLE origin %1 underside %2 below %3 -> %4 m", pos[1], bottom, below, height);
   return speed < SETTLED_SPEED && height < SETTLED_HEIGHT;
  }
 

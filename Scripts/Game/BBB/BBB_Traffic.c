@@ -70,6 +70,25 @@ class BBB_Traffic
   }
  }
 
+ // BBB.Stop: the quarter-second tick ends, slowed keepers get their speed back, and every pull-over
+ // hands its driver back (a parked driver's AI was off). Read() starts it all again.
+ static void Stop()
+ {
+  if (GetGame()) GetGame().GetCallqueue().Remove(Tick);
+  s_bLoop = false;
+  s_iRead = -1;
+  if (s_aPairs)
+  {
+   foreach (BBB_GiveWay pair : s_aPairs)
+    if (pair) pair.Abort();
+   s_aPairs.Clear();
+  }
+  BBB_PullOver.StopAll();
+  if (s_mDriven) s_mDriven.Clear();
+  if (s_mEvadeAt) s_mEvadeAt.Clear();
+  if (s_aParked) s_aParked.Clear();
+ }
+
  // The world time (ms).
  static float Now()
  {
@@ -429,12 +448,19 @@ class BBB_GiveWay : Managed
   }
   if (!over) return true;
   BBB_PullOver.Release(m_Yield);
+  Abort();
+  return false;
+ }
+
+ // The keeper's road speed back (end of the pair, or BBB.Stop).
+ void Abort()
+ {
   if (m_bSlowed && m_Keep)
   {
    AICarMovementComponent movement = AICarMovementComponent.Cast(m_Keep.FindComponent(AICarMovementComponent));
    if (movement) movement.ResetCruiseSpeed();
   }
-  return false;
+  m_bSlowed = false;
  }
 }
 
@@ -520,6 +546,20 @@ class BBB_PullOver : Managed
   if (!s_aActive) return;
   foreach (BBB_PullOver pull : s_aActive)
    if (pull.m_Vehicle == vehicle) pull.m_bReleased = true;
+ }
+
+ // BBB.Stop: end every pull-over now, as if it had timed out (the driver's AI comes back).
+ static void StopAll()
+ {
+  if (!s_aActive) return;
+  foreach (BBB_PullOver pull : s_aActive)
+  {
+   if (!pull) continue;
+   CarControllerComponent car = null;
+   if (pull.m_Vehicle) car = CarControllerComponent.Cast(pull.m_Vehicle.FindComponent(CarControllerComponent));
+   pull.End(car, false);
+  }
+  s_aActive.Clear();
  }
 
  static void FrameAll()

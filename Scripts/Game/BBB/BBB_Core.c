@@ -199,6 +199,8 @@ class BBB
   BBB_SquadLeader.Stop();
   BBB_Zombies.Stop();
   BBB_Callouts.Stop();
+  BBB_Traffic.Stop(); // pull-overs hand their drivers back before PilotHold.GiveAll
+  BBB_HotAI.Stop();
   BBB_Transport.ClearHits();
   BBB_VehicleHelpers.Reset();
   BBB_PilotHold.GiveAll(); // after every manoeuvre has ended
@@ -346,11 +348,15 @@ class BBB
   return GetGame().GetPlayerManager().GetPlayerIdFromControlledEntity(entity);
  }
 
+ // A player in the squad as the host counts it: a host may hold a member elsewhere (ACA moves a
+ // possessed leader's agent into its command group), and the engine group alone then reads as
+ // all-AI, so Rearm, static guns, throws, Medic and surrender took a player-led squad's men.
  static bool HasPlayer(SCR_AIGroup group)
  {
   if (!group) return false;
   array<AIAgent> agents = {};
-  group.GetAgents(agents);
+  if (s_Hooks) s_Hooks.GetMembers(group, agents);
+  else group.GetAgents(agents);
   foreach (AIAgent agent : agents)
    if (PlayerOf(agent.GetControlledEntity())) return true;
   return false;

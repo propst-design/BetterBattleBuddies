@@ -28,6 +28,9 @@ class BBB_VehicleHelpers : Managed
  protected ref map<IEntity, int> m_OnBed = new map<IEntity, int>();
  protected ref map<IEntity, vector> m_OnBedAt = new map<IEntity, vector>(); // where he was at the last sample
  static const float BED_MOVING_M = 0.6;  // m moved in a second: still getting down, not stuck
+ static const float BED_AFTER_MS = 10000; // only men out of a vehicle this recently are checked (perf review P2)
+ static const float DISMOUNT_SEEN_S = 10; // an armed enemy seen this recently makes riders get out (review #20)
+ protected ref map<IEntity, float> m_LastAboard = new map<IEntity, float>(); // soldier -> world time (ms) last seen in a vehicle
  protected ref map<IEntity, vector> m_StallPos = new map<IEntity, vector>();
  protected ref map<IEntity, float> m_StallSince = new map<IEntity, float>();
  protected ref map<IEntity, int> m_Unsticks = new map<IEntity, int>();
@@ -220,8 +223,8 @@ class BBB_VehicleHelpers : Managed
    if (!OpensFor(vehicle, entity, navlink, lookAhead + lookRadius)) continue;
    door.SetControlValue(1, RplId.Invalid());
    if (plough) BBB_Perf.Count("crewStays.armourGate");
-   if (plough) PrintFormat("[ACR] GATE opened ahead of %1 at %2 (armour, not safe: drives through; %3)", BBB.s_Hooks.NameOf(group), entity.GetOrigin(), Describe(entity, navlink));
-   else PrintFormat("[ACR] GATE opened ahead of %1 at %2 (%3)", BBB.s_Hooks.NameOf(group), entity.GetOrigin(), Describe(entity, navlink));
+   if (plough) PrintFormat("[BBB] GATE opened ahead of %1 at %2 (armour, not safe: drives through; %3)", BBB.s_Hooks.NameOf(group), entity.GetOrigin(), Describe(entity, navlink));
+   else PrintFormat("[BBB] GATE opened ahead of %1 at %2 (%3)", BBB.s_Hooks.NameOf(group), entity.GetOrigin(), Describe(entity, navlink));
   }
  }
 
@@ -257,12 +260,20 @@ class BBB_VehicleHelpers : Managed
  protected void GetOffBeds(SCR_AIGroup group)
  {
   if (!s_bUnstick) return; // the "Unstick vehicles" switch covers truck beds too
+  float now = GetGame().GetWorld().GetWorldTime();
   array<AIAgent> agents = {};
   BBB.s_Hooks.GetMembers(group, agents);
   foreach (AIAgent agent : agents)
   {
    ChimeraCharacter soldier = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (soldier && !BBB.IsAlive(soldier)) m_LastAboard.Remove(soldier);
+   if (soldier && BBB_Transport.VehicleOf(soldier)) m_LastAboard.Set(soldier, now);
    if (!soldier || !BBB.IsAlive(soldier) || BBB_Transport.VehicleOf(soldier) || BBB.PlayerOf(soldier)) { ForgetBed(soldier); continue; }
+   // Only a man who just got out (or one already being watched) can be stuck on a bed: an upper
+   // floor, a bridge or a tower cost a sphere query a second per man before (perf review P2).
+   float aboard;
+   bool recent = m_LastAboard.Find(soldier, aboard) && now - aboard <= BED_AFTER_MS;
+   if (!recent && !m_OnBedAt.Contains(soldier)) continue;
    vector at = soldier.GetOrigin();
    if (at[1] - GetGame().GetWorld().GetSurfaceY(at[0], at[2]) < BED_HEIGHT) { ForgetBed(soldier); continue; }
    m_BedVehicle = null;
@@ -288,7 +299,7 @@ class BBB_VehicleHelpers : Managed
    soldier.GetWorldTransform(transform);
    transform[3] = ground;
    soldier.Teleport(transform);
-   PrintFormat("[ACR] %1: soldier stuck on a vehicle set down beside it", BBB.s_Hooks.NameOf(group));
+   PrintFormat("[BBB] %1: soldier stuck on a vehicle set down beside it", BBB.s_Hooks.NameOf(group));
   }
  }
 
@@ -410,10 +421,45 @@ class BBB_VehicleHelpers : Managed
   int count = 0;
   foreach (IEntity enemy : utility.m_Perception.m_aTargetEntities)
   {
-   if (!BBB.IsAlive(enemy)) continue;
+   // The unconscious and prisoners are no threat (both carry the engine's disarmed flag).
+   if (!BBB.IsAlive(enemy) || BBB.Disarmed(enemy)) continue;
    if (vector.DistanceXZ(enemy.GetOrigin(), origin) <= radius) count++;
   }
   return count;
+ }
+
+ // An armed enemy one of the squad actually saw lately within radius: a man with a gun, or an
+ // enemy vehicle. Merely known (an old report, a man out of sight) isn't enough to empty a truck.
+ static bool ArmedEnemySeen(SCR_AIGroup group, vector origin, float radius, float seenS)
+ {
+  if (!group) return false;
+  array<AIAgent> agents = {};
+  BBB.s_Hooks.GetMembers(group, agents);
+  foreach (AIAgent agent : agents)
+  {
+   if (!agent) continue;
+   SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+   if (!utility || !utility.m_PerceptionComponent) continue;
+   array<BaseTarget> targets = {};
+   utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
+   foreach (BaseTarget target : targets)
+   {
+    if (!target || target.IsDisarmed()) continue;
+    IEntity enemy = target.GetTargetEntity();
+    if (!enemy || !BBB.IsAlive(enemy)) continue;
+    float seen = target.GetTimeSinceSeen();
+    if (seen < 0 || seen > seenS) continue;
+    if (vector.DistanceXZ(enemy.GetOrigin(), origin) > radius) continue;
+    if (!ChimeraCharacter.Cast(enemy)) return true;
+    BaseWeaponManagerComponent wm = BaseWeaponManagerComponent.Cast(enemy.FindComponent(BaseWeaponManagerComponent));
+    if (!wm) continue;
+    array<WeaponSlotComponent> slots = {};
+    wm.GetWeaponsSlots(slots);
+    foreach (WeaponSlotComponent slot : slots)
+     if (slot && slot.GetWeaponEntity() && BBB_Morale.IsGun(slot.GetWeaponType())) return true;
+   }
+  }
+  return false;
  }
 
  static void GetVehicleCompartments(IEntity vehicle, array<BaseCompartmentSlot> slots, int filterType = -1)
@@ -855,10 +901,11 @@ class BBB_VehicleHelpers : Managed
   TryReplaceGunner(vehicle, group);
  }
 
- static int DismountGroupFromVehicle(SCR_AIGroup group, IEntity vehicle, bool cargoOnly = false)
+ // keepUsable: the squad may board it again (it wasn't the vehicle being shot at).
+ static int DismountGroupFromVehicle(SCR_AIGroup group, IEntity vehicle, bool cargoOnly = false, bool keepUsable = false)
  {
   if (!group || !vehicle) return 0;
-  if (!cargoOnly || !BBB_Transport.CrewedVehicle(group))
+  if (!keepUsable && (!cargoOnly || !BBB_Transport.CrewedVehicle(group)))
   {
    SCR_AIGroupUtilityComponent utility = SCR_AIGroupUtilityComponent.Cast(group.FindComponent(SCR_AIGroupUtilityComponent));
    SCR_AIVehicleUsageComponent usage = SCR_AIVehicleUsageComponent.Cast(vehicle.FindComponent(SCR_AIVehicleUsageComponent));
@@ -907,8 +954,10 @@ class BBB_VehicleHelpers : Managed
   // A Game Master's order has primacy (Jacob, 31 Oct): he sent them driving, they stay aboard.
   if (BBB_OrderIntent.GameMasterOrder(group)) return;
 
+  // Hit, or an armed enemy someone aboard saw lately: an enemy merely known within 250 m emptied
+  // every truck that slowed for a corner (review #20).
   bool hitRecently = BBB_Transport.VehicleHitRecently(vehicle, 6000);
-  bool underFire = hitRecently || KnownEnemiesNear(group, vehicle.GetOrigin(), 250) > 0;
+  bool underFire = hitRecently || ArmedEnemySeen(group, vehicle.GetOrigin(), 250, DISMOUNT_SEEN_S);
   if (!underFire) return;
 
   ChimeraCharacter driver = BBB.DriverOf(vehicle);
@@ -922,7 +971,10 @@ class BBB_VehicleHelpers : Managed
 
   bool hasGunner = HasGunner(vehicle);
   if (hasGunner && BBB_Transport.CrewedVehicle(group) == vehicle) return;
-  if (DismountGroupFromVehicle(group, vehicle, hasGunner) > 0)
+  // The riders get out; a live driver stays at the wheel. Unless the truck itself was hit, the
+  // squad may board it again once the fight moves on (review #20: it never re-boarded).
+  bool cargoOnly = hasGunner || !driverLost;
+  if (DismountGroupFromVehicle(group, vehicle, cargoOnly, !hitRecently) > 0)
   {
    PrintFormat("[BBB] TACTICS %1: tactical dismount under fire", BBB.s_Hooks.NameOf(group));
    BBB_Think.NoteGroup(group, "Vehicle", "tactical dismount under fire");
