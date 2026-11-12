@@ -431,14 +431,24 @@ class BBB_ZombiesTest : BBB_AimTest
  {
   m_iPolls++;
   if (AtCasualty()) m_bReached = true;
-  if (m_iPolls < 24) return;
+  // 20 s: vanilla's heal activity can take a while to send anyone (one run in four: nobody within 12 s).
+  if (m_iPolls < 40) return;
   GetGame().GetCallqueue().Remove(HeldPoll);
   int held = BBB_Zombies.s_iHealsHeld - m_iCounter;
   bool down = m_Casualty && ChimeraCharacter.Cast(m_Casualty).GetCharacterController().IsUnconscious();
   Check("heal-held-near-zombie", held > 0 && !m_bReached && down, string.Format("held %1 times, went to the casualty %2, casualty down %3, had seen the shambler first %4", held, m_bReached, down, m_bPerceived));
-  // The shambler goes: the way is clear.
-  if (m_Zombie) SCR_EntityHelper.DeleteEntityAndChildren(m_Zombie);
-  m_Zombie = null;
+  // The shambler is killed, as in play. Deleting it (the first version) left a live entry in the healer's
+  // perception: the hold went on for 25 s with no zombie there.
+  if (m_Zombie)
+  {
+   SCR_DamageManagerComponent damage = SCR_DamageManagerComponent.GetDamageManager(m_Zombie);
+   if (damage)
+   {
+    damage.EnableDamageHandling(true);
+    damage.Kill(Instigator.CreateInstigator(null));
+   }
+  }
+  m_iCounter = BBB_Zombies.s_iHealsHeld;
   m_iPolls = 0;
   GetGame().GetCallqueue().CallLater(ClearPoll, 500, true);
  }
@@ -448,7 +458,7 @@ class BBB_ZombiesTest : BBB_AimTest
   m_iPolls++;
   if (!AtCasualty() && m_iPolls < 50) return;
   GetGame().GetCallqueue().Remove(ClearPoll);
-  Check("heal-goes-when-clear", AtCasualty(), string.Format("reached the casualty after %1 s", m_iPolls * 0.5));
+  Check("heal-goes-when-clear", AtCasualty(), string.Format("reached the casualty after %1 s (shambler dead %2, held %3 more times)", m_iPolls * 0.5, m_Zombie && !BBB.IsConscious(m_Zombie), BBB_Zombies.s_iHealsHeld - m_iCounter));
   Clean();
   Finish();
  }
