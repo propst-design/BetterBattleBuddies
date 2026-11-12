@@ -54,6 +54,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full version history.
 - **Opportunistic combat rearming.** Soldiers running critically low on ammunition or lacking AT scavenge compatible magazines and rocket launchers from nearby casualties, retrying routes if interrupted. A soldier who has lost his primary weapon goes back for his own if it is nearby, otherwise takes the nearest usable rifle or machine gun from a body or the ground; with none to be had he is kept out of bounds and building moves.
 - **Specialist teams.** Machine gunners and AT gunners keep the assistant who carries their ammunition close; he hands ammunition across before the gun runs dry and takes up the launcher if the gunner falls (`-bbbSpecialistTeams 0` turns it off).
 - **Squad plans.** A squad pauses on first contact, then assaults when the odds are fair or holds and fights from cover when outnumbered, flanked or pinned; a squad held by a dug-in enemy fixes it and sends a team round the side, and one that loses contact searches where the enemy was last seen.
+- **Fighting zombies.** With Project Outbreak or another Creature Melee AI creature mod loaded, soldiers fight the dead differently from men: no surrender to them, backing away from one that closes in, no flanking, bounding or suppressive fire against them, and no treating, dragging or looting with one close. Men in the same fight are still fought the usual way (`-bbbZombies 0` turns it off, `1` forces it on).
 - **Cover that faces the enemy.** A soldier only counts as in cover when the cover is between him and the enemy; one caught on an open road in a firefight moves off it, and a gunner on a dry static gun gets off and fights on foot.
 
 The README describes `main`; some of the behaviour above arrives on Workshop with the next
@@ -150,6 +151,7 @@ server owners reach for most, each turning its feature off with `0`:
 | `-bbbWithdrawOrder 0` | Covered fall-back when the host mod orders a squad back under fire (only on a host mod's request) |
 | `-bbbMoraleSurrender 0` | Cut-off, pinned soldiers surrendering |
 | `-bbbMoraleSurrenderFates 0` | Surrenders that go wrong: executions and fake surrenders |
+| `-bbbZombies 0` | Zombie rules (on by default when Project Outbreak or Creature Melee AI is loaded; `1` forces them on) |
 | `-bbbMoraleSurrenderAce 0` | Prisoners using ACE Captives' surrender (hands up, cuffable) when ACE is loaded |
 | `-bbbBuildings 0` | Contact-driven indoor cover movement |
 | `-bbbFlares 0` | BBB's autonomous night-illumination requests |

@@ -1,7 +1,7 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','armour','gunner','rearmweapon','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
@@ -10,6 +10,8 @@ param(
  [string]$RhsAddonsDir,
  # Folder holding ACE Core and ACE Captives (preset moraleace); searched if empty.
  [string]$AceAddonsDir,
+ # Folder holding Creature Melee AI and Project Outbreak (preset zombies); searched if empty.
+ [string]$ZombieAddonsDir,
  # Skip the shared test-server lock: for a caller that already holds it (a sequence run under
  # _wt/lockrun.sh sets BBB_LOCK_HELD=1, which does the same).
  [switch]$NoLock
@@ -211,6 +213,8 @@ $timeouts.squadjobs = 200
 $flags.squadteams = '-bbbSquadTeamsTest 1 -bbbPerf 1'
 $flags.moraleace = '-bbbMoraleTest 1 -bbbMoraleAce 1 -bbbPerf 1'
 $timeouts.moraleace = 180
+$flags.zombies = '-bbbZombiesTest 1 -bbbPerf 1'
+$timeouts.zombies = 260
 $timeouts.squadteams = 230
 # A/B measurements (about 15 and 27 min): the VERDICT grades only their unit checks.
 $flags.armour = '-bbbArmourTest 1'
@@ -251,6 +255,17 @@ if ($Preset -eq 'moraleace') {
  if (!$AceAddonsDir) { throw 'ACE Captives not found; supply -AceAddonsDir.' }
  if ($AceAddonsDir -ne $addonsDir) { $addonsDir += ',' + $AceAddonsDir }
  $addons += ',60C4CE4888FF4621,646D52AF8BB3FF15'
+}
+if ($Preset -eq 'zombies') {
+ # Creature Melee AI + Project Outbreak, found at runtime by BBB (no dependency, never shipped with BBB).
+ if (!$ZombieAddonsDir) {
+  foreach ($candidate in @($parentDir, (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games/ArmaReforger/addons'), 'E:\ArmaReforgerMods\addons')) {
+   if ($candidate -and (Test-Path -LiteralPath $candidate) -and (Get-ChildItem -LiteralPath $candidate -Directory -Filter 'ProjectOutbreak*' -ErrorAction SilentlyContinue)) { $ZombieAddonsDir = $candidate; break }
+  }
+ }
+ if (!$ZombieAddonsDir) { throw 'Project Outbreak not found; supply -ZombieAddonsDir.' }
+ if ($ZombieAddonsDir -ne $addonsDir) { $addonsDir += ',' + $ZombieAddonsDir }
+ $addons += ',4FD4A1BD550793F4,F1D4B9B5245B36ED'
 }
 $argsLine = '-server "' + $world + '" -addonsDir "' + $addonsDir + '" -addons ' + $addons + ' -profile "' + $profile + '" -maxFPS 60 -noBackend ' + $flags[$Preset] + ' ' + $ExtraArgs
 $process = Start-Process -FilePath $ServerPath -ArgumentList $argsLine -WorkingDirectory (Split-Path $ServerPath -Parent) -WindowStyle Hidden -PassThru

@@ -626,6 +626,8 @@ class BBB_Rearm
    utility.m_ThreatSystem.GetThreatValues(sup, sh, inVal, en);
    if (sup >= HEAVY_CONTACT) reachOnly = true;
   }
+  // A zombie close (BBB_Zombies): a gun at his feet, not a walk for one.
+  if (BBB_Zombies.HoldRearm(utility)) reachOnly = true;
   ExpireTrip(soldier, nowMs);
   float radius = s_fSearchRadius;
   if (reachOnly) radius = LOOT_REACH_M;
@@ -904,6 +906,12 @@ class BBB_Rearm
    }
    // Taken for a rescue or a static gun: that job has him now.
    if (!BBB_Claims.Can(soldier, BBB_Claims.REARM))
+   {
+    CancelRearmAction(soldier);
+    continue;
+   }
+   // Zombies (BBB_Zombies): no trip to a body with one close; clear them first.
+   if (BBB_Zombies.HoldRearm(utility))
    {
     CancelRearmAction(soldier);
     continue;

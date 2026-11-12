@@ -968,15 +968,26 @@ class BBB_Morale
 		array<BaseTarget> targets = {};
 		utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
 		BaseTarget captor;
+		bool zombieOnly;
 		foreach (BaseTarget target : targets)
 		{
 			if (!target || target.IsDisarmed() || !target.GetTargetEntity()) continue;
 			float seen = target.GetTimeSinceSeen();
 			if (seen < 0 || seen > SURRENDER_SEEN_S) continue;
 			if (target.GetDistance() > SURRENDER_DIST_MAX || target.GetTraceFraction() < 0.8) continue;
+			// Nobody gives up to a zombie (BBB_Zombies): it takes no prisoners.
+			if (BBB_Zombies.Target(target)) { zombieOnly = true; continue; }
 			if (!captor || target.GetDistance() < captor.GetDistance()) captor = target;
 		}
-		if (!captor) return;
+		if (!captor)
+		{
+			if (zombieOnly)
+			{
+				BBB_Zombies.s_iSurrendersRefused++;
+				BBB_Think.Note(soldier, "Zombies", "cornered by zombies: fights on, no surrender");
+			}
+			return;
+		}
 
 		// Out of rounds he has no choice; otherwise nerve decides, checked again each pass.
 		if (!empty && Math.RandomFloat01() >= s_fSurrenderChance) return;
