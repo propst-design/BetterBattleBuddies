@@ -62,6 +62,7 @@ class BBB_Medic
  static const int HOLD_SMOKING = 5;
  static const int HOLD_FIGHTING = 6; // his own visible enemy within FIGHT_FIRST_M
  static const int HOLD_TOO_FAR = 7;
+ static const int HOLD_ZOMBIES = 8; // a zombie close to him or the casualty (BBB_Zombies.CLEAR_M)
 
  static bool s_bSmokeOn = true;
  static const float SMOKE_BLOOM_MS = 4000;
@@ -191,6 +192,7 @@ class BBB_Medic
    case HOLD_SMOKING: return "waiting for smoke screen to bloom";
    case HOLD_FIGHTING: return "fighting an enemy in view first";
    case HOLD_TOO_FAR: return "casualty too far behind during the fight";
+   case HOLD_ZOMBIES: return "zombies close: get clear first";
   }
   return "go";
  }
@@ -583,6 +585,16 @@ modded class SCR_AIMedicHealBehavior
   // second-guessed; a host's own order at the player's level still is (as BBB_CrewStays.Keep).
   float level = EvaluatePriorityLevel();
   bool ordered = level >= PRIORITY_LEVEL_GAMEMASTER || (level >= PRIORITY_LEVEL_PLAYER && !BBB.s_Hooks.HostOrder(BBB_Medic.GroupOf(healer)));
+  // Zombies (BBB_Zombies, its own switch): nobody kneels to treat with one close; clear them first.
+  if (!ordered && BBB_Zombies.HoldHeal(m_Utility, casualty))
+  {
+   if (m_iBBBDecision != BBB_Medic.HOLD_ZOMBIES) PrintFormat("[BBB] MEDIC %1 -> %2: %3", BBB_Medic.Name(healer), BBB_Medic.Name(casualty), BBB_Medic.Reason(BBB_Medic.HOLD_ZOMBIES));
+   if (m_iBBBDecision != BBB_Medic.HOLD_ZOMBIES) BBB_Think.Note(healer, "Medic", BBB_Medic.Name(casualty) + ": " + BBB_Medic.Reason(BBB_Medic.HOLD_ZOMBIES));
+   m_iBBBDecision = BBB_Medic.HOLD_ZOMBIES;
+   BBB_Medic.MarkGoing(healer, null);
+   BBB_Medic.MarkHeld(casualty);
+   return 0;
+  }
   if ((fullOn || smokeOn) && !ordered && BBB_Medic.FightFirst(m_Utility))
   {
    if (m_iBBBDecision != BBB_Medic.HOLD_FIGHTING) PrintFormat("[BBB] MEDIC %1 -> %2: %3", BBB_Medic.Name(healer), BBB_Medic.Name(casualty), BBB_Medic.Reason(BBB_Medic.HOLD_FIGHTING));

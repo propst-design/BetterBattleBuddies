@@ -33,7 +33,9 @@ class BBB_VanillaHooks : BBB_Hooks
     foreach (AIAgent agent : m_Agents)
     {
      SCR_AIGroup group = SCR_AIGroup.Cast(agent);
-     if (group && group.GetAgentsCount() > 0) m_Cache.Insert(group);
+     // Zombie and creature groups (Project Outbreak, Creature Melee AI) aren't soldiers: no cover, retreats
+     // or rearm for them (BBB_Zombies.IsZombie, whatever the zombie rules' switch).
+     if (group && group.GetAgentsCount() > 0 && !BBB_Zombies.IsZombie(group.GetLeaderEntity())) m_Cache.Insert(group);
     }
    }
   }

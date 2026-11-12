@@ -54,6 +54,7 @@ class BBB_StaticInit : Managed
   BBB_Transport.BBB_InitStatics();
   BBB_Unstick.BBB_InitStatics();
   BBB_VehicleHelpers.BBB_InitStatics();
+  BBB_Zombies.BBB_InitStatics();
   // Test classes (Scripts/Game/BBB_Tests, left out of the release) fill theirs through this hook.
   BBB_StaticInit tests = new BBB_StaticInit();
   tests.InitTestStatics();

@@ -908,6 +908,12 @@ class BBB_Rearm
     CancelRearmAction(soldier);
     continue;
    }
+   // Zombies (BBB_Zombies): no trip to a body with one close; clear them first.
+   if (BBB_Zombies.HoldRearm(utility))
+   {
+    CancelRearmAction(soldier);
+    continue;
+   }
    if (s_mNextRearmCheck.Contains(soldier) && nowMs < s_mNextRearmCheck.Get(soldier)) continue;
    if (utility && utility.m_ThreatSystem)
    {

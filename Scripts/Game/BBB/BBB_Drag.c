@@ -234,6 +234,8 @@ class BBB_Drag
  static bool Defend(SCR_AIUtilityComponent utility)
  {
   if (!utility || !utility.m_CombatComponent) return false;
+  // A zombie this close: he lets go (BBB_Zombies.DEFEND_M), seen or only heard.
+  if (BBB_Zombies.Defend(utility)) return true;
   BaseTarget target = utility.m_CombatComponent.GetCurrentTarget();
   if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY || target.IsDisarmed()) return false;
   if (utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) return false;
@@ -259,6 +261,7 @@ class BBB_Drag
   else if (InVehicle(casualty) || InVehicle(healer)) refused = "in a vehicle";
   else if (!BBB_Medic.Fit(healer)) refused = "healer hurt";
   else if (AceBool(healer, "ACE_IsCarrier") || AceBool(casualty, "ACE_IsCarried")) refused = "already carrying/carried";
+  else if (BBB_Zombies.HoldHeal(utility, casualty)) { refused = "zombies close: get clear first"; BBB_Zombies.s_iDragsRefused++; }
   if (!refused.IsEmpty())
   {
    Refused(healer, casualty, refused);

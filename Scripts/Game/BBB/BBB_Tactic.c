@@ -96,6 +96,7 @@ class BBB_TacticState : Managed
  vector m_vStatCentre;
  vector m_vStatThreat;
  int m_iStatMen;
+ bool m_bZombies;        // the last contact was zombies alone (BBB_Zombies): no search afterwards
 }
 
 class BBB_Tactic
@@ -535,7 +536,7 @@ class BBB_Tactic
     return;
    }
    float lost = now - state.m_fLastContact;
-   if (s_bSearch && !advancing && lost >= SEARCH_AFTER_S && !state.m_bSearched && state.m_iTactic != WITHDRAW && picture.m_iConscious >= 2 && state.m_vLastThreat.LengthSq() > 0)
+   if (s_bSearch && !advancing && !state.m_bZombies && lost >= SEARCH_AFTER_S && !state.m_bSearched && state.m_iTactic != WITHDRAW && picture.m_iConscious >= 2 && state.m_vLastThreat.LengthSq() > 0)
    {
     state.m_bSearched = true;
     BBB_TacticDrill.SearchPoints(state, state.m_vLastThreat, picture.m_vCentre, state.m_aPoints);
@@ -580,6 +581,19 @@ class BBB_Tactic
    return;
   }
   if (state.m_iTactic == WITHDRAW) state.m_iTactic = NONE; // withdrawal over: pick afresh
+  // Zombies alone (BBB_Zombies): no assault, flank or search into them. The squad stays together and shoots
+  // (HOLD: no vanilla advances, so no lone man walks off to look); one with ground to take carries on with
+  // its order. A man among them makes it a normal fight again.
+  if (contact) state.m_bZombies = BBB_Squad.OnlyZombies(group, BBB_Squad.RECENT_S);
+  if (contact && state.m_bZombies)
+  {
+   if (state.m_iTactic == ASSAULT || state.m_iTactic == FLANK || state.m_iTactic == SEARCH || state.m_iTactic == CONTACT) state.m_fUntil = now;
+   if (now < state.m_fUntil) return;
+   if (advancing) { StandAside(state, now, "only zombies: the order carries them on, no bounds or flanks"); return; }
+   if (state.m_iTactic != HOLD) BBB_Zombies.s_iSquadHolds++;
+   Set(state, HOLD, now, s_fHoldS, "only zombies: stay together and shoot", vector.Zero);
+   return;
+  }
   // Carry out the tactic in force (stage 4).
   if (state.m_iTactic == FLANK)
   {

@@ -98,6 +98,8 @@ class BBB_FireManeuver
  protected static bool FreshTarget(SCR_AIUtilityComponent utility, BaseTarget target, out vector known)
  {
   if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY || target.GetUnitType() != EAIUnitType.UnitType_Infantry || target.IsDisarmed()) return false;
+  // No bounds against zombies (BBB_Zombies): they don't duck, so covering fire buys nothing.
+  if (BBB_Zombies.Target(target)) return false;
   if (target.GetTimeSinceSeen() > 3 || target.GetDistance() < 45 || target.GetDistance() > 300 || !utility.m_CombatComponent.IsTargetVisible(target) || target.GetTraceFraction() < 0.5) return false;
   known = target.GetLastSeenPosition();
   return true;
@@ -120,6 +122,7 @@ class BBB_FireManeuver
  protected static bool DetectedTarget(SCR_AIUtilityComponent utility, BaseTarget target, out vector known)
  {
   if (!target || target.GetTargetCategory() != ETargetCategory.ENEMY || target.GetUnitType() != EAIUnitType.UnitType_Infantry || target.IsDisarmed() || target.GetTimeSinceDetected() < 0 || target.GetTimeSinceDetected() > 5) return false;
+  if (BBB_Zombies.Target(target)) return false;
   vector report = target.GetLastDetectedPosition();
   float distance = vector.DistanceXZ(utility.m_OwnerEntity.GetOrigin(), report);
   if (distance < 45 || distance > 300) return false;

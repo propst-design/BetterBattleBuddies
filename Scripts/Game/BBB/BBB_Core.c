@@ -100,6 +100,11 @@ class BBB_Hooks : Managed
  // An unarmed vehicle of this group sees an armed enemy vehicle at threat: the host may take it away
  // (a new move, its order put back later). False: nothing done (BBB_Traffic).
  bool Evade(SCR_AIGroup group, IEntity vehicle, vector threat) { return false; }
+ // Zombie rules (BBB_Zombies) for this mission: 1 on, 0 off, -1 (default) BBB decides from -bbbZombies
+ // auto: on when Project Outbreak or Creature Melee AI is loaded. A -bbbZombies 1 or 0 still wins.
+ int ZombieRules() { return -1; }
+ // An entity the host counts as a zombie, on top of the creature components BBB finds itself.
+ bool IsZombie(IEntity entity) { return false; }
 }
 
 class BBB
@@ -145,6 +150,7 @@ class BBB
   BBB_Squad.Read();
   BBB_Tactic.Read();
   BBB_CoverFire.Read();
+  BBB_Zombies.Read();
 		s_VehicleHelpers = new BBB_VehicleHelpers();
 		s_Launchers = new BBB_Launchers();
 		s_Combat = new BBB_Combat();
@@ -188,6 +194,7 @@ class BBB
   BBB_Tactic.Stop();
   BBB_CrewLeader.Stop();
   BBB_SquadLeader.Stop();
+  BBB_Zombies.Stop();
   BBB_Transport.ClearHits();
   BBB_VehicleHelpers.Reset();
   BBB_PilotHold.GiveAll(); // after every manoeuvre has ended

@@ -23,6 +23,7 @@ class BBB_SquadContact : Managed
  float m_fBearing; // degrees from the squad, 0 = +Z
  EAIUnitType m_eType; // as the members' perception classes it
  bool m_bShooting;    // shot at a member within SHOOTING_S (BBB_SquadLeader scores it)
+ bool m_bZombie;      // a zombie or melee creature, with the zombie rules on (BBB_Zombies)
 }
 
 class BBB_SquadPicture : Managed
@@ -169,6 +170,7 @@ class BBB_Squad
     contact.m_fAge = age;
     contact.m_vPos = target.GetLastDetectedPosition();
     contact.m_eType = target.GetUnitType();
+    contact.m_bZombie = BBB_Zombies.Is(enemy);
     if (shooting) contact.m_bShooting = true;
    }
   }
@@ -309,6 +311,21 @@ class BBB_Squad
    report = contact.m_vPos;
   }
   return best <= maxAge;
+ }
+
+ // Every sighting at most maxAge s old is a zombie (and there is one): no men to manoeuvre against.
+ static bool OnlyZombies(SCR_AIGroup group, float maxAge)
+ {
+  BBB_SquadPicture picture = Get(group);
+  if (!picture) return false;
+  bool any;
+  foreach (BBB_SquadContact contact : picture.m_Contacts)
+  {
+   if (contact.m_fAge > maxAge) continue;
+   if (!contact.m_bZombie) return false;
+   any = true;
+  }
+  return any;
  }
 
  // No sighting at most maxAge s old within halfAngle degrees of this direction?

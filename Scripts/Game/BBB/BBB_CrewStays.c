@@ -119,7 +119,8 @@ class BBB_CrewStays
    return true;
   }
   SCR_AIMedicHealBehavior heal = SCR_AIMedicHealBehavior.Cast(action);
-  if (heal && Fighting(vehicle))
+  // With zombies about (BBB_Zombies) no crew get out to heal, armed vehicle or not.
+  if (heal && (Fighting(vehicle) || BBB_Zombies.Nearest(utility, BBB_Zombies.VEHICLE_M) >= 0))
   {
    heal.m_bBBBKept = true;
    s_iHealsKept++;
@@ -138,6 +139,16 @@ class BBB_CrewStays
   if (!SCR_AIVehicleCombatActivity.Cast(getOut.GetRelatedGroupActivity())) return false;
   if (getOut.EvaluatePriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
   IEntity soldier = utility.m_OwnerEntity;
+  // A fight against zombies alone (BBB_Zombies): the crew keep their seats, riders stay aboard while it moves.
+  IEntity riding = BBB_Transport.VehicleOf(soldier);
+  if (riding && (!target || target == riding) && BBB_Zombies.StayAboard(utility, riding))
+  {
+   s_iFightsKept++;
+   BBB_Perf.Count("crewStays.zombies");
+   Log(soldier, string.Format("%1 stays aboard %2: zombies about", BBB.s_Hooks.NameOf(BBB_Medic.GroupOf(soldier)), BBB_Armour.Short(BBB_Armour.PrefabKey(riding))));
+   BBB_Think.Note(soldier, "Zombies", "stays aboard: zombies about, the vehicle keeps going");
+   return true;
+  }
   IEntity vehicle = CrewedBy(soldier);
   if (!vehicle || (target && target != vehicle) || !BBB_VehicleHelpers.HasTurret(vehicle)) return false;
   s_iFightsKept++;
