@@ -271,6 +271,7 @@ class BBB
   BBB_CrewStays.Stop();
   BBB_Grenades.Stop();
   BBB_LauncherUse.Stop();
+  BBB_GLArming.Stop();
   BBB_Flares.Stop();
   BBB_Buildings.Stop();
   BBB_ArmorReaction.Stop();

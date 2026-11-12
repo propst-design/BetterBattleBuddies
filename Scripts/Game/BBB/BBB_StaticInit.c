@@ -33,6 +33,7 @@ class BBB_StaticInit : Managed
   BBB_FireManeuver.BBB_InitStatics();
   BBB_Flares.BBB_InitStatics();
   BBB_Grenades.BBB_InitStatics();
+  BBB_GLArming.BBB_InitStatics();
   BBB_Gunner.BBB_InitStatics();
   BBB_HeldGuns.BBB_InitStatics();
   BBB_HorizonScan.BBB_InitStatics();

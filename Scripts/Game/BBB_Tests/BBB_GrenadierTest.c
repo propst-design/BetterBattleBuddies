@@ -179,6 +179,8 @@ class BBB_GrenadierTest : BBB_AimTest
   ResourceName vehicle = BRDM;
   if (m_iKind == 1) vehicle = BTR;
   if (m_iKind == 2 || m_iKind == 4) vehicle = LAV;
+  glMan = PickGLMan(glMan);
+  vehicle = PickVehicle(vehicle);
   SCR_AIGroup team = EmptyGroup(glGroup, glMan, 2, lane.m_vFrom, lane.m_vDir, lane);
   vector side = Vector(lane.m_vDir[2], 0, -lane.m_vDir[0]);
   for (int i = 0; i < 2 && team; i++)
@@ -239,6 +241,10 @@ class BBB_GrenadierTest : BBB_AimTest
   PrintFormat("[BBB] GLTEST round %1/%2: %3 at %4 m", round + 1, m_aKind.Count(), KindName(m_iKind), range);
   return true;
  }
+
+ // Subclass hooks (BBB_GLArmingTest's M79 round): the grenadier and vehicle prefabs.
+ protected ResourceName PickGLMan(ResourceName chosen) { return chosen; }
+ protected ResourceName PickVehicle(ResourceName chosen) { return chosen; }
 
  protected string KindName(int kind)
  {

@@ -1,7 +1,7 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','callouts','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','callouts','glarming','glarmingm79','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
@@ -12,6 +12,8 @@ param(
  [string]$AceAddonsDir,
  # Folder holding Creature Melee AI and Project Outbreak (preset zombies); searched if empty.
  [string]$ZombieAddonsDir,
+ # Folder holding ARMA-RY M79 Grenade Launcher and ARMA-RY Core (preset glarmingm79); searched if empty.
+ [string]$M79AddonsDir,
  # Skip the shared test-server lock: for a caller that already holds it (a sequence run under
  # _wt/lockrun.sh sets BBB_LOCK_HELD=1, which does the same).
  [switch]$NoLock
@@ -205,6 +207,10 @@ $flags.rearmweapon = '-bbbRearmWeaponTest 1 -bbbPerf 1'
 $flags.callouts = '-bbbCalloutsTest 1 -bbbCalloutLog 1 -bbbPerf 1'
 $timeouts.callouts = 200
 $timeouts.rearmweapon = 170
+$flags.glarming = '-bbbGLArmingTest 1 -bbbPerf 1'
+$timeouts.glarming = 260
+$flags.glarmingm79 = '-bbbGLArmingTest 1 -bbbGLArmingM79 1 -bbbPerf 1'
+$timeouts.glarmingm79 = 260
 $timeouts.dragcover = 120
 $flags.crewleader = '-bbbCrewLeaderTest 1 -bbbPerf 1'
 $timeouts.crewleader = 230
@@ -268,6 +274,17 @@ if ($Preset -eq 'zombies') {
  if (!$ZombieAddonsDir) { throw 'Project Outbreak not found; supply -ZombieAddonsDir.' }
  if ($ZombieAddonsDir -ne $addonsDir) { $addonsDir += ',' + $ZombieAddonsDir }
  $addons += ',4FD4A1BD550793F4,F1D4B9B5245B36ED'
+}
+if ($Preset -eq 'glarmingm79') {
+ # ARMA-RY's M79 (the FIA grenadier's launcher in AC: Actual's Cold War stack): a test fixture only.
+ if (!$M79AddonsDir) {
+  foreach ($candidate in @($parentDir, (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games/ArmaReforger/addons'), 'E:\ArmaReforgerMods\addons')) {
+   if ($candidate -and (Test-Path -LiteralPath $candidate) -and (Get-ChildItem -LiteralPath $candidate -Directory -Filter 'ARMA-RYM79GRENADELAUNCHER_*' -ErrorAction SilentlyContinue)) { $M79AddonsDir = $candidate; break }
+  }
+ }
+ if (!$M79AddonsDir) { throw 'ARMA-RY M79 Grenade Launcher not found; supply -M79AddonsDir.' }
+ if ($M79AddonsDir -ne $addonsDir) { $addonsDir += ',' + $M79AddonsDir }
+ $addons += ',6614B4EBC1A63458,66731579C7075EB3'
 }
 $argsLine = '-server "' + $world + '" -addonsDir "' + $addonsDir + '" -addons ' + $addons + ' -profile "' + $profile + '" -maxFPS 60 -noBackend ' + $flags[$Preset] + ' ' + $ExtraArgs
 $process = Start-Process -FilePath $ServerPath -ArgumentList $argsLine -WorkingDirectory (Split-Path $ServerPath -Parent) -WindowStyle Hidden -PassThru

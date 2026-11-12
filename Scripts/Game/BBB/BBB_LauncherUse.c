@@ -361,6 +361,8 @@ modded class SCR_AICombatComponent
    m_SelectedMagazineComp = m_BBBArmourRound;
    outWeaponEvent = m_SelectedWeaponComp != weaponBefore || m_iSelectedMuzzle != muzzleBefore || m_SelectedMagazineComp != magazineBefore;
   }
+  // Last word: no grenade-launcher round fired inside its arming range (BBB_GLArming.c).
+  BBBArmingGuard(weaponBefore, muzzleBefore, magazineBefore, treeBefore, outWeaponEvent);
   if (BBB_Perf.s_bOn) BBB_Perf.Add("ev.launcher", System.GetTickCount() - started);
  }
 
