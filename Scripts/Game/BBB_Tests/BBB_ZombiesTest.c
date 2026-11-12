@@ -175,6 +175,9 @@ class BBB_ZombiesTest : BBB_AimTest
     if (!item) continue;
     bool isGroup = SCR_AIGroup.Cast(item) != null;
     if ((pass == 0) == isGroup) continue;
+    // Zombies are killed first: a deleted shambler could live on and walk in on a later phase (the heal
+    // hold kept firing at "no zombie" for 25 s, 11 Nov). A dead one counts for nothing even if it stays.
+    if (!isGroup && BBB_Zombies.IsZombie(item)) Kill(item);
     SCR_EntityHelper.DeleteEntityAndChildren(item);
    }
   }
@@ -183,6 +186,14 @@ class BBB_ZombiesTest : BBB_AimTest
   m_Zombie = null;
   m_Casualty = null;
   m_Captors = null;
+ }
+
+ protected void Kill(IEntity man)
+ {
+  SCR_DamageManagerComponent damage = SCR_DamageManagerComponent.GetDamageManager(man);
+  if (!damage) return;
+  damage.EnableDamageHandling(true);
+  damage.Kill(Instigator.CreateInstigator(null));
  }
 
  protected bool Perceives(IEntity man, IEntity enemy)
@@ -439,15 +450,7 @@ class BBB_ZombiesTest : BBB_AimTest
   Check("heal-held-near-zombie", held > 0 && !m_bReached && down, string.Format("held %1 times, went to the casualty %2, casualty down %3, had seen the shambler first %4", held, m_bReached, down, m_bPerceived));
   // The shambler is killed, as in play. Deleting it (the first version) left a live entry in the healer's
   // perception: the hold went on for 25 s with no zombie there.
-  if (m_Zombie)
-  {
-   SCR_DamageManagerComponent damage = SCR_DamageManagerComponent.GetDamageManager(m_Zombie);
-   if (damage)
-   {
-    damage.EnableDamageHandling(true);
-    damage.Kill(Instigator.CreateInstigator(null));
-   }
-  }
+  if (m_Zombie) Kill(m_Zombie);
   m_iCounter = BBB_Zombies.s_iHealsHeld;
   m_iPolls = 0;
   GetGame().GetCallqueue().CallLater(ClearPoll, 500, true);
@@ -458,7 +461,8 @@ class BBB_ZombiesTest : BBB_AimTest
   m_iPolls++;
   if (!AtCasualty() && m_iPolls < 50) return;
   GetGame().GetCallqueue().Remove(ClearPoll);
-  Check("heal-goes-when-clear", AtCasualty(), string.Format("reached the casualty after %1 s (shambler dead %2, held %3 more times)", m_iPolls * 0.5, m_Zombie && !BBB.IsConscious(m_Zombie), BBB_Zombies.s_iHealsHeld - m_iCounter));
+  float nearest = BBB_Zombies.Nearest(BBB_VehiclePosture.Utility(m_Man), 200);
+  Check("heal-goes-when-clear", AtCasualty(), string.Format("reached the casualty after %1 s (shambler dead %2, held %3 more times, nearest live zombie he knows of %4 m)", m_iPolls * 0.5, m_Zombie && !BBB.IsConscious(m_Zombie), BBB_Zombies.s_iHealsHeld - m_iCounter, nearest));
   Clean();
   Finish();
  }
