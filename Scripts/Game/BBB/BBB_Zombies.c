@@ -341,7 +341,9 @@ class BBB_Zombies
 
  static string Describe()
  {
-  return string.Format("zombies on=%1 outbreak=%2 creatures=%3 surrenders refused=%4 back-steps=%5 heals held=%6 drags refused=%7 rearms held=%8 clusters held=%9 heals resumed=%10", On(), IsLoaded(), CreaturesLoaded(), s_iSurrendersRefused, s_iBackSteps, s_iHealsHeld, s_iDragsRefused, s_iRearmsHeld, s_iClustersHeld, s_iHealsResumed);
+  // string.Format takes at most 9 arguments.
+  string counts = string.Format("surrenders refused=%1 back-steps=%2 heals held=%3 heals resumed=%4 drags refused=%5 rearms held=%6 clusters held=%7", s_iSurrendersRefused, s_iBackSteps, s_iHealsHeld, s_iHealsResumed, s_iDragsRefused, s_iRearmsHeld, s_iClustersHeld);
+  return string.Format("zombies on=%1 outbreak=%2 creatures=%3 %4", On(), IsLoaded(), CreaturesLoaded(), counts);
  }
 }
 
