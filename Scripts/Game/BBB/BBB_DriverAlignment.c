@@ -243,7 +243,7 @@ class BBB_DriverAlignment
   vector nose = state.m_Vehicle.GetTransformAxis(2);
   vector nextNose = Rotated(nose, turn);
   array<AIAgent> members = {};
-  BBB.s_Hooks.GetMembers(state.m_Group, members);
+  BBB.Members(state.m_Group, members);
   foreach (AIAgent member : members)
   {
    if (!member || !BBB.IsAlive(member.GetControlledEntity())) continue;
@@ -299,7 +299,7 @@ class BBB_DriverAlignment
    if (!s_States[i].m_Vehicle || (!s_States[i].m_bActive && now - s_States[i].m_fSeenAt > 60000)) { End(s_States[i]); s_States.RemoveOrdered(i); }
   if (!s_bOn) return;
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   array<IEntity> handled = {};
   int activeCount;
   foreach (BBB_DriverAlignmentState running : s_States)

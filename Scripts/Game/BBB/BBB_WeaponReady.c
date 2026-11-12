@@ -21,11 +21,11 @@ class BBB_WeaponReady
 		Read();
 		if (!s_bOn) return;
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(groups);
+		BBB.Groups(groups);
 		foreach (SCR_AIGroup group : groups)
 		{
 			array<AIAgent> agents = {};
-			BBB.s_Hooks.GetMembers(group, agents);
+			BBB.Members(group, agents);
 			foreach (AIAgent agent : agents) Check(agent);
 		}
 	}

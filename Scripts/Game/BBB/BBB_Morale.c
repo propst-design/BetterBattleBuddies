@@ -151,7 +151,6 @@ class BBB_Morale
 	static int s_iForceFate = -1;                   // tests: the next surrender's fate
 	protected static float s_fNextFatePass;
 	protected static float s_fNextSurrenderPass;
-	static const float RECOVERY_CALM_TIME_S = 20.0;
 	static const float BREAK_CONTACT_DIST_M = 180.0;
 	static const float MIN_BOUND_GAIN_M = 3.0;      // less than this counts as a stalled bound
 	static const int MAX_STALLED_BOUNDS = 2;
@@ -235,12 +234,6 @@ class BBB_Morale
 		PrintFormat("[BBB] MORALE enabled=%1 surrender=%2 casualtyThreshold=%3", s_bOn, s_bSurrenderOn, s_fCasualtyThreshold);
 	}
 
-	static bool IsOn()
-	{
-		Read();
-		return s_bOn;
-	}
-
 	// Host or other modules can query if a group is currently breaking contact.
 	static bool IsWithdrawing(SCR_AIGroup group)
 	{
@@ -297,7 +290,7 @@ class BBB_Morale
 		if (BBB_Squad.On(group)) return BBB_Squad.Threat(group, 15.0, outThreatCenter);
 
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(group, agents);
+		BBB.Members(group, agents);
 		int count = 0;
 		vector sum = vector.Zero;
 
@@ -565,7 +558,7 @@ class BBB_Morale
 		outCenter = vector.Zero;
 		if (!group) return false;
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(group, agents);
+		BBB.Members(group, agents);
 		int count = 0;
 		foreach (AIAgent agent : agents)
 		{
@@ -738,7 +731,7 @@ class BBB_Morale
 		state.m_TeamMove.Clear();
 
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(state.m_Group, agents);
+		BBB.Members(state.m_Group, agents);
 
 		array<SCR_AIUtilityComponent> consciousMembers = {};
 		foreach (AIAgent agent : agents)
@@ -928,17 +921,14 @@ class BBB_Morale
 	// contests nothing, like the unconscious).
 	static bool IsPrisoner(IEntity soldier)
 	{
-		if (!soldier) return false;
-		foreach (BBB_SurrenderState ss : s_Surrendered)
-		{
-			if (ss && ss.m_Soldier == soldier) return true;
-		}
-		return false;
+		return BBB_Claims.Busy(soldier, BBB_Claims.JOB_PRISONER);
 	}
 
-	static int PrisonerCount()
+	protected static void DropPrisoner(int i)
 	{
-		return s_Surrendered.Count();
+		BBB_SurrenderState ss = s_Surrendered[i];
+		if (ss) BBB_Claims.Unmark(ss.m_Soldier, BBB_Claims.JOB_PRISONER);
+		s_Surrendered.RemoveOrdered(i);
 	}
 
 	protected static void CheckSurrenders(array<AIAgent> agents)
@@ -1044,7 +1034,11 @@ class BBB_Morale
 		if (ai) agent = ai.GetAIAgent();
 		SCR_AIGroup group;
 		if (agent) group = SCR_AIGroup.Cast(agent.GetParentGroup());
-		if (group) group.RemoveAgentFromControlledEntity(soldier);
+		if (group)
+		{
+			group.RemoveAgentFromControlledEntity(soldier);
+			BBB.RosterChanged();
+		}
 
 		BBB_SurrenderState state = new BBB_SurrenderState();
 		state.m_Soldier = soldier;
@@ -1089,6 +1083,7 @@ class BBB_Morale
 		}
 
 		s_Surrendered.Insert(state);
+		BBB_Claims.Mark(state.m_Soldier, BBB_Claims.JOB_PRISONER);
 		s_iSurrenders++;
 		string pose = "kneel";
 		if (state.m_iPose == BBB_SurrenderPose.POSE_ACE_PENDING) pose = "ACE (after the drop)";
@@ -1144,7 +1139,7 @@ class BBB_Morale
 			if (!ss || !BBB.IsAlive(ss.m_Soldier))
 			{
 				if (ss && ss.m_bCondemned) s_iExecuted++;
-				s_Surrendered.RemoveOrdered(i);
+				DropPrisoner(i);
 				continue;
 			}
 			ChimeraCharacter soldier = ss.m_Soldier;
@@ -1155,7 +1150,7 @@ class BBB_Morale
 			{
 				BBB_SurrenderPose.Release(ss);
 				if (perceivable && BBB.IsConscious(soldier)) perceivable.SetDisarmed(false);
-				s_Surrendered.RemoveOrdered(i);
+				DropPrisoner(i);
 				PrintFormat("[BBB] MORALE: prisoner %1 taken over by a player, released", soldier);
 				continue;
 			}
@@ -1164,7 +1159,7 @@ class BBB_Morale
 			if (fatePass && BBB_SurrenderPose.CuffedByAce(ss))
 			{
 				if (perceivable) perceivable.SetDisarmed(false);
-				s_Surrendered.RemoveOrdered(i);
+				DropPrisoner(i);
 				s_iHandedToAce++;
 				PrintFormat("[BBB] MORALE: prisoner %1 taken captive with ACE cuffs, handed to ACE", soldier);
 				continue;
@@ -1178,7 +1173,7 @@ class BBB_Morale
 				if (ss.m_iFate == FATE_EXECUTED && !ss.m_bCondemned) TryExecute(ss, perceivable);
 				else if (ss.m_iFate == FATE_RUSE && TryRuse(ss, perceivable, now))
 				{
-					s_Surrendered.RemoveOrdered(i);
+					DropPrisoner(i);
 					continue;
 				}
 			}
@@ -1186,7 +1181,7 @@ class BBB_Morale
 			// does), or with players about surrender would stop for good (review #19).
 			bool full = s_Surrendered.Count() >= MAX_PRISONERS;
 			if (ss.m_bRising || now - ss.m_fSurrenderSince < s_fPrisonerMinS || PlayerSees(soldier, !full)) continue;
-			s_Surrendered.RemoveOrdered(i);
+			DropPrisoner(i);
 			s_iPrisonersRemoved++;
 			PrintFormat("[BBB] MORALE: prisoner %1 removed after %2 s, no player near or looking", soldier, Math.Round(now - ss.m_fSurrenderSince));
 			SCR_EntityHelper.DeleteEntityAndChildren(BBB_SurrenderPose.Remains(soldier)); // ACE's helper goes with him
@@ -1247,6 +1242,7 @@ class BBB_Morale
 		if (ss.m_FormerGroup && ss.m_FormerGroup.GetAgentsCount() > 0)
 		{
 			ss.m_FormerGroup.AddAgentFromControlledEntity(soldier);
+			BBB.RosterChanged();
 			squad = ss.m_FormerGroup;
 		}
 		AIAgent agent = ai.GetAIAgent();
@@ -1408,7 +1404,7 @@ class BBB_Morale
 		if (surrenderPass) s_fNextSurrenderPass = now + (CHECK_INTERVAL_MS / 1000.0);
 
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(groups);
+		BBB.Groups(groups);
 
 		// Clean up invalid states
 		set<SCR_AIGroup> current = new set<SCR_AIGroup>();
@@ -1460,7 +1456,7 @@ class BBB_Morale
 			if (!managed && !surrender) continue;
 
 			array<AIAgent> agents = {};
-			BBB.s_Hooks.GetMembers(group, agents);
+			BBB.Members(group, agents);
 			if (agents.IsEmpty()) continue;
 
 			// Any member may give up, a withdrawing squad's stragglers included.
@@ -1542,6 +1538,7 @@ class BBB_Morale
 			SCR_EntityHelper.DeleteEntityAndChildren(BBB_SurrenderPose.Remains(ss.m_Soldier));
 		}
 		s_Surrendered.Clear();
+		BBB_Claims.UnmarkAll(BBB_Claims.JOB_PRISONER);
 		s_fNextSurrenderPass = 0;
 		s_fNextFatePass = 0;
 		foreach (BBB_GroupMoraleState gone : s_States)

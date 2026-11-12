@@ -67,7 +67,7 @@ class BBB_RelaxedMarch
 	{
 		Read();
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(s_aHostGroups);
+		BBB.Groups(s_aHostGroups);
 		groups.Copy(s_aHostGroups);
 		array<SCR_AIGroup> nativeGroups = {};
 		s_WorldGroups.GetGroups(nativeGroups);
@@ -78,7 +78,7 @@ class BBB_RelaxedMarch
 		{
 			if (!group) continue;
 			array<AIAgent> agents = {};
-			BBB.s_Hooks.GetMembers(group, agents);
+			BBB.Members(group, agents);
 			// Who could relax first: the danger scan (two perception lists per man) only matters
 			// when someone could, and one man in danger is enough (perf 27 Oct: 0.36 ms/tick).
 			array<bool> eligibles = {};

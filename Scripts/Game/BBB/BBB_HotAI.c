@@ -85,7 +85,6 @@ class BBB_HotAI
 	protected static bool s_bTraceLoop;
 	protected static int s_iLoop;
 	static const float LOOP_MS = 1000;
-	static const float TRACE_EVERY_MS = 2000;
 	static const float LOST_SIGHT_S = 15;
 	static const float KNOWN_S = 20;
 	static const float CREW_SEEN_S = 4;
@@ -272,7 +271,7 @@ class BBB_HotAI
 		if (!world) return;
 		float now = world.GetWorldTime();
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(groups);
+		BBB.Groups(groups);
 		array<AIAgent> agents = {};
 		array<BaseTarget> targets = {};
 		foreach (SCR_AIGroup group : groups)
@@ -533,7 +532,7 @@ class BBB_HotAI
 		if (!world) return;
 		float now = world.GetWorldTime();
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(groups);
+		BBB.Groups(groups);
 		array<AIAgent> agents = {};
 		array<BaseTarget> targets = {};
 		foreach (SCR_AIGroup group : groups)

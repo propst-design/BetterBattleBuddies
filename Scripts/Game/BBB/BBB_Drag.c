@@ -86,6 +86,7 @@ class BBB_Drag
   foreach (BBB_DragJob job : s_aJobs)
    if (job) Finish(job, "BBB stopped");
   s_aJobs.Clear();
+  BBB_Claims.UnmarkAll(BBB_Claims.JOB_DRAG);
   s_mLast.Clear();
   s_mRefusedLog.Clear();
   s_iStarted = 0;
@@ -224,9 +225,7 @@ class BBB_Drag
 
  static bool Busy(IEntity healer)
  {
-  foreach (BBB_DragJob job : s_aJobs)
-   if (job.m_Healer == healer) return true;
-  return false;
+  return BBB_Claims.Busy(healer, BBB_Claims.JOB_DRAG);
  }
 
  // A visible enemy this close to a dragger: he lets go and fights.
@@ -539,6 +538,7 @@ class BBB_Drag
   utility.AddAction(job.m_Move);
   BBB_Claims.Take(healer, BBB_Claims.RESCUE);
   s_aJobs.Insert(job);
+  BBB_Claims.Mark(healer, BBB_Claims.JOB_DRAG);
   s_iStarted++;
   string how = "drags";
   if (carry) how = "carries";
@@ -566,6 +566,7 @@ class BBB_Drag
    string ended = Check(job, now);
    if (ended.IsEmpty()) { BBB_Claims.Take(job.m_Healer, BBB_Claims.RESCUE); continue; }
    Finish(job, ended);
+   BBB_Claims.Unmark(job.m_Healer, BBB_Claims.JOB_DRAG);
    s_aJobs.Remove(i);
   }
   if (s_aJobs.IsEmpty() && s_mLast.IsEmpty() && s_mRefusedLog.IsEmpty())

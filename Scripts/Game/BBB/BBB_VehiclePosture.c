@@ -165,7 +165,7 @@ class BBB_CrewTurnout
    if (BBB_VehiclePosture.UnderFire(crewUtility) || BBB_VehiclePosture.KnownThreat(crewUtility, vehicle.GetOrigin(), THREAT_RADIUS)) return true;
   }
   array<AIAgent> members = {};
-  BBB.s_Hooks.GetMembers(group, members);
+  BBB.Members(group, members);
   foreach (AIAgent member : members)
   {
    if (!member || !BBB.IsAlive(member.GetControlledEntity())) continue;
@@ -241,7 +241,7 @@ class BBB_CrewTurnout
   if (!s_bOn && s_States.IsEmpty()) return;
   float now = GetGame().GetWorld().GetWorldTime();
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   array<BBB_CrewTurnoutState> visited = {};
   array<IEntity> handled = {};
   foreach (SCR_AIGroup group : groups)

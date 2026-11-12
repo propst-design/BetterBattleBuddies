@@ -75,7 +75,7 @@ class BBB_VehicleHelpers : Managed
  void Tick()
  {
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   array<IEntity> handledVehicles = {};
   array<IEntity> replacedVehicles = {};
   array<IEntity> watchedVehicles = {};
@@ -262,7 +262,7 @@ class BBB_VehicleHelpers : Managed
   if (!s_bUnstick) return; // the "Unstick vehicles" switch covers truck beds too
   float now = GetGame().GetWorld().GetWorldTime();
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    ChimeraCharacter soldier = ChimeraCharacter.Cast(agent.GetControlledEntity());
@@ -312,7 +312,7 @@ class BBB_VehicleHelpers : Managed
   if (!vehicle)
   {
    array<AIAgent> agents = {};
-   BBB.s_Hooks.GetMembers(group, agents);
+   BBB.Members(group, agents);
    foreach (AIAgent agent : agents)
    {
     IEntity body = agent.GetControlledEntity();
@@ -434,7 +434,7 @@ class BBB_VehicleHelpers : Managed
  {
   if (!group) return false;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;
@@ -677,7 +677,7 @@ class BBB_VehicleHelpers : Managed
   if (!now) return true;
   if (BBB.HasPlayer(now)) return false;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(now, agents);
+  BBB.Members(now, agents);
   return agents.Contains(agent);
  }
 
@@ -826,7 +826,7 @@ class BBB_VehicleHelpers : Managed
    if (allowFoot)
    {
     array<AIAgent> agents = {};
-    BBB.s_Hooks.GetMembers(group, agents);
+    BBB.Members(group, agents);
     float bestDist = GUNNER_FOOT_REACH_M;
     foreach (AIAgent agent : agents)
     {
@@ -884,7 +884,7 @@ class BBB_VehicleHelpers : Managed
   if (!vehicle)
   {
    array<AIAgent> agents = {};
-   BBB.s_Hooks.GetMembers(group, agents);
+   BBB.Members(group, agents);
    foreach (AIAgent agent : agents)
    {
     IEntity body = agent.GetControlledEntity();
@@ -914,7 +914,7 @@ class BBB_VehicleHelpers : Managed
   }
   int dropped = 0;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    ChimeraCharacter ch = ChimeraCharacter.Cast(agent.GetControlledEntity());
@@ -935,7 +935,7 @@ class BBB_VehicleHelpers : Managed
   if (!s_bTacticalDismount || !group || BBB.HasPlayer(group)) return;
   IEntity vehicle = null;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    IEntity body = agent.GetControlledEntity();

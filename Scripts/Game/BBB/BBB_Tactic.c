@@ -249,7 +249,7 @@ class BBB_Tactic
  {
   if (!state.m_Group) return;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(state.m_Group, agents);
+  BBB.Members(state.m_Group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;
@@ -409,7 +409,7 @@ class BBB_Tactic
  {
   IEntity leader = group.GetLeaderEntity();
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;
@@ -441,7 +441,7 @@ class BBB_Tactic
   if (!s_bOn) { if (!s_States.IsEmpty()) Stop(); return; }
   float now = Now();
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   for (int i = s_States.Count() - 1; i >= 0; i--)
   {
    SCR_AIGroup known = s_States.GetKey(i);
@@ -747,7 +747,7 @@ class BBB_Tactic
  protected static bool OrderHeld(SCR_AIGroup group)
  {
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;

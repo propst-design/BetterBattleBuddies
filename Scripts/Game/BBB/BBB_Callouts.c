@@ -318,7 +318,7 @@ class BBB_Callouts
   IEntity leader = Leader(group);
   if (!leader) return;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   IEntity best;
   float bestM = ACK_M;
   foreach (AIAgent agent : agents)
@@ -445,7 +445,7 @@ class BBB_Callouts
   if (!On() || !s_States) return;
   float now = Now();
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   foreach (SCR_AIGroup group : groups)
   {
    if (!group) continue;
@@ -470,7 +470,7 @@ class BBB_Callouts
   }
   // Men down: a man up on the last look who is now dead or unconscious (one who left alive isn't).
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   int down;
   foreach (IEntity was : state.m_aUp)
   {

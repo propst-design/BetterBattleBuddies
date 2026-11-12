@@ -82,6 +82,7 @@ class BBB_Traffic
    foreach (BBB_GiveWay pair : s_aPairs)
     if (pair) pair.Abort();
    s_aPairs.Clear();
+   BBB_Claims.UnmarkAll(BBB_Claims.JOB_GIVE_WAY);
   }
   BBB_PullOver.StopAll();
   if (s_mDriven) s_mDriven.Clear();
@@ -170,7 +171,7 @@ class BBB_Traffic
   // The land vehicles with a driver in them, from the groups' drivers.
   array<IEntity> vehicles = {};
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   array<AIAgent> agents = {};
   foreach (SCR_AIGroup group : groups)
   {
@@ -232,7 +233,11 @@ class BBB_Traffic
    }
   }
   for (int p = s_aPairs.Count() - 1; p >= 0; p--)
-   if (!s_aPairs[p].Tick(now)) s_aPairs.RemoveOrdered(p);
+  {
+   if (s_aPairs[p].Tick(now)) continue;
+   BBB_Claims.Unmark(s_aPairs[p].m_Yield, BBB_Claims.JOB_GIVE_WAY);
+   s_aPairs.RemoveOrdered(p);
+  }
  }
 
  protected static BBB_GiveWay Pair(IEntity a, IEntity b)
@@ -244,10 +249,7 @@ class BBB_Traffic
 
  static bool Busy(IEntity vehicle)
  {
-  if (!s_aPairs) return false;
-  foreach (BBB_GiveWay pair : s_aPairs)
-   if (pair.m_Yield == vehicle) return true;
-  return false;
+  return BBB_Claims.Busy(vehicle, BBB_Claims.JOB_GIVE_WAY);
  }
 
  // Who keeps the right of way: the same answer from either side.
@@ -288,6 +290,7 @@ class BBB_Traffic
   pair.m_fStart = now;
   if (!pair.Begin(now)) return;
   s_aPairs.Insert(pair);
+  BBB_Claims.Mark(pair.m_Yield, BBB_Claims.JOB_GIVE_WAY);
   s_iGiveWays++;
   string how = "brakes and waits";
   if (headOn) how = "pulls over to its right and waits";
@@ -509,10 +512,7 @@ class BBB_PullOver : Managed
 
  static bool Active(IEntity vehicle)
  {
-  if (!s_aActive || !vehicle) return false;
-  foreach (BBB_PullOver pull : s_aActive)
-   if (pull.m_Vehicle == vehicle) return true;
-  return false;
+  return BBB_Claims.Busy(vehicle, BBB_Claims.JOB_PULL_OVER);
  }
 
  // side: 1 the verge on the vehicle's right, -1 its left (MODE_HOLD ignores it).
@@ -537,6 +537,7 @@ class BBB_PullOver : Managed
   pull.m_bParkedAI = true;
   BBB_Unstick.ReleaseHorn(driver);
   s_aActive.Insert(pull);
+  BBB_Claims.Mark(vehicle, BBB_Claims.JOB_PULL_OVER);
   return true;
  }
 
@@ -560,13 +561,18 @@ class BBB_PullOver : Managed
    pull.End(car, false);
   }
   s_aActive.Clear();
+  BBB_Claims.UnmarkAll(BBB_Claims.JOB_PULL_OVER);
  }
 
  static void FrameAll()
  {
   if (!s_aActive) return;
   for (int i = s_aActive.Count() - 1; i >= 0; i--)
-   if (!s_aActive[i].Frame()) s_aActive.RemoveOrdered(i);
+  {
+   if (s_aActive[i].Frame()) continue;
+   BBB_Claims.Unmark(s_aActive[i].m_Vehicle, BBB_Claims.JOB_PULL_OVER);
+   s_aActive.RemoveOrdered(i);
+  }
  }
 
  // A spot on the verge SPOT_AHEAD_M ahead of the vehicle, VERGE_M past the edge of the road it is on,

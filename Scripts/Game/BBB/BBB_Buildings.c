@@ -472,7 +472,7 @@ class BBB_Buildings
   s_iQueryBudget = 4;
   float now = GetGame().GetWorld().GetWorldTime();
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   for (int i = s_Jobs.Count() - 1; i >= 0; i--)
   {
    BBB_BuildingJob job = s_Jobs[i];
@@ -548,7 +548,7 @@ class BBB_Buildings
    if (occupied.m_Group == group) working++;
   if (working >= 2 || s_Jobs.Count() >= 16 || s_iQueryBudget <= 0) return;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;

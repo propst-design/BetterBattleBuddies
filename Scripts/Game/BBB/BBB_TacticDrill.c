@@ -38,7 +38,7 @@ class BBB_TacticDrill
  {
   members.Clear();
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(state.m_Group, agents);
+  BBB.Members(state.m_Group, agents);
   // The squad leader's teams (BBB_SquadLeader, stage 4): his second team keeps its sector, and the
   // halves are his (left and right of the threat line) instead of every other man.
   bool leaderTeams = BBB_SquadLeader.RunsTeams(state.m_Group);
@@ -145,7 +145,7 @@ class BBB_TacticDrill
  {
   CancelRuns(state);
   array<AIAgent> agents = {};
-  if (state.m_Group) BBB.s_Hooks.GetMembers(state.m_Group, agents);
+  if (state.m_Group) BBB.Members(state.m_Group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;

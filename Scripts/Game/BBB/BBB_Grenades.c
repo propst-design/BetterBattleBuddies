@@ -184,7 +184,7 @@ class BBB_Grenades
 
 		// 1. Check thrower's own group members
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(throwingGroup, agents);
+		BBB.Members(throwingGroup, agents);
 		foreach (AIAgent agent : agents)
 		{
 			if (!agent) continue;
@@ -222,7 +222,7 @@ class BBB_Grenades
 	static bool IsThrowCorridorClear(vector throwerPos, vector landingPos, SCR_AIGroup throwingGroup, IEntity thrower)
 	{
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(throwingGroup, agents);
+		BBB.Members(throwingGroup, agents);
 
 		foreach (AIAgent agent : agents)
 		{
@@ -357,7 +357,7 @@ class BBB_Grenades
 		if (!group) return null;
 
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(group, agents);
+		BBB.Members(group, agents);
 
 		ChimeraCharacter bestThrower = null;
 		float bestDist = s_fMaxThrowDistM;
@@ -467,7 +467,7 @@ class BBB_Grenades
 		float nowMs = GetGame().GetWorld().GetWorldTime();
 
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(groups);
+		BBB.Groups(groups);
 
 		foreach (SCR_AIGroup group : groups)
 		{
@@ -488,7 +488,7 @@ class BBB_Grenades
 
 			// Search perceived enemy targets in cover or structures within throwing distance
 			array<AIAgent> agents = {};
-			BBB.s_Hooks.GetMembers(group, agents);
+			BBB.Members(group, agents);
 
 			bool grenadeThrown = false;
 

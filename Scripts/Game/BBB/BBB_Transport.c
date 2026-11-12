@@ -51,7 +51,7 @@ class BBB_Transport
  static IEntity CrewedVehicle(SCR_AIGroup group)
  {
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    IEntity body = agent.GetControlledEntity();

@@ -119,7 +119,89 @@ class BBB
 	static void BBB_InitStatics()
 	{
 		s_Hooks = new BBB_Hooks();
+		s_aRosterGroups = {};
+		s_mRosterMembers = new map<SCR_AIGroup, ref array<AIAgent>>();
 	}
+
+ // One roster per tick (broad review P7): during BBB.Tick the host's group list and each group's
+ // members are asked for once and shared by every feature (each caller gets its own copy);
+ // outside a tick the hooks are asked directly. Entries deleted since are skipped, as a fresh
+ // ask would. BBB's own membership changes (a surrender, a ruse rejoining) call RosterChanged.
+ protected static bool s_bRosterOpen;
+ protected static int s_iRosterFrame; // the cache is good only in the frame its tick ran (a script error mid-tick skips RosterClose)
+ protected static bool s_bRosterGroups;
+ protected static ref array<SCR_AIGroup> s_aRosterGroups;
+ protected static ref map<SCR_AIGroup, ref array<AIAgent>> s_mRosterMembers;
+
+ // The groups BBB looks after (BBB_Hooks.GetGroups).
+ static void Groups(notnull array<SCR_AIGroup> groups)
+ {
+  if (!RosterLive())
+  {
+   s_Hooks.GetGroups(groups);
+   return;
+  }
+  if (!s_bRosterGroups)
+  {
+   s_Hooks.GetGroups(s_aRosterGroups);
+   s_bRosterGroups = true;
+  }
+  groups.Clear();
+  foreach (SCR_AIGroup group : s_aRosterGroups)
+   if (group) groups.Insert(group);
+ }
+
+ // A group's soldiers as the host counts them (BBB_Hooks.GetMembers).
+ static void Members(SCR_AIGroup group, notnull array<AIAgent> agents)
+ {
+  if (!s_Hooks)
+  {
+   agents.Clear();
+   if (group) group.GetAgents(agents);
+   return;
+  }
+  if (!group || !RosterLive())
+  {
+   s_Hooks.GetMembers(group, agents);
+   return;
+  }
+  array<AIAgent> members = s_mRosterMembers.Get(group);
+  if (!members)
+  {
+   members = {};
+   s_Hooks.GetMembers(group, members);
+   s_mRosterMembers.Set(group, members);
+  }
+  agents.Clear();
+  foreach (AIAgent agent : members)
+   if (agent) agents.Insert(agent);
+ }
+
+ // BBB moved a soldier into or out of a group: the rest of this tick asks the host again.
+ static void RosterChanged()
+ {
+  s_bRosterGroups = false;
+  s_aRosterGroups.Clear();
+  s_mRosterMembers.Clear();
+ }
+
+ protected static void RosterOpen()
+ {
+  RosterChanged();
+  s_bRosterOpen = true;
+  s_iRosterFrame = GetGame().GetWorld().GetFrameNumber();
+ }
+
+ protected static bool RosterLive()
+ {
+  return s_bRosterOpen && GetGame().GetWorld().GetFrameNumber() == s_iRosterFrame;
+ }
+
+ protected static void RosterClose()
+ {
+  s_bRosterOpen = false;
+  RosterChanged();
+ }
 	static ref BBB_VehicleHelpers s_VehicleHelpers;
 	static ref BBB_Launchers s_Launchers;
 	static ref BBB_Combat s_Combat;
@@ -219,6 +301,7 @@ class BBB
 
  static void Tick()
  {
+  RosterOpen();
   int t = System.GetTickCount();
   BBB_OrderLeash.Tick();
   t = BBB_Perf.Lap("tick.orderLeash", t);
@@ -245,7 +328,7 @@ class BBB
   BBB_Teams.Tick();
   t = BBB_Perf.Lap("tick.teams", t);
 		array<SCR_AIGroup> rearmGroups = {};
-		s_Hooks.GetGroups(rearmGroups);
+		Groups(rearmGroups);
 		BBB_Rearm.WatchTrips(rearmGroups);
 		foreach (SCR_AIGroup rg : rearmGroups)
 			BBB_Rearm.CheckRearmFor(rg);
@@ -285,6 +368,7 @@ class BBB
   BBB_Traffic.Read(); // starts its own quarter-second tick
   BBB_Think.Tick();
 		BBB_Perf.OnTick();
+  RosterClose();
  }
 
  // Every frame, once (a host and BBB's own frame source may both call it).
@@ -363,8 +447,7 @@ class BBB
  {
   if (!group) return false;
   array<AIAgent> agents = {};
-  if (s_Hooks) s_Hooks.GetMembers(group, agents);
-  else group.GetAgents(agents);
+  Members(group, agents);
   foreach (AIAgent agent : agents)
    if (PlayerOf(agent.GetControlledEntity())) return true;
   return false;

@@ -90,11 +90,11 @@ class BBB_Launchers : Managed
   m_fNextCheck = now + CHECK_MS;
   Read();
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   foreach (SCR_AIGroup group : groups)
   {
    array<AIAgent> agents = {};
-   BBB.s_Hooks.GetMembers(group, agents);
+   BBB.Members(group, agents);
    // Off, or a player's squad: his men keep their tubes (the player decides).
    bool drops = s_bOn && !BBB.HasPlayer(group);
    foreach (AIAgent agent : agents)

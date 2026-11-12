@@ -141,7 +141,7 @@ class BBB_Flares
   // BBB never lights for a player's squad (TryIlluminate, Allowed): vanilla keeps doing it.
   if (!group || BBB.HasPlayer(group)) return false;
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   return groups.Contains(group);
  }
 
@@ -187,7 +187,7 @@ class BBB_Flares
   contact = null;
   float bestAge = 11;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent || !BBB.IsAlive(agent.GetControlledEntity())) continue;
@@ -275,7 +275,7 @@ class BBB_Flares
   BaseTarget contact;
   if (!KnownContact(group, target, contact) || !AreaReady(target, now)) return false;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   // A pre-existing native flare action must finish before BBB queues another.
   foreach (AIAgent existingAgent : agents)
   {
@@ -351,7 +351,7 @@ class BBB_Flares
  {
   float now = GetGame().GetWorld().GetWorldTime();
   array<SCR_AIGroup> groups = {};
-  if (!s_Jobs.IsEmpty()) BBB.s_Hooks.GetGroups(groups);
+  if (!s_Jobs.IsEmpty()) BBB.Groups(groups);
   for (int i = s_Jobs.Count() - 1; i >= 0; i--)
   {
    BBB_FlareJob job = s_Jobs[i];
@@ -378,7 +378,7 @@ class BBB_Flares
   if (now < s_fNextCheck) return;
   s_fNextCheck = now + 2000;
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   // At most four groups per evaluation, one launch per tick across all groups.
   int count = Math.Min(groups.Count(), 4);
   for (int i = 0; i < count; i++)

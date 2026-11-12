@@ -74,7 +74,7 @@ class BBB_ContactRelay
   Deliver(now);
   s_iTick++;
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   PerceptionManager perception = GetGame().GetPerceptionManager();
   if (!perception) return;
   float perceptionNow = perception.GetTime();
@@ -94,7 +94,7 @@ class BBB_ContactRelay
  {
   float best = 0;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;

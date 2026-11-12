@@ -67,7 +67,7 @@ class BBB_Combat
 		if (!s_bDetail && !s_bRadio) return;
 		int started = System.GetTickCount();
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(groups);
+		BBB.Groups(groups);
 		float now = GetGame().GetWorld().GetWorldTime() / 1000;
 		if (s_bDetail) DetailTick(groups, now);
 		if (s_bRadio) PruneReports(groups, now);
@@ -118,7 +118,7 @@ class BBB_Combat
 			float until = m_ActiveUntil.GetElement(index);
 			if (until < now) continue;
 			array<AIAgent> agents = {};
-			BBB.s_Hooks.GetMembers(group, agents);
+			BBB.Members(group, agents);
 			foreach (AIAgent agent : agents)
 			{
 				if (!agent || !agent.GetControlledEntity() || BBB.PlayerOf(agent.GetControlledEntity())) continue;
@@ -135,7 +135,7 @@ class BBB_Combat
 		SCR_AIGroupUtilityComponent groupUtility = group.GetGroupUtilityComponent();
 		if (groupUtility && groupUtility.GetThreatMeasure() >= 0.33) return true;
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(group, agents);
+		BBB.Members(group, agents);
 		foreach (AIAgent agent : agents)
 		{
 			if (!agent || !agent.GetControlledEntity()) continue;

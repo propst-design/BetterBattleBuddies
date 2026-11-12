@@ -249,6 +249,7 @@ class BBB_DragCoverTest : BBB_AimTest
   m_FakeJob = new BBB_DragJob();
   m_FakeJob.m_Healer = m_Dragger;
   BBB_Drag.s_aJobs.Insert(m_FakeJob);
+  BBB_Claims.Mark(m_Dragger, BBB_Claims.JOB_DRAG); // Drag.Busy reads the claims registry
   array<IEntity> men = {m_Free, m_Dragger};
   foreach (IEntity man : men)
   {
@@ -284,6 +285,7 @@ class BBB_DragCoverTest : BBB_AimTest
   if (m_iReadyPolls < 40) return;
   GetGame().GetCallqueue().Remove(PollReady);
   BBB_Drag.s_aJobs.RemoveItem(m_FakeJob);
+  BBB_Claims.Unmark(m_Dragger, BBB_Claims.JOB_DRAG);
   int accepted = BBB_WeaponReady.s_iAccepted - m_iAcceptedAtStart;
   Check("ready-both-walk-drag-move", m_bFreeMoved && m_bDraggerMoved, string.Format("free %1, dragger %2", m_bFreeMoved, m_bDraggerMoved));
   Check("ready-both-holstered", m_bFreeEmpty && m_bDraggerEmpty, string.Format("free %1, dragger %2", m_bFreeEmpty, m_bDraggerEmpty));

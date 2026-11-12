@@ -85,11 +85,11 @@ class BBB_DoorUnstick
   if (!s_bOn) { s_Stalls.Clear(); return; }
   s_iTick++;
   float now = GetGame().GetWorld().GetWorldTime();
-  BBB.s_Hooks.GetGroups(s_Groups);
+  BBB.Groups(s_Groups);
   foreach (SCR_AIGroup group : s_Groups)
   {
    if (!group || !BBB.s_Hooks.AllowDoorUnstick(group)) continue;
-   BBB.s_Hooks.GetMembers(group, s_Agents);
+   BBB.Members(group, s_Agents);
    foreach (AIAgent agent : s_Agents)
     if (agent) Watch(agent, now);
   }

@@ -270,9 +270,7 @@ class BBB_Drive : Managed
 
  static bool Driving(IEntity vehicle)
  {
-  if (!vehicle || !s_Active) return false;
-  foreach (BBB_Drive d : s_Active) if (d.m_Vehicle == vehicle) return true;
-  return false;
+  return BBB_Claims.Busy(vehicle, BBB_Claims.JOB_DRIVE);
  }
 
  static BBB_Drive Of(IEntity vehicle)
@@ -292,10 +290,12 @@ class BBB_Drive : Managed
    BBB_Drive d = s_Active[i];
    string why = d.Why(now);
    if (!why.IsEmpty()) d.End(why, now);
-   if (!d.m_Path) s_Active.Remove(i);
+   if (d.m_Path) continue;
+   BBB_Claims.Unmark(d.m_Vehicle, BBB_Claims.JOB_DRIVE);
+   s_Active.Remove(i);
   }
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   foreach (SCR_AIGroup group : groups) Consider(group, now);
   for (int p = s_Pending.Count() - 1; p >= 0; p--) if (!s_Pending.GetKey(p)) s_Pending.RemoveElement(p);
   for (int r = s_Rest.Count() - 1; r >= 0; r--) if (!s_Rest.GetKey(r) || s_Rest.GetElement(r) < now) s_Rest.RemoveElement(r);
@@ -335,6 +335,7 @@ class BBB_Drive : Managed
   BBB_Drive d = new BBB_Drive();
   if (!d.Begin(group, vehicle, wp, plan, source, now)) { s_Rest.Set(group, now + 30000); return; }
   s_Active.Insert(d);
+  BBB_Claims.Mark(d.m_Vehicle, BBB_Claims.JOB_DRIVE);
  }
 
  // Moving at least ROLL_SPEED, within ROLL_LINE_M of the planned line and heading along it.
@@ -403,6 +404,7 @@ class BBB_Drive : Managed
   float now = GetGame().GetWorld().GetWorldTime();
   foreach (BBB_Drive d : s_Active) if (d.m_Path) d.End("BBB stopping", now);
   s_Active.Clear();
+  BBB_Claims.UnmarkAll(BBB_Claims.JOB_DRIVE);
   s_Pending.Clear();
  }
 

@@ -11,6 +11,13 @@
 // nobody, but they never pick a man who is Committed() (RESCUE, STATIC or REARM).
 // Withdrawal stays a group flag (BBB_Morale.IsWithdrawing), which every feature reads.
 //  -bbbClaims 0   off: Can/Take/Holds always true, nothing is recorded
+//
+// Jobs (the one "who has this soldier or vehicle" registry, broad review 12 Nov): beside the roles,
+// every BBB job that has a soldier or vehicle marks it here when it starts and unmarks it when it
+// ends, and other features ask Busy(entity, job) instead of scanning that feature's own job list.
+// Jobs don't arbitrate and don't lapse: they mirror the owner's list exactly (a count per job, so two
+// entries for one entity need two Unmarks), and -bbbClaims doesn't switch them off. Keys left by a
+// deleted entity are dropped in Tick.
 class BBB_Claim : Managed
 {
  int m_iRole;
@@ -36,7 +43,22 @@ class BBB_Claims
  {
   s_Claims = new map<IEntity, ref BBB_Claim>();
   s_aVanilla = {};
+  s_Jobs = new map<IEntity, ref array<int>>();
  }
+ // Jobs: soldiers
+ static const int JOB_DRAG = 0;        // a healer dragging a casualty (BBB_Drag)
+ static const int JOB_TEAM = 1;        // a specialist-team assistant on a leash, supply or pick-up errand (BBB_Teams)
+ static const int JOB_PRISONER = 2;    // surrendered (BBB_Morale)
+ // Jobs: vehicles and static weapons
+ static const int JOB_STATIC_GUN = 3;  // a static weapon a gunner is walking to or manning (BBB_StaticWeapons)
+ static const int JOB_GIVE_WAY = 4;    // a vehicle giving way to another (BBB_GiveWay)
+ static const int JOB_PULL_OVER = 5;   // a vehicle pulling over or holding (BBB_PullOver)
+ static const int JOB_UNSTICK = 6;     // a vehicle reversing out of a stall (BBB_Unstick)
+ static const int JOB_PILOT_HOLD = 7;  // a vehicle whose driver seat BBB has unhooked (BBB_PilotHold)
+ static const int JOB_DRIVE = 8;       // a vehicle BBB's scripted driver is driving (BBB_Drive)
+ static const int JOB_COUNT = 9;
+ protected static ref map<IEntity, ref array<int>> s_Jobs; // entity -> how many entries each job has for it
+
  static int s_iTaken;     // tests read these
  static int s_iPreempted;
  static int s_iRefused;
@@ -53,6 +75,55 @@ class BBB_Claims
  {
   s_Claims.Clear();
   s_aVanilla.Clear();
+  // s_Jobs stays: each owner unmarks its own entries when it clears its list.
+ }
+
+ // The owning job started on him (or it): call once per entry the owner adds to its list.
+ static void Mark(IEntity entity, int job)
+ {
+  if (!entity) return;
+  array<int> counts = s_Jobs.Get(entity);
+  if (!counts)
+  {
+   counts = {};
+   for (int j = 0; j < JOB_COUNT; j++) counts.Insert(0);
+   s_Jobs.Set(entity, counts);
+  }
+  counts[job] = counts[job] + 1;
+ }
+
+ // ...and ended: once per entry the owner removes.
+ static void Unmark(IEntity entity, int job)
+ {
+  if (!entity) return;
+  array<int> counts = s_Jobs.Get(entity);
+  if (!counts || counts[job] <= 0) return;
+  counts[job] = counts[job] - 1;
+  for (int j = 0; j < JOB_COUNT; j++)
+   if (counts[j] > 0) return;
+  s_Jobs.Remove(entity);
+ }
+
+ // The owner cleared its whole list.
+ static void UnmarkAll(int job)
+ {
+  for (int i = s_Jobs.Count() - 1; i >= 0; i--)
+  {
+   array<int> counts = s_Jobs.GetElement(i);
+   counts[job] = 0;
+   bool any = false;
+   for (int j = 0; j < JOB_COUNT; j++)
+    if (counts[j] > 0) any = true;
+   if (!any) s_Jobs.RemoveElement(i);
+  }
+ }
+
+ // Does this job have him (or it) now?
+ static bool Busy(IEntity entity, int job)
+ {
+  if (!entity) return false;
+  array<int> counts = s_Jobs.Get(entity);
+  return counts && counts[job] > 0;
  }
 
  static string Name(int role)
@@ -141,6 +212,8 @@ class BBB_Claims
  // Once a tick: drop lapsed claims and the dead (by index: a decayed key can't be looked up).
  static void Tick()
  {
+  for (int k = s_Jobs.Count() - 1; k >= 0; k--)
+   if (!s_Jobs.GetKey(k)) s_Jobs.RemoveElement(k);
   if (s_Claims.IsEmpty()) return;
   float now = Now();
   for (int i = s_Claims.Count() - 1; i >= 0; i--)

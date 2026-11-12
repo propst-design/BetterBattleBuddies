@@ -154,7 +154,7 @@ class BBB_SquadLeader
   if ((!s_bCue && !s_bFire && !s_bJobs && !s_bTeams) || !BBB.s_Hooks || !s_mOrders) return;
   float now = Now();
   s_aGroups.Clear();
-  BBB.s_Hooks.GetGroups(s_aGroups);
+  BBB.Groups(s_aGroups);
   foreach (SCR_AIGroup group : s_aGroups)
   {
    if (!InContact(group))
@@ -210,7 +210,7 @@ class BBB_SquadLeader
   if (s_bFire) Split(orders, picture, now);
 
   s_aAgents.Clear();
-  BBB.s_Hooks.GetMembers(group, s_aAgents);
+  BBB.Members(group, s_aAgents);
   foreach (AIAgent agent : s_aAgents)
   {
    SCR_AIUtilityComponent utility = Able(agent);
@@ -363,7 +363,7 @@ class BBB_SquadLeader
   array<int> teams = {};
   array<float> distances = {};
   s_aAgents.Clear();
-  BBB.s_Hooks.GetMembers(orders.m_Group, s_aAgents);
+  BBB.Members(orders.m_Group, s_aAgents);
   SCR_AIGroupUtilityComponent groupUtility = orders.m_Group.GetGroupUtilityComponent();
   foreach (AIAgent agent : s_aAgents)
   {

@@ -130,15 +130,6 @@ class BBB_OrderIntent
   return QueuedOrder(utility);
  }
 
- // A player-level behaviour of his own: running now or queued.
- static bool OwnOrder(SCR_AIUtilityComponent utility)
- {
-  if (!utility) return false;
-  SCR_AIBehaviorBase current = utility.GetCurrentBehavior();
-  if (current && current.EvaluatePriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return true;
-  return QueuedOrder(utility);
- }
-
  protected static bool QueuedOrder(SCR_AIUtilityComponent utility)
  {
   // Reuse storage per controller; native decisions can ask many times a frame.
@@ -332,7 +323,7 @@ class BBB_OrderLeash
  static void Tick()
  {
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   for (int old = s_Leases.Count() - 1; old >= 0; old--)
    if (!s_Leases.GetKey(old) || !groups.Contains(s_Leases.GetKey(old))) s_Leases.RemoveElement(old);
   if (!s_bOn) { s_Leases.Clear(); return; }
@@ -344,7 +335,7 @@ class BBB_OrderLeash
    if (!lease) continue;
    lease.m_Blocked = false;
    array<AIAgent> agents = {};
-   BBB.s_Hooks.GetMembers(group, agents);
+   BBB.Members(group, agents);
    foreach (AIAgent agent : agents)
    {
     if (!agent) continue;

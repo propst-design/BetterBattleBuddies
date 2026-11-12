@@ -187,7 +187,7 @@ class BBB_FireManeuver
    }
   }
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;
@@ -222,7 +222,7 @@ class BBB_FireManeuver
   Read();
   if (!s_bOn) { Stop(); return; }
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   float now = GetGame().GetWorld().GetWorldTime() / 1000;
   for (int j = s_Jobs.Count() - 1; j >= 0; j--)
   {
@@ -263,7 +263,7 @@ class BBB_FireManeuver
  protected static BBB_FireTeamJob Start(SCR_AIGroup group, float now)
  {
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   ref BBB_FireTeamJob job = new BBB_FireTeamJob();
   vector seen;
   int fresh;
@@ -359,7 +359,7 @@ class BBB_FireManeuver
   vector freshAt;
   int alive;
   array<AIAgent> roster = {};
-  BBB.s_Hooks.GetMembers(job.m_Group, roster);
+  BBB.Members(job.m_Group, roster);
   // A man killed, knocked out or taken off the squad drops out; the rest fight on
   // (one casualty used to end the whole manoeuvre and bench the squad for 15 s).
   if (DropLost(job, roster) && !TeamsHold(job)) { PrintFormat("[BBB] FIRE END %1: too few left (%2)", BBB.s_Hooks.NameOf(job.m_Group), job.m_Members.Count()); End(job.m_Group, now); return; }

@@ -366,7 +366,7 @@ class BBB_Medic
   if (!thrower)
   {
    array<AIAgent> agents = {};
-   BBB.s_Hooks.GetMembers(group, agents);
+   BBB.Members(group, agents);
    float bestThrowerDist = SMOKE_THROW_MAX_M;
    foreach (AIAgent agent : agents)
    {
@@ -455,7 +455,7 @@ class BBB_Medic
    if (!BBB_Drag.Busy(healer)) BBB_Claims.Release(healer, BBB_Claims.RESCUE);
    return;
   }
-  // Same 4 s as Going(): the heal renews it each evaluation while he is on his way.
+  // 4 s: the heal renews it each evaluation while he is on his way.
   BBB_Claims.Take(healer, BBB_Claims.RESCUE, 4000);
   s_mGoing.Set(healer, NowMs());
   s_mGoingTo.Set(healer, casualty);
@@ -502,13 +502,6 @@ class BBB_Medic
    IEntity key = s_mGoingTo.GetKey(target);
    if (!key || !s_mGoingTo.GetElement(target) || !s_mGoing.Contains(key)) s_mGoingTo.RemoveElement(target);
   }
- }
-
- // Was he let go to a casualty in the last few seconds (not holding back)?
- static bool Going(IEntity healer)
- {
-  if (!healer || !s_mGoing.Contains(healer)) return false;
-  return NowMs() - s_mGoing.Get(healer) < 4000;
  }
 
  static bool HeldLately(IEntity casualty)

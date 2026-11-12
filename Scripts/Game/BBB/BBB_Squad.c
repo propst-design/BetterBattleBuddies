@@ -115,7 +115,7 @@ class BBB_Squad
   picture.m_fAvgSuppression = 0;
   picture.m_Contacts.Clear();
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(picture.m_Group, agents);
+  BBB.Members(picture.m_Group, agents);
   picture.m_iMembers = agents.Count();
   IEntity leader = picture.m_Group.GetLeaderEntity();
   vector conscious;

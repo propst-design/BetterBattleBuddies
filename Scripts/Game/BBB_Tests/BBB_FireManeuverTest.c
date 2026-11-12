@@ -275,6 +275,7 @@ class BBB_FireManeuverTest : BBB_AimTest
   lostJob.m_Casualty = survivor;
   lostJob.m_fStartMs = nowMs;
   BBB_Drag.s_aJobs.Insert(lostJob);
+  BBB_Claims.Mark(doomed, BBB_Claims.JOB_DRAG); // as BBB_Drag.Start does
   SCR_EntityHelper.DeleteEntityAndChildren(doomed);
   CheckFM("deleted soldier keys and job pointers decay", !doomed && !lostJob.m_Healer);
   BBB_Medic.WatchGoing();
@@ -303,6 +304,7 @@ class BBB_FireManeuverTest : BBB_AimTest
   activeDrag.m_Move = new BBB_AIDragMove(utility, null, survivor.GetOrigin(), BBB_Drag.MOVE_PRIORITY, 0, null, 1.0);
   utility.AddAction(activeDrag.m_Move);
   BBB_Drag.s_aJobs.Insert(activeDrag);
+  BBB_Claims.Mark(survivor, BBB_Claims.JOB_DRAG);
   BBB_Drag.Refused(survivor, survivor, "shutdown fixture");
   m_RestartHooks = BBB.s_Hooks;
   m_RestartMedic = survivor;

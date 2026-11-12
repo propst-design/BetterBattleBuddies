@@ -215,13 +215,13 @@ class BBB_Think
  static IEntity PickFrom(vector eye, vector forward, IEntity self)
  {
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   array<AIAgent> agents = {};
   IEntity best;
   float bestCos = PICK_COS;
   foreach (SCR_AIGroup group : groups)
   {
-   BBB.s_Hooks.GetMembers(group, agents);
+   BBB.Members(group, agents);
    foreach (AIAgent agent : agents)
    {
     if (!agent) continue;

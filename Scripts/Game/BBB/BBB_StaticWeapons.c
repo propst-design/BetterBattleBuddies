@@ -126,6 +126,7 @@ class BBB_StaticWeapons
 			BBB_Claims.Release(job.m_Gunner, BBB_Claims.STATIC);
 		}
 		s_aJobs.Clear();
+		BBB_Claims.UnmarkAll(BBB_Claims.JOB_STATIC_GUN);
 		s_mNextCheck.Clear();
 		s_mWeaponRetry.Clear();
 		s_aQueriedEntities.Clear();
@@ -178,7 +179,7 @@ class BBB_StaticWeapons
 
 		vector weaponPos = weapon.GetOrigin();
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(group, agents);
+		BBB.Members(group, agents);
 
 		foreach (AIAgent agent : agents)
 		{
@@ -336,7 +337,7 @@ class BBB_StaticWeapons
 		if (!group || !weapon) return null;
 
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(group, agents);
+		BBB.Members(group, agents);
 		IEntity leaderEnt = group.GetLeaderEntity();
 
 		ChimeraCharacter bestCandidate = null;
@@ -399,11 +400,7 @@ class BBB_StaticWeapons
 	// True while a job (pending or mounted) already claims this weapon
 	static bool IsClaimed(IEntity weapon)
 	{
-		foreach (BBB_StaticGunnerJob job : s_aJobs)
-		{
-			if (job && job.m_StaticWeapon == weapon) return true;
-		}
-		return false;
+		return BBB_Claims.Busy(weapon, BBB_Claims.JOB_STATIC_GUN);
 	}
 
 	// Send the soldier to the weapon on foot with vanilla's own get-in behaviour
@@ -457,6 +454,7 @@ class BBB_StaticWeapons
 		job.m_fLastThreatInArcMs = now;
 		job.m_bMounted = false;
 		s_aJobs.Insert(job);
+		BBB_Claims.Mark(weapon, BBB_Claims.JOB_STATIC_GUN);
 		BBB_Claims.Take(gunner, BBB_Claims.STATIC);
 
 		s_iBoardingRequests++;
@@ -586,7 +584,11 @@ class BBB_StaticWeapons
 	protected static void Forget(int index)
 	{
 		BBB_StaticGunnerJob job = s_aJobs[index];
-		if (job) BBB_Claims.Release(job.m_Gunner, BBB_Claims.STATIC);
+		if (job)
+		{
+			BBB_Claims.Release(job.m_Gunner, BBB_Claims.STATIC);
+			BBB_Claims.Unmark(job.m_StaticWeapon, BBB_Claims.JOB_STATIC_GUN);
+		}
 		s_aJobs.RemoveOrdered(index);
 	}
 
@@ -725,7 +727,7 @@ class BBB_StaticWeapons
 
 		// 2. Discover and crew nearby static weapons for autonomous squads in contact
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(groups);
+		BBB.Groups(groups);
 
 		foreach (SCR_AIGroup group : groups)
 		{

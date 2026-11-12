@@ -228,10 +228,7 @@ class BBB_Teams
  // His assistant is on a supply or pick-up run, or walking back to him.
  static bool Busy(IEntity soldier)
  {
-  if (!soldier) return false;
-  foreach (BBB_Pair pair : s_aPairs)
-   if (pair.m_Assistant == soldier && pair.m_iJob != NONE) return true;
-  return false;
+  return BBB_Claims.Busy(soldier, BBB_Claims.JOB_TEAM);
  }
 
  // His assistant will bring his magazines (Rearm leaves him to it).
@@ -268,7 +265,7 @@ class BBB_Teams
   }
   float now = Now();
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   for (int i = s_aPairs.Count() - 1; i >= 0; i--)
    if (!s_aPairs[i].m_Group || !groups.Contains(s_aPairs[i].m_Group)) Drop(i);
   int budget = PAIR_GROUPS_PER_TICK;
@@ -290,7 +287,7 @@ class BBB_Teams
  protected static void PairGroup(SCR_AIGroup group)
  {
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   array<ChimeraCharacter> gunners = {};
   array<BaseMuzzleComponent> gunMuzzles = {};
   array<bool> gunLaunchers = {};
@@ -392,6 +389,7 @@ class BBB_Teams
  {
   if (Active(pair.m_Move)) pair.m_Move.Fail();
   if (pair.m_iJob != job) pair.m_fJobSince = now;
+  if (pair.m_iJob == NONE && job != NONE) BBB_Claims.Mark(pair.m_Assistant, BBB_Claims.JOB_TEAM);
   pair.m_iJob = job;
   pair.m_vMoveTo = target.GetOrigin();
   pair.m_Move = new SCR_AIMoveIndividuallyBehavior(utility, null, pair.m_vMoveTo, priority: priority, ent: target, radius: radius);
@@ -409,6 +407,7 @@ class BBB_Teams
   if (Active(pair.m_Move)) pair.m_Move.Fail();
   pair.m_Move = null;
   if (pair.m_iJob == SUPPLY || pair.m_iJob == PICKUP) BBB_Claims.Release(pair.m_Assistant, BBB_Claims.REARM);
+  if (pair.m_iJob != NONE) BBB_Claims.Unmark(pair.m_Assistant, BBB_Claims.JOB_TEAM);
   pair.m_iJob = NONE;
  }
 

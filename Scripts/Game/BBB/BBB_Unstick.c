@@ -57,6 +57,7 @@ class BBB_Unstick : Managed
   }
   ReleaseHorn(driver);
   s_Active.Insert(unstick);
+  BBB_Claims.Mark(vehicle, BBB_Claims.JOB_UNSTICK);
  }
 
  // Throttle, wheel and brake for a parked driver's vehicle (written every frame: the vehicle controller
@@ -90,6 +91,7 @@ class BBB_Unstick : Managed
    CarControllerComponent car;
    if (unstick.m_Vehicle) car = CarControllerComponent.Cast(unstick.m_Vehicle.FindComponent(CarControllerComponent));
    unstick.End(car);
+   BBB_Claims.Unmark(unstick.m_Vehicle, BBB_Claims.JOB_UNSTICK);
    s_Active.RemoveOrdered(i);
   }
  }
@@ -105,12 +107,17 @@ class BBB_Unstick : Managed
    unstick.End(car);
   }
   s_Active.Clear();
+  BBB_Claims.UnmarkAll(BBB_Claims.JOB_UNSTICK);
  }
 
  static void FrameAll()
  {
   for (int i = s_Active.Count() - 1; i >= 0; i--)
-   if (!s_Active[i].Frame()) s_Active.RemoveOrdered(i);
+  {
+   if (s_Active[i].Frame()) continue;
+   BBB_Claims.Unmark(s_Active[i].m_Vehicle, BBB_Claims.JOB_UNSTICK);
+   s_Active.RemoveOrdered(i);
+  }
  }
 
  // Returns false when finished.

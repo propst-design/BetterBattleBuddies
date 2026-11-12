@@ -289,7 +289,7 @@ class BBB_ArmorReaction
   SCR_AIGroup group = BBB_Buildings.GroupOf(utility);
   if (!Allowed(vehicle, group, utility) || !Hostile(shooter, group)) return false;
   array<SCR_AIGroup> roster = {};
-  BBB.s_Hooks.GetGroups(roster);
+  BBB.Groups(roster);
   if (!roster.Contains(group)) return false;
   AIControlComponent control = AIControlComponent.Cast(driver.FindComponent(AIControlComponent));
   if (!control || !control.IsAIActivated()) return false;
@@ -372,7 +372,7 @@ class BBB_ArmorReaction
   Read();
   if (!s_bOn) { Stop(); return; }
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   s_Vehicles.Clear();
   foreach (SCR_AIGroup group : groups)
   {
@@ -454,9 +454,7 @@ modded class BBB_Unstick
 {
  static bool ArmorBusy(IEntity vehicle)
  {
-  foreach (BBB_Unstick job : s_Active)
-   if (job.m_Vehicle == vehicle) return true;
-  return false;
+  return BBB_Claims.Busy(vehicle, BBB_Claims.JOB_UNSTICK);
  }
 }
 

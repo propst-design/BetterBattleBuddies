@@ -126,7 +126,7 @@ class BBB_HeldGuns
   s_iTicks++;
   if (s_iTicks % 60 == 0) PruneDry();
   array<SCR_AIGroup> groups = {};
-  BBB.s_Hooks.GetGroups(groups);
+  BBB.Groups(groups);
   array<IEntity> guns = {};
   foreach (int index, SCR_AIGroup group : groups)
   {
@@ -211,7 +211,7 @@ class BBB_HeldGuns
  static void Winchester(SCR_AIGroup group, float now)
  {
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;
@@ -258,7 +258,7 @@ class BBB_HeldGuns
   ChimeraCharacter best;
   float bestDistance = REMOUNT_REACH;
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;

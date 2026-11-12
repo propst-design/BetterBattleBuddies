@@ -202,7 +202,7 @@ class BBB_Smoke
 		if (BBB_Squad.On(group)) return BBB_Squad.Threat(group, RECENT_THREAT_MAX_S, outThreatCenter);
 
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(group, agents);
+		BBB.Members(group, agents);
 		int count = 0;
 		vector sum = vector.Zero;
 
@@ -276,7 +276,7 @@ class BBB_Smoke
 
 		// 2. Search all group members
 		array<AIAgent> agents = {};
-		BBB.s_Hooks.GetMembers(group, agents);
+		BBB.Members(group, agents);
 		foreach (AIAgent agent : agents)
 		{
 			if (!agent) continue;

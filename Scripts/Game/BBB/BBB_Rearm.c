@@ -872,7 +872,7 @@ class BBB_Rearm
   float nowMs = GetGame().GetWorld().GetWorldTime();
   PruneFailures(nowMs);
   array<AIAgent> agents = {};
-  BBB.s_Hooks.GetMembers(group, agents);
+  BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
   {
    if (!agent) continue;

@@ -35,6 +35,7 @@ class BBB_PilotHold
   entry.m_Seat = seat;
   entry.m_iHolders = 1;
   s_Held.Insert(controller, entry);
+  BBB_Claims.Mark(controller.GetOwner(), BBB_Claims.JOB_PILOT_HOLD);
   return true;
  }
 
@@ -47,6 +48,7 @@ class BBB_PilotHold
   if (entry.m_iHolders > 0) return;
   controller.SetPilotCompartmentSlot(entry.m_Seat);
   s_Held.Remove(controller);
+  BBB_Claims.Unmark(controller.GetOwner(), BBB_Claims.JOB_PILOT_HOLD);
  }
 
  // The driver seat, held or not: BBB's "who drives this" must not lose the driver mid-manoeuvre.
@@ -70,8 +72,7 @@ class BBB_PilotHold
  // "stopped, so stuck" watch should wait until the seat is given back.
  static bool Driving(IEntity vehicle)
  {
-  if (!vehicle || !s_Held) return false;
-  return Held(BaseVehicleControllerComponent.Cast(vehicle.FindComponent(BaseVehicleControllerComponent)));
+  return BBB_Claims.Busy(vehicle, BBB_Claims.JOB_PILOT_HOLD);
  }
 
  // BBB stopping: every seat goes back, whoever held it.
@@ -84,6 +85,7 @@ class BBB_PilotHold
    if (controller) controller.SetPilotCompartmentSlot(s_Held.GetElement(i).m_Seat);
   }
   s_Held.Clear();
+  BBB_Claims.UnmarkAll(BBB_Claims.JOB_PILOT_HOLD);
  }
 
  // Vehicles deleted while held.

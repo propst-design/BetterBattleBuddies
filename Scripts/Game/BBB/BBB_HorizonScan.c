@@ -126,7 +126,7 @@ class BBB_HorizonScan
 		if (!s_bOn) return;
 
 		array<SCR_AIGroup> groups = {};
-		BBB.s_Hooks.GetGroups(s_aHostGroups);
+		BBB.Groups(s_aHostGroups);
 		groups.Copy(s_aHostGroups);
 		array<SCR_AIGroup> nativeGroups = {};
 		s_WorldGroups.GetGroups(nativeGroups);
@@ -139,7 +139,7 @@ class BBB_HorizonScan
 		{
 			if (!group) continue;
 			array<AIAgent> agents = {};
-			BBB.s_Hooks.GetMembers(group, agents);
+			BBB.Members(group, agents);
 
 			foreach (AIAgent agent : agents)
 			{
