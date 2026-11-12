@@ -373,7 +373,9 @@ class BBB_ZombiesTest : BBB_AimTest
  protected void HealStart()
  {
   vector at = m_vSite - m_vSide * 40;
-  m_Man = SpawnMan(at, m_vDir);
+  // He faces the shambler: the rule reads only what he perceives, and one spawned behind him went unseen while
+  // he set off for the casualty (integration run 20261111-182942: "go" 2 s in, held 0).
+  m_Man = SpawnMan(at, -m_vDir);
   SCR_AIGroup squad = m_ManGroup;
   m_Casualty = Spawn(RIFLE_US, at + m_vDir * 10, m_vDir);
   if (m_Casualty)
@@ -389,6 +391,17 @@ class BBB_ZombiesTest : BBB_AimTest
    Finish();
    return;
   }
+  m_iPolls = 0;
+  GetGame().GetCallqueue().CallLater(KnockOut, 500, true);
+ }
+
+ // The casualty goes down once his squadmate has seen the shambler (10 s at most).
+ protected void KnockOut()
+ {
+  m_iPolls++;
+  m_bPerceived = m_Man && m_Zombie && Perceives(m_Man, m_Zombie);
+  if (!m_bPerceived && m_iPolls < 20) return;
+  GetGame().GetCallqueue().Remove(KnockOut);
   ChimeraCharacter character = ChimeraCharacter.Cast(m_Casualty);
   SCR_CharacterDamageManagerComponent damage = SCR_CharacterDamageManagerComponent.Cast(character.GetDamageManager());
   if (damage)
@@ -415,7 +428,7 @@ class BBB_ZombiesTest : BBB_AimTest
   GetGame().GetCallqueue().Remove(HeldPoll);
   int held = BBB_Zombies.s_iHealsHeld - m_iCounter;
   bool down = m_Casualty && ChimeraCharacter.Cast(m_Casualty).GetCharacterController().IsUnconscious();
-  Check("heal-held-near-zombie", held > 0 && !m_bReached && down, string.Format("held %1 times, went to the casualty %2, casualty down %3", held, m_bReached, down));
+  Check("heal-held-near-zombie", held > 0 && !m_bReached && down, string.Format("held %1 times, went to the casualty %2, casualty down %3, had seen the shambler first %4", held, m_bReached, down, m_bPerceived));
   // The shambler goes: the way is clear.
   if (m_Zombie) SCR_EntityHelper.DeleteEntityAndChildren(m_Zombie);
   m_Zombie = null;
