@@ -79,6 +79,7 @@ A few features are **off by default** and must be switched on:
 | `-bbbReturnFire 1` | A soldier shot at by an enemy he can't see fires a short burst back toward the shots |
 | `-bbbGiveWay 1` | Friendly AI vehicles on a collision course agree who gives way |
 | `-bbbEvadeArmour 1` | An unarmed vehicle that sees an armed enemy vehicle asks the host mod to drive it away (does nothing without a host mod that handles it) |
+| `-bbbDriver 1` | **Experimental.** On long moves BBB drives AI wheeled vehicles itself along the route the game plans, slowing for bends and braking for obstacles; in contact, when stuck, or when a player or Game Master takes the wheel, the game's driver takes over. Trips are slower than the game's driver. Tried on test routes with trucks only: convoys, towns, combat, other vehicle types and multiplayer are untested. `-bbbDriverGM 0` leaves Game Master moves to the game's driver |
 
 A Game Master can also switch both Hot AI options for the rest of a mission: they are
 checkboxes in the Game Master's game settings.
