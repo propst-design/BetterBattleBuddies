@@ -5,12 +5,14 @@
 //    zombie, a rifleman isn't; standalone BBB leaves the zombie group out of the groups it looks after; a host's
 //    ZombieRules 0 / 1 switches the rules and its IsZombie adds an entity.
 //  2 keep distance, A/B in one run: the shambler starts 14 m in front of the rifleman. Rules off (host says 0),
-//    then on, same ground, 18 s each. Measured: how far the rifleman really got back from where he stood, away from the zombie's start.
+//    then on, same ground, 18 s each. Measured: how far the rifleman really got back from where he stood, away
+//    from the zombie's start, and (the A/B) how far the zombie is from him at the end.
 //  3 surrender: a rifleman cut off, no spare magazines, surrender threshold 0 and chance 1 (as the morale test),
 //    with a shambler 20 m off: he must not give up (and BBB must have reached the zombie-captor rule). Then a
 //    USSR team on hold fire 25 m off: he gives up to them (the rule is per threat, men still take prisoners).
-//  4 heal: a casualty 10 m from his squadmate, a shambler 18 m on the other side: the heal is held (vanilla
-//    asked, BBB held it) and he doesn't go to the casualty; the shambler removed, he goes.
+//  4 heal: a casualty 10 m to his squadmate's side, a shambler 18 m in front of him; the casualty goes down once
+//    he has seen it. The heal is held (vanilla asked, BBB held it) and he doesn't go to the casualty; the
+//    shambler removed, he goes.
 // Not covered: drag itself (needs ACE Carrying; its refusal goes through the same HoldHeal call as the heal),
 // rearm, cluster suppression, squad tactics, vehicles (code paths only), hordes, sprinters, and how a real
 // fight against a horde plays out: that's Jacob's play-test.
@@ -49,6 +51,7 @@ class BBB_ZombiesTest : BBB_AimTest
  protected vector m_vZombieStart;
  protected float m_fBack;
  protected float m_fBackOff;
+ protected float m_fGapOff;
  protected int m_iSteps;
  protected int m_iPolls;
  protected int m_iCounter;
@@ -257,6 +260,7 @@ class BBB_ZombiesTest : BBB_AimTest
   if (!on)
   {
    m_fBackOff = m_fBack;
+   m_fGapOff = gap;
    Check("keep-off-zombie-perceived", m_bPerceived, "the rifleman saw the shambler as an enemy");
    Check("keep-off-no-zombie-steps", steps == 0, string.Format("%1 back-steps counted with the rules off", steps));
    Clean();
@@ -267,7 +271,9 @@ class BBB_ZombiesTest : BBB_AimTest
   Check("keep-on-zombie-perceived", m_bPerceived, "the rifleman saw the shambler as an enemy");
   Check("keep-on-steps-back", steps > 0, string.Format("%1 back-steps from a zombie inside %2 m", steps, BBB_Zombies.KEEP_M));
   Check("keep-on-got-back", m_fBack >= 4, string.Format("%1 m back from where he stood", m_fBack));
-  Check("keep-ab", m_fBack >= m_fBackOff + 3, string.Format("rules on %1 m, off %2 m", m_fBack, m_fBackOff));
+  // What the player sees: where the zombie is at the end. Off, it was on him in every run (2-4 m, 11 Nov); his
+  // own retreat distance differs less (vanilla also backs off at 3 m and wanders in the fight).
+  Check("keep-ab", gap >= 8 && m_fGapOff >= 0 && gap >= m_fGapOff + 4, string.Format("zombie at the end: rules on %1 m, off %2 m (got back on %3 m, off %4 m)", gap, m_fGapOff, m_fBack, m_fBackOff));
   Clean();
   GetGame().GetCallqueue().CallLater(SurrenderStart, 1000);
  }
@@ -377,7 +383,8 @@ class BBB_ZombiesTest : BBB_AimTest
   // he set off for the casualty (integration run 20261111-182942: "go" 2 s in, held 0).
   m_Man = SpawnMan(at, -m_vDir);
   SCR_AIGroup squad = m_ManGroup;
-  m_Casualty = Spawn(RIFLE_US, at + m_vDir * 10, m_vDir);
+  // Off to his side: his back-steps from the shambler (along +m_vDir) don't carry him onto the casualty.
+  m_Casualty = Spawn(RIFLE_US, at + m_vSide * 10, m_vDir);
   if (m_Casualty)
   {
    m_aMine.Insert(m_Casualty);
