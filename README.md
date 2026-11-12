@@ -7,7 +7,7 @@
 > testing and pull requests. No direct repository access is needed.
 
 [![Game: Arma Reforger](https://img.shields.io/badge/Arma-Reforger-556b2f?style=flat-square)](https://reforger.armaplatform.com/)
-[![Workshop release: 0.1.7](https://img.shields.io/badge/Workshop-0.1.7-blue?style=flat-square)](CHANGELOG.md)
+[![Workshop release: 0.1.10](https://img.shields.io/badge/Workshop-0.1.10-blue?style=flat-square)](CHANGELOG.md)
 [![Standalone addon](https://img.shields.io/badge/Addon-Standalone-teal?style=flat-square)](#install-and-play)
 [![License: APL-SA](https://img.shields.io/badge/License-APL--SA-orange?style=flat-square)](LICENSE.md)
 
@@ -21,8 +21,7 @@ AC: Actual and does not add a commander game mode.
 ## Requirements
 
 - Arma Reforger. BBB needs only the base game: no other mod.
-- Arma Reforger **1.9**: `main` has the 1.9 fixes (AI drivers backing away and pulling over
-  work again); they reach Workshop with the next release after 0.1.7.
+- Built for Arma Reforger **1.9** (the 1.9 fixes have been on Workshop since 0.1.8).
 - Optional: AC: Actual (which requires BBB), AiO Command Menu, ACE. Each works with BBB
   but none is needed.
 
@@ -33,7 +32,7 @@ AC: Actual and does not add a commander game mode.
    Without a host mod BBB starts by itself about 10 seconds into the mission.
 3. For multiplayer, load BBB on the server and on joining clients.
 
-The current Workshop release is **0.1.7**.
+The current Workshop release is **0.1.10**; `main` is heading for 0.2.0.
 See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
 ## What your buddies do
@@ -53,6 +52,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full version history.
 - **Get low against heavy armor.** Soldiers caught without anti-armor weapons adopt low stances (crouch out to 450 m, prone within 120 m) to minimize profile when facing armored vehicles, while rocket specialists hold position to engage.
 - **Opportunistic combat rearming.** Soldiers running critically low on ammunition or lacking AT scavenge compatible magazines and rocket launchers from nearby casualties, retrying routes if interrupted. A soldier who has lost his primary weapon goes back for his own if it is nearby, otherwise takes the nearest usable rifle or machine gun from a body or the ground; with none to be had he is kept out of bounds and building moves.
 - **Specialist teams.** Machine gunners and AT gunners keep the assistant who carries their ammunition close; he hands ammunition across before the gun runs dry and takes up the launcher if the gunner falls (`-bbbSpecialistTeams 0` turns it off).
+- **Squad leaders run the fight.** An AI squad leader points men who haven't spotted the enemy at it, puts a fireteam's fire on a second enemy group, picks who goes to a casualty (not the machine gunner mid-fight) and splits the squad into the teams that bound. He says what the squad is doing in the game's own radio voices (new orders, contact, man down, suppress, flank, fall back, form up on him) and a man answers; there is no idle chatter, and a player's own squad gets none of it (`-bbbCallouts 0`, `-bbbCalloutRate`).
 - **Squad plans.** A squad pauses on first contact, then assaults when the odds are fair or holds and fights from cover when outnumbered, flanked or pinned; a squad held by a dug-in enemy fixes it and sends a team round the side, and one that loses contact searches where the enemy was last seen.
 - **Fighting zombies.** With Project Outbreak or another Creature Melee AI creature mod loaded, soldiers fight the dead differently from men: no surrender to them, backing away from one that closes in, no flanking, bounding or suppressive fire against them, and no treating, dragging or looting with one close. Men in the same fight are still fought the usual way (`-bbbZombies 0` turns it off, `1` forces it on).
 - **Cover that faces the enemy.** A soldier only counts as in cover when the cover is between him and the enemy; one caught on an open road in a firefight moves off it, and a gunner on a dry static gun gets off and fights on foot.
@@ -123,6 +123,8 @@ server owners reach for most, each turning its feature off with `0`:
 | --- | --- |
 | `-bbbVanilla 0` | BBB starting on its own without a host mod (BBB then only runs under a host mod such as AC: Actual) |
 | `-bbbTactic 0` | Squad plans: assault, hold, fix and flank, search |
+| `-bbbSquadFire 0` | The squad leader splitting his squad's fire between enemy groups |
+| `-bbbCallouts 0` | Squad leaders' voice callouts (`-bbbCalloutRate` 0.25 to 3 makes them rarer or busier) |
 | `-bbbOrderLeash 0` | Keeping reactions inside the area and intent of an order |
 | `-bbbAimFixes 0` | All of BBB's aim changes (vanilla aim) |
 | `-bbbThreat 0` | All of BBB's suppression changes (vanilla suppression) |
