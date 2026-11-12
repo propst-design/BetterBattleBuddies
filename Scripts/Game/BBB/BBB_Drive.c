@@ -188,7 +188,7 @@ class BBB_Drive : Managed
 {
  static bool s_bOn;
  static const float MIN_TRIP = 300;          // shorter moves stay with the game's driver
- static const float PLAN_WAIT_MS = 6000;     // the game's plan must arrive by then (else roads)
+ static const float PLAN_WAIT_MS = 60000;    // no full game plan by then: the game's driver keeps the trip
  static const float STEP = 3;                // path point spacing (m)
  static const float TOP_SPEED = 17;          // m/s (61 km/h); the vehicle's own top speed caps it too
  static const float SIDE_ACCEL = 2.8;        // m/s2 sideways in a bend (2.2 ran 15 % slower than the game's driver)
@@ -323,19 +323,10 @@ class BBB_Drive : Managed
   bool complete = plan.Count() >= 2 && vector.DistanceXZ(plan[plan.Count() - 1], goal) < Math.Max(40, wp.GetCompletionRadius() + 15);
   if (!complete)
   {
-   if (now - since < PLAN_WAIT_MS) return;
-   // No full plan in time (long trips on big maps): BBB's own road route, from here to the goal.
-   plan.Clear();
-   int nodes, millis;
-   if (!BBB_Roads.Route(vehicle.GetOrigin(), goal, plan, nodes, millis) || plan.IsEmpty())
-   {
-    s_Pending.Remove(group);
-    s_Rest.Set(group, now + 60000); // no route of ours either: the game's driver keeps it
-    return;
-   }
-   plan.InsertAt(vehicle.GetOrigin(), 0);
-   if (vector.DistanceXZ(plan[plan.Count() - 1], goal) > 15) plan.Insert(goal);
-   source = string.Format("roads (%1 nodes, %2 ms)", nodes, millis);
+   // No full game plan yet: keep looking, then leave the trip to the game's driver. BBB's own road
+   // route is not driven (Arland 11 Nov: it led a truck into a stone wall 320 m in).
+   if (now - since > PLAN_WAIT_MS) { s_Pending.Remove(group); s_Rest.Set(group, now + 60000); }
+   return;
   }
   // Take over once the game's driver has it rolling along the line: pulling out of a yard or a parking
   // spot onto the road is its job (BBB grabbed trucks standing crosswise, 6-23 m off the line).
