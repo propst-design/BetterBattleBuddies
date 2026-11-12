@@ -458,6 +458,20 @@ class BBB_Rearm
   return s_mPrimary.Contains(soldier);
  }
 
+ // He gave his gun up on purpose (surrender): never fetch it back for him.
+ static void ForgetPrimary(ChimeraCharacter soldier)
+ {
+  if (soldier) s_mPrimary.Remove(soldier);
+ }
+
+ // No ammo or weapon run for him for a while (a ruse fighting with what he hid).
+ static void Hold(ChimeraCharacter soldier, float ms)
+ {
+  if (!soldier) return;
+  CancelRearmAction(soldier);
+  s_mNextRearmCheck.Set(soldier, GetGame().GetWorld().GetWorldTime() + ms);
+ }
+
  static IEntity LastPrimary(ChimeraCharacter soldier)
  {
   if (!soldier) return null;

@@ -130,7 +130,8 @@ class BBB_Morale
 	// Not every surrender ends well (-bbbMoraleSurrenderFates 0: all genuine).
 	static const int FATE_GENUINE = 0;
 	static const int FATE_EXECUTED = 1;             // enemy AI close by stop sparing him
-	static const int FATE_RUSE = 2;                 // he hid a frag or pistol and uses it on whoever comes close
+	static const int FATE_RUSE = 2;
+	static const float RUSE_REARM_HOLD_MS = 30000; // a ruse fights with what he hid, no ammo run                 // he hid a frag or pistol and uses it on whoever comes close
 	static bool s_bFates = true;
 	static float s_fExecutionChance = 0.10;
 	static float s_fRuseChance = 0.12;
@@ -177,6 +178,7 @@ class BBB_Morale
 	static int s_iWithdrawalBounds;
 	static int s_iContactsBroken;
 	static int s_iSurrenders;
+	static int s_iUnarmedRolls; // cornered unarmed men who reached the nerve roll (tests read it)
 	static int s_iOrderedStarted;
 	static int s_iPrisonersRemoved;
 	static int s_iExecuted;
@@ -954,8 +956,13 @@ class BBB_Morale
 		int spareMags, inGun;
 		bool ammoKnown = PrimaryAmmo(soldier, spareMags, inGun);
 		bool empty = ammoKnown && spareMags == 0 && inGun == 0;
+		// No rifle or machine gun (lost it, or a pistol-only crewman): still short of the means to
+		// fight, but he takes the nerve roll like everyone (Jacob, 11 Nov), never an automatic
+		// give-up: a pistol or nothing in hand reads as empty here.
+		bool unarmed = !BBB_Rearm.PrimaryOf(soldier);
+		if (unarmed) empty = false;
 		bool wounded = BBB.Health(soldier) < SURRENDER_WOUNDED;
-		if (!wounded && !(ammoKnown && spareMags == 0)) return;
+		if (!wounded && !unarmed && !(ammoKnown && spareMags == 0)) return;
 
 		// Cut off: no conscious squadmate close by.
 		vector origin = soldier.GetOrigin();
@@ -990,10 +997,12 @@ class BBB_Morale
 		}
 
 		// Out of rounds he has no choice; otherwise nerve decides, checked again each pass.
+		if (unarmed) s_iUnarmedRolls++;
 		if (!empty && Math.RandomFloat01() >= s_fSurrenderChance) return;
 
 		string why = "no spare magazines";
 		if (empty) why = "out of ammo";
+		if (unarmed) why = "no rifle";
 		if (wounded) why = why + ", badly wounded";
 		ApplySurrender(soldier, utility, string.Format("%1, cut off, enemy at %2 m", why, Math.Round(captor.GetDistance())));
 	}
@@ -1045,6 +1054,9 @@ class BBB_Morale
 				BBB.s_Hooks.OnLitter(weapon);
 			}
 		}
+		// Weapon recovery must not send him back for the rifle he gave up: a ruse who rejoins
+		// fights with what he hid, not with a walk to his rifle (review 0.5.13 #18).
+		BBB_Rearm.ForgetPrimary(soldier);
 
 		// What makes AI leave the unconscious alone: perception drops disarmed targets.
 		PerceivableComponent perceivable = PerceivableComponent.Cast(soldier.FindComponent(PerceivableComponent));
@@ -1227,6 +1239,9 @@ class BBB_Morale
 			utility.AddAction(toss);
 		}
 		// The pistol: his AI is back with an enemy in front of him and picks the only gun he has.
+		// Rearm leaves him to it: no run for pistol magazines off a body mid-ruse (his rifle it
+		// already forgot when he surrendered).
+		BBB_Rearm.Hold(soldier, RUSE_REARM_HOLD_MS);
 		s_iRuses++;
 		string how = "draws a hidden pistol";
 		if (thrown) how = "throws a hidden frag";
