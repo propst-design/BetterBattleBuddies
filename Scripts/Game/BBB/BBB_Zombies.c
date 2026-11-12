@@ -17,13 +17,26 @@
 //    own back-step from a too-close target, which normally starts at 3 m), unless he is indoors (a building
 //    is the refuge), on a player's or Game Master's order, or on a committed BBB job;
 //  - medics and drag: no treating and no dragging while a zombie is within CLEAR_M of the healer or the
-//    casualty (get clear first), and a dragger drops the casualty to fight one inside DEFEND_M;
+//    casualty (get clear first), and a dragger drops the casualty to fight one inside DEFEND_M. Once no hold has
+//    fired for RESUME_AFTER_MS and nobody is on his way, the group's heal job is run again (vanilla's own replan,
+//    as after a failed heal), or a new one is added as vanilla's wounded report does: a held heal could sit
+//    waiting on a medic who never went (11 Nov tests: no one went in 25 s after a 20 s hold);
 //  - rearm: no trip to a body while a zombie is within CLEAR_M;
 //  - vehicles: crews of any vehicle stay aboard rather than get out to heal with zombies about, and in a
 //    fight against zombies alone the crew keep their seats and riders of a moving vehicle don't jump out.
 // Only what the soldier himself perceived counts (his own targets, last detected position).
 //  -bbbZombies auto|1|0   auto (default): on when Project Outbreak or Creature Melee AI is loaded, unless the
 //                         host says otherwise; 1 always; 0 never.
+// A casualty whose heal a zombie hold stopped (BBB_Zombies.HoldHeal), watched until someone goes to him.
+class BBB_ZombieHeldHeal : Managed
+{
+ IEntity m_Casualty;
+ SCR_AIGroup m_Group;
+ float m_fHeldAt;   // world ms of the last hold
+ float m_fNextTry;  // world ms
+ int m_iTries;
+}
+
 class BBB_Zombies
 {
  static const float KEEP_M = 10;      // a zombie target closer than this: step back from it
@@ -34,6 +47,9 @@ class BBB_Zombies
  static const float VEHICLE_M = 60;   // vehicles: zombies this close make it a zombie fight
  static const float RIDE_MS = 2;      // riders stay aboard a vehicle moving at least this fast (m/s)
  static const int CACHE_MAX = 1024;
+ static const float RESUME_AFTER_MS = 3000;  // no hold for this long: the hold has lifted
+ static const float RESUME_RETRY_MS = 10000; // asked again this often while nobody goes ...
+ static const int RESUME_TRIES = 3;          // ... this many times
 
  protected static int s_iRead;
  protected static string s_sMode;              // "auto", "1", "0" (bare: static-init budget)
@@ -42,6 +58,8 @@ class BBB_Zombies
  protected static typename s_tBody;            // Z_BodyComponent (Project Outbreak)
  protected static ref map<IEntity, bool> s_mCache;
  protected static ref array<BaseTarget> s_aTargets;
+ protected static ref array<ref BBB_ZombieHeldHeal> s_aHeld;
+ static int s_iHealsResumed;
  static int s_iSurrendersRefused, s_iBackSteps, s_iHealsHeld, s_iDragsRefused, s_iRearmsHeld, s_iClustersHeld, s_iSquadHolds, s_iStayedAboard;
 
  // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
@@ -49,6 +67,7 @@ class BBB_Zombies
  {
   s_mCache = new map<IEntity, bool>();
   s_aTargets = {};
+  s_aHeld = {};
   s_sMode = "auto";
  }
 
@@ -66,6 +85,7 @@ class BBB_Zombies
  {
   if (s_mCache) s_mCache.Clear();
   if (s_aTargets) s_aTargets.Clear();
+  if (s_aHeld) s_aHeld.Clear();
  }
 
  protected static void Look()
@@ -207,7 +227,76 @@ class BBB_Zombies
   if (!utility || !casualty || !On()) return false;
   if (Nearest(utility, CLEAR_M) < 0 && NearestTo(utility, casualty.GetOrigin(), CLEAR_M) < 0) return false;
   s_iHealsHeld++;
+  Remember(casualty, utility.m_OwnerEntity);
   return true;
+ }
+
+ protected static void Remember(IEntity casualty, IEntity healer)
+ {
+  float now = GetGame().GetWorld().GetWorldTime();
+  foreach (BBB_ZombieHeldHeal held : s_aHeld)
+  {
+   if (held.m_Casualty != casualty) continue;
+   held.m_fHeldAt = now;
+   held.m_iTries = 0;
+   return;
+  }
+  BBB_ZombieHeldHeal entry = new BBB_ZombieHeldHeal();
+  entry.m_Casualty = casualty;
+  entry.m_Group = BBB_Medic.GroupOf(casualty);
+  if (!entry.m_Group) entry.m_Group = BBB_Medic.GroupOf(healer);
+  entry.m_fHeldAt = now;
+  s_aHeld.Insert(entry);
+ }
+
+ // Once a second (BBB.Tick): a heal a zombie held, now unheld, gets going again. Only casualties a hold touched.
+ static void Tick()
+ {
+  if (!s_aHeld || s_aHeld.IsEmpty()) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  for (int i = s_aHeld.Count() - 1; i >= 0; i--)
+  {
+   BBB_ZombieHeldHeal held = s_aHeld[i];
+   IEntity casualty = held.m_Casualty;
+   if (!casualty || !held.m_Group || !SCR_AIDamageHandling.IsAlive(casualty) || !SCR_AIDamageHandling.IsCharacterWounded(casualty)) { s_aHeld.Remove(i); continue; }
+   if (now - held.m_fHeldAt < RESUME_AFTER_MS || now < held.m_fNextTry) continue;
+   // Someone is on his way (BBB_Medic marks a healer whose heal is running): it resumed.
+   bool going;
+   foreach (IEntity healer, IEntity target : BBB_Medic.s_mGoingTo)
+    if (target == casualty && healer) { going = true; break; }
+   if (going || held.m_iTries >= RESUME_TRIES)
+   {
+    if (!going) PrintFormat("[BBB] ZOMBIES heal for %1: asked %2 times after the hold, nobody went", BBB_Medic.Name(casualty), held.m_iTries);
+    s_aHeld.Remove(i);
+    continue;
+   }
+   held.m_iTries++;
+   held.m_fNextTry = now + RESUME_RETRY_MS;
+   string how = ResumeHeal(held.m_Group, casualty);
+   if (how.IsEmpty()) continue;
+   s_iHealsResumed++;
+   PrintFormat("[BBB] ZOMBIES heal for %1: the hold lifted, %2", BBB_Medic.Name(casualty), how);
+   BBB_Think.Note(casualty, "Zombies", "zombies clear: his heal is asked for again (" + how + ")");
+  }
+ }
+
+ // Vanilla's group heal job for this casualty runs again and picks a medic (what a failed heal does); none left:
+ // a new one, as vanilla's wounded report adds it. "" when the group can't be asked.
+ protected static string ResumeHeal(SCR_AIGroup group, IEntity casualty)
+ {
+  SCR_AIGroupUtilityComponent utility = group.GetGroupUtilityComponent();
+  if (!utility) return "";
+  array<ref AIActionBase> actions = {};
+  utility.GetActions(actions);
+  foreach (AIActionBase action : actions)
+  {
+   SCR_AIHealActivity heal = SCR_AIHealActivity.Cast(action);
+   if (!heal || heal.m_EntityToHeal.m_Value != casualty) continue;
+   heal.SetActionIsSuspended(false);
+   return "the squad's heal job picks a medic again";
+  }
+  utility.AddAction(new SCR_AIHealActivity(utility, null, casualty));
+  return "a new heal job for the squad";
  }
 
  // A dragger lets go: a zombie inside DEFEND_M.
@@ -252,7 +341,9 @@ class BBB_Zombies
 
  static string Describe()
  {
-  return string.Format("zombies on=%1 outbreak=%2 creatures=%3 surrenders refused=%4 back-steps=%5 heals held=%6 drags refused=%7 rearms held=%8 clusters held=%9", On(), IsLoaded(), CreaturesLoaded(), s_iSurrendersRefused, s_iBackSteps, s_iHealsHeld, s_iDragsRefused, s_iRearmsHeld, s_iClustersHeld);
+  // string.Format takes at most 9 arguments.
+  string counts = string.Format("surrenders refused=%1 back-steps=%2 heals held=%3 heals resumed=%4 drags refused=%5 rearms held=%6 clusters held=%7", s_iSurrendersRefused, s_iBackSteps, s_iHealsHeld, s_iHealsResumed, s_iDragsRefused, s_iRearmsHeld, s_iClustersHeld);
+  return string.Format("zombies on=%1 outbreak=%2 creatures=%3 %4", On(), IsLoaded(), CreaturesLoaded(), counts);
  }
 }
 

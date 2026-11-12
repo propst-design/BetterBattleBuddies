@@ -265,6 +265,8 @@ class BBB
   t = BBB_Perf.Lap("tick.doorUnstick", t);
   BBB_ContactRelay.Tick();
   t = BBB_Perf.Lap("tick.contactRelay", t);
+  BBB_Zombies.Tick();
+  t = BBB_Perf.Lap("tick.zombies", t);
   BBB_Traffic.Read(); // starts its own quarter-second tick
   BBB_Think.Tick();
 		BBB_Perf.OnTick();

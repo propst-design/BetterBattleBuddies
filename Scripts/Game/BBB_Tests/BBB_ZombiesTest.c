@@ -54,6 +54,7 @@ class BBB_ZombiesTest : BBB_AimTest
  protected float m_fBackOff;
  protected float m_fGapOff;
  protected float m_fMinGap;
+ protected int m_iResumed;
  protected int m_iSteps;
  protected int m_iPolls;
  protected int m_iCounter;
@@ -474,6 +475,7 @@ class BBB_ZombiesTest : BBB_AimTest
   // and a heal held for a live zombie close by is the rule working.
   m_Hooks.m_iRules = 0;
   m_iCounter = BBB_Zombies.s_iHealsHeld;
+  m_iResumed = BBB_Zombies.s_iHealsResumed;
   m_iPolls = 0;
   GetGame().GetCallqueue().CallLater(ClearPoll, 500, true);
  }
@@ -483,10 +485,12 @@ class BBB_ZombiesTest : BBB_AimTest
   m_iPolls++;
   if (!AtCasualty() && m_iPolls < 50) return;
   GetGame().GetCallqueue().Remove(ClearPoll);
-  // Known flaky (3 of 3 on 11 Nov): with the rules off and nothing holding him (held 0), he still didn't go in
-  // 25 s. Vanilla's heal job doesn't seem to restart after a 20 s hold (after a 12 s hold it did, in the first
-  // run). Open question for the play-test: does a medic go back to a casualty after a long zombie fight?
-  Flaky("heal-goes-once-rule-lifts", AtCasualty() && BBB_Zombies.s_iHealsHeld == m_iCounter, string.Format("reached the casualty after %1 s with the rules off, held %2 times since", m_iPolls * 0.5, BBB_Zombies.s_iHealsHeld - m_iCounter));
+  // Known flaky, and can't pass as built: the shambler has damage off, so it never dies and stays in view, and
+  // BBB_Medic's own fight-first rule ("fighting an enemy in view first", 50 m) rightly holds the heal with the
+  // zombie rules lifted (logs 11 Nov, before and after the re-request). The re-request after a hold
+  // (BBB_Zombies.Tick) fires here ("heal asked for again"), but going to the casualty once the zombies are
+  // dead needs a zombie that stays dead (killed ones got up or stayed about in 4 runs of 6): play-test.
+  Flaky("heal-goes-once-rule-lifts", AtCasualty() && BBB_Zombies.s_iHealsHeld == m_iCounter, string.Format("reached the casualty after %1 s with the rules off, held %2 times since, heal asked for again %3 times", m_iPolls * 0.5, BBB_Zombies.s_iHealsHeld - m_iCounter, BBB_Zombies.s_iHealsResumed - m_iResumed));
   m_Hooks.m_iRules = -1;
   Clean();
   Finish();
