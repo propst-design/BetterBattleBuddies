@@ -35,6 +35,11 @@ class BBB_GLArmingTest : BBB_GrenadierTest
  protected string m_sPick;
  protected int m_iHeldAtStart;
  protected ref array<int> m_aHeld;
+ protected ref array<int> m_aLast;      // per grenadier, 40 mm he had at the last tick
+ protected int m_iClose;                // 40 mm fired this round from inside CLOSE_M of the vehicle
+ protected float m_fNearestShot;
+ protected ref array<int> m_aClose;
+ static const float CLOSE_M = 20;       // M433's 15 m fuze + the guard's 5 m
 
  static void MaybeStartArm()
  {
@@ -51,6 +56,8 @@ class BBB_GLArmingTest : BBB_GrenadierTest
   m_aRefused = {};
   m_aEnemy = {};
   m_aHeld = {};
+  m_aLast = {};
+  m_aClose = {};
  }
 
  protected void ArmCheck(string name, bool ok, string detail)
@@ -114,31 +121,64 @@ class BBB_GLArmingTest : BBB_GrenadierTest
  protected int Count40()
  {
   int n;
-  foreach (IEntity man : m_aGL)
+  foreach (IEntity man : m_aGL) n += Count40Of(man);
+  return n;
+ }
+
+ protected int Count40Of(IEntity man)
+ {
+  if (!man) return 0;
+  int n;
+  SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(man.FindComponent(SCR_InventoryStorageManagerComponent));
+  if (inventory)
   {
-   if (!man) continue;
-   SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(man.FindComponent(SCR_InventoryStorageManagerComponent));
-   if (inventory)
-   {
-    n += inventory.GetDepositItemCountByResource(man, M433);
-    n += inventory.GetDepositItemCountByResource(man, M406);
-    n += inventory.GetDepositItemCountByResource(man, VOG25);
-   }
-   BaseWeaponManagerComponent weapons = BaseWeaponManagerComponent.Cast(man.FindComponent(BaseWeaponManagerComponent));
-   if (!weapons) continue;
-   array<IEntity> list = {};
-   weapons.GetWeaponsList(list);
-   foreach (IEntity item : list)
-   {
-    BaseWeaponComponent weapon = BaseWeaponComponent.Cast(item.FindComponent(BaseWeaponComponent));
-    if (!weapon) continue;
-    array<BaseMuzzleComponent> muzzles = {};
-    weapon.GetMuzzlesList(muzzles);
-    foreach (BaseMuzzleComponent muzzle : muzzles)
-     if (BBB_GLArming.FuzeM(muzzle.GetMagazine()) > 0) n += muzzle.GetAmmoCount();
-   }
+   n += inventory.GetDepositItemCountByResource(man, M433);
+   n += inventory.GetDepositItemCountByResource(man, M406);
+   n += inventory.GetDepositItemCountByResource(man, VOG25);
+  }
+  BaseWeaponManagerComponent weapons = BaseWeaponManagerComponent.Cast(man.FindComponent(BaseWeaponManagerComponent));
+  if (!weapons) return n;
+  array<IEntity> list = {};
+  weapons.GetWeaponsList(list);
+  foreach (IEntity item : list)
+  {
+   BaseWeaponComponent weapon = BaseWeaponComponent.Cast(item.FindComponent(BaseWeaponComponent));
+   if (!weapon) continue;
+   array<BaseMuzzleComponent> muzzles = {};
+   weapon.GetMuzzlesList(muzzles);
+   foreach (BaseMuzzleComponent muzzle : muzzles)
+    if (BBB_GLArming.FuzeM(muzzle.GetMagazine()) > 0) n += muzzle.GetAmmoCount();
   }
   return n;
+ }
+
+ // A drop in a man's 40 mm since the last tick is a shot: note how far he was from the vehicle.
+ protected void TrackShots()
+ {
+  if (m_iStartCount < 0 || !m_Vehicle) return;
+  foreach (int i, IEntity man : m_aGL)
+  {
+   if (i >= m_aLast.Count()) break;
+   int now = Count40Of(man);
+   int shots = m_aLast[i] - now;
+   m_aLast[i] = now;
+   if (shots <= 0 || !man) continue;
+   float distance = vector.DistanceXZ(man.GetOrigin(), m_Vehicle.GetOrigin());
+   m_fNearestShot = Math.Min(m_fNearestShot, distance);
+   if (distance < CLOSE_M) m_iClose += shots;
+   PrintFormat("[BBB] GLARMTEST shot: %1 x 40 mm from %2 m", shots, Math.Round(distance));
+  }
+ }
+
+ protected void StartCount()
+ {
+  m_aLast.Clear();
+  foreach (IEntity man : m_aGL) m_aLast.Insert(Count40Of(man));
+  m_iStartCount = Count40();
+  m_iHeldAtStart = BBB_GLArming.s_iHeld;
+  m_iRefusedAtStart = BBB_GLArming.s_iRefused;
+  m_iClose = 0;
+  m_fNearestShot = 1000;
  }
 
  override protected ResourceName PickGLMan(ResourceName chosen)
@@ -206,6 +246,10 @@ class BBB_GLArmingTest : BBB_GrenadierTest
   BBB_GLArming.s_bTestOff = round == 0;
   m_iStartCount = -1;
   if (!super.StartRound(round)) return false;
+  // Before the AI's first pick: deleting a gun he already holds breaks vanilla's attack node.
+  if (s_bM79) StripRifles();
+  // Counted from the spawn: the first shots can come before the base test's hook.
+  StartCount();
   m_fRoundEnd = Now() + ARM_ROUND_S;
   PrintFormat("[BBB] GLARMTEST round %1: %2 m, guard %3", round, m_aRange[round], !BBB_GLArming.s_bTestOff);
   return true;
@@ -213,16 +257,8 @@ class BBB_GLArmingTest : BBB_GrenadierTest
 
  override protected void Tick()
  {
-  // The hook (4 s in) is where the base test starts counting; take ours with it.
-  bool hooked = !m_aLanes.IsEmpty() && m_aLanes[0].m_bHooked;
+  if (!m_aLanes.IsEmpty()) TrackShots();
   super.Tick();
-  if (!hooked && !m_aLanes.IsEmpty() && m_aLanes[0].m_bHooked)
-  {
-   if (s_bM79) StripRifles();
-   m_iStartCount = Count40();
-   m_iHeldAtStart = BBB_GLArming.s_iHeld;
-   m_iRefusedAtStart = BBB_GLArming.s_iRefused;
-  }
   NotePick();
  }
 
@@ -235,6 +271,9 @@ class BBB_GLArmingTest : BBB_GrenadierTest
   m_aRefused.Insert(refused);
   m_aEnemy.Insert(m_iMaxEnemy);
   m_aHeld.Insert(BBB_GLArming.s_iHeld - m_iHeldAtStart);
+  TrackShots();
+  m_aClose.Insert(m_iClose);
+  PrintFormat("[BBB] GLARMTEST round %1: 40 mm fired from inside %2 m: %3 (nearest shot %4 m)", m_aFired.Count() - 1, CLOSE_M, m_iClose, Math.Round(m_fNearestShot));
   int shots;
   if (!m_aLanes.IsEmpty()) shots = m_aLanes[0].m_A.m_iShots;
   PrintFormat("[BBB] GLARMTEST round %1 at %2 m: 40mm fired %3 (of %4), refused picks %5, switched %6, held %7, rifle rounds %8, picks GL %9", m_aFired.Count() - 1, m_aRange[m_aFired.Count() - 1], fired, m_iStartCount, refused, BBB_GLArming.s_iSwitched, BBB_GLArming.s_iHeld, shots, m_iSamplesGL);
@@ -250,10 +289,11 @@ class BBB_GLArmingTest : BBB_GrenadierTest
   if (observers) observers.RemoveObserverSP(OBSERVER_KEY);
   if (m_aFired.Count() == 3)
   {
-   string control = string.Format("fired=%1 enemies=%2 (the engine's own pick inside arming range)", m_aFired[0], m_aEnemy[0]);
-   if (s_bM79) ArmCheck("control-near-fires", m_aFired[0] >= 1, control);
+   string control = string.Format("inside=%1 fired=%2 (the engine's own pick inside arming range + 5 m)", m_aClose[0], m_aFired[0]);
+   if (s_bM79) ArmCheck("control-near-fires", m_aClose[0] >= 1, control);
    else PrintFormat("[BBB] GLARMTEST control (reported, not checked) %1", control);
-   ArmCheck("guard-near-no-40mm", m_aFired[1] == 0 && m_aEnemy[1] > 0, string.Format("fired=%1 enemies=%2", m_aFired[1], m_aEnemy[1]));
+   // He may back off and fire from beyond the line; never from inside it.
+   ArmCheck("guard-near-none-inside", m_aClose[1] == 0 && m_aEnemy[1] > 0, string.Format("inside=%1 fired=%2 enemies=%3", m_aClose[1], m_aFired[1], m_aEnemy[1]));
    ArmCheck("guard-near-refused", m_aRefused[1] > 0, "refused=" + m_aRefused[1]);
    // M79 only: nothing else to fire, so he keeps the launcher with its minimum range raised.
    if (s_bM79) ArmCheck("guard-near-held", m_aHeld[1] > 0, "held=" + m_aHeld[1]);
