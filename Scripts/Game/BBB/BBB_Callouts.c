@@ -48,6 +48,8 @@ class BBB_CalloutState : Managed
  float m_fDownSaidAt = -1000; // a man-down line was said
  bool m_bInContact;
  float m_fContactLeft = -1;
+ int m_iLines;                         // lines decided by this squad
+ ref map<string, int> m_mLines = new map<string, int>(); // decided per line (tests)
  ref array<ref BBB_CalloutPending> m_aPending = {};
 }
 
@@ -85,8 +87,6 @@ class BBB_Callouts
  static int s_iThrottled;
  static ref map<string, int> s_mDecided;
  static ref map<string, int> s_mSaid;
- static ref map<SCR_AIGroup, int> s_mByGroup; // lines decided per squad
- static ref map<string, int> s_mGroupLine;     // "<group> <line>" decided (tests)
  static int s_iSaidByPlayer;                  // BBB lines transmitted by a player (must stay 0)
  // Tests only: a man treated as player-controlled (a hidden server has no players).
  static IEntity s_TestPlayer;
@@ -97,8 +97,6 @@ class BBB_Callouts
   s_States = new map<SCR_AIGroup, ref BBB_CalloutState>();
   s_mDecided = new map<string, int>();
   s_mSaid = new map<string, int>();
-  s_mByGroup = new map<SCR_AIGroup, int>();
-  s_mGroupLine = new map<string, int>();
   s_aCooldown = {12, 40, 8, 90, 15, 25};
   s_bOn = true;
   s_fRate = 1;
@@ -117,7 +115,11 @@ class BBB_Callouts
  static void Stop()
  {
   if (s_States) s_States.Clear();
-  if (s_mByGroup) s_mByGroup.Clear();
+  if (GetGame())
+  {
+   GetGame().GetCallqueue().Remove(AcknowledgeNow);
+   GetGame().GetCallqueue().Remove(OrderLater);
+  }
   s_TestPlayer = null;
  }
 
@@ -221,8 +223,13 @@ class BBB_Callouts
  {
   s_iDecided++;
   s_mDecided.Set(line, s_mDecided.Get(line) + 1);
-  s_mByGroup.Set(group, s_mByGroup.Get(group) + 1);
-  Note(group, line);
+  // Per squad, in its state: forgotten with the group (Tick), so nothing grows over a long match.
+  BBB_CalloutState noted = State(group);
+  if (noted)
+  {
+   noted.m_iLines++;
+   noted.m_mLines.Set(line, noted.m_mLines.Get(line) + 1);
+  }
   bool bypass = comms.CanBypass();
   if (s_bLog) PrintFormat("[BBB] CALLOUT %1: %2 by %3%4", BBB.s_Hooks.NameOf(group), line, speaker, Bypassed(bypass));
   if (bypass) { s_iBypassed++; return; }
@@ -233,15 +240,14 @@ class BBB_Callouts
   comms.AddRequest(request);
  }
 
- static string GroupLine(SCR_AIGroup group, string line)
+ // Lines this squad decided: all of them, or one line (tests and logs).
+ static int LinesOf(SCR_AIGroup group, string line = "")
  {
-  return string.Format("%1 %2", group, line);
- }
-
- protected static void Note(SCR_AIGroup group, string line)
- {
-  string key = GroupLine(group, line);
-  s_mGroupLine.Set(key, s_mGroupLine.Get(key) + 1);
+  if (!group || !s_States) return 0;
+  BBB_CalloutState state = s_States.Get(group);
+  if (!state) return 0;
+  if (line == "") return state.m_iLines;
+  return state.m_mLines.Get(line);
  }
 
  protected static string Bypassed(bool bypass)

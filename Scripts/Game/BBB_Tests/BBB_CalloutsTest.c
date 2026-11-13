@@ -145,7 +145,7 @@ class BBB_CalloutsTest : BBB_AimTest
  // Lines squad A's men decided.
  protected int Lines(string line)
  {
-  return BBB_Callouts.s_mGroupLine.Get(BBB_Callouts.GroupLine(m_A, line));
+  return BBB_Callouts.LinesOf(m_A, line);
  }
 
  protected void Mark(string key, string line)
@@ -233,7 +233,7 @@ class BBB_CalloutsTest : BBB_AimTest
   Check("contact-once", m_iContact == 1, string.Format("%1 lines in 27 s (cooldown %2 s)", m_iContact, 40 / BBB_Callouts.s_fRate));
   Check("man-down", Since("down", "man-down") >= 1, Since("down", "man-down").ToString());
   Check("another-man-down", Since("another", "another-man-down") >= 1, Since("another", "another-man-down").ToString());
-  int bLines = BBB_Callouts.s_mByGroup.Get(m_B);
+  int bLines = BBB_Callouts.LinesOf(m_B);
   Check("player-squad-silent", bLines == 0, string.Format("%1 BBB lines for the player-led squad", bLines));
   int held = BBB_Callouts.s_iPlayerHeld - m_iHeld0;
   int bDown;

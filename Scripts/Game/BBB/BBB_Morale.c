@@ -1520,6 +1520,8 @@ class BBB_Morale
 		{
 			GetGame().GetCallqueue().Remove(BBB_SurrenderPose.RaiseHand);
 			GetGame().GetCallqueue().Remove(BBB_SurrenderPose.EnterAce);
+			GetGame().GetCallqueue().Remove(RuseThrow);
+			GetGame().GetCallqueue().Remove(RuseWatch);
 		}
 		foreach (BBB_SurrenderState ss : s_Surrendered)
 		{
