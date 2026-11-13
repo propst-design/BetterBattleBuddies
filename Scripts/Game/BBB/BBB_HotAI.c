@@ -185,6 +185,12 @@ class BBB_HotAI
 		float next;
 		if (s_mHitNext.Find(vehicle, next) && now < next) return;
 		s_mHitNext.Set(vehicle, now + HIT_EVERY_MS);
+		// One entry per vehicle ever hit otherwise: keep only live vehicles and times still in use.
+		if (s_mLastHit.Count() > 32)
+		{
+			BBB_Transport.PruneTimes(s_mLastHit, now - 60000);
+			BBB_Transport.PruneTimes(s_mHitNext, now);
+		}
 		array<BaseCompartmentSlot> turrets = {};
 		BBB_VehicleHelpers.GetVehicleCompartments(vehicle, turrets, ECompartmentType.TURRET);
 		vector from = shooter.GetOrigin();

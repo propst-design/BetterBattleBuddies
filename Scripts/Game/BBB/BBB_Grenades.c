@@ -540,6 +540,11 @@ class BBB_Grenades
 				s_mGroupCooldown.RemoveElement(c);
 			}
 		}
+		// And next-check times already passed or of deleted groups (one per group ever seen otherwise).
+		for (int n = s_mNextCheck.Count() - 1; n >= 0; n--)
+		{
+			if (!s_mNextCheck.GetKey(n) || nowMs >= s_mNextCheck.GetElement(n)) s_mNextCheck.RemoveElement(n);
+		}
 	}
 }
 

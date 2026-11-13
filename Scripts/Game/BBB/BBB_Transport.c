@@ -103,7 +103,19 @@ class BBB_Transport
  static void OnVehicleHit(IEntity vehicle)
  {
   if (!vehicle || !GetGame() || !GetGame().GetWorld()) return;
-  s_mLastVehicleHit.Set(vehicle, GetGame().GetWorld().GetWorldTime());
+  float now = GetGame().GetWorld().GetWorldTime();
+  s_mLastVehicleHit.Set(vehicle, now);
+  // Readers look back 30 s at most: forget older hits and deleted vehicles.
+  if (s_mLastVehicleHit.Count() > 32) PruneTimes(s_mLastVehicleHit, now - 60000);
+ }
+
+ // Drops entries keyed by a deleted entity (by index: Remove(null) doesn't find them) or with a time
+ // before cutoff.
+ static void PruneTimes(map<IEntity, float> times, float cutoff)
+ {
+  if (!times) return;
+  for (int i = times.Count() - 1; i >= 0; i--)
+   if (!times.GetKey(i) || times.GetElement(i) < cutoff) times.RemoveElement(i);
  }
 
  static bool VehicleHitRecently(IEntity vehicle, float windowMs = 6000)
