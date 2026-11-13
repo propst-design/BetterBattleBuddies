@@ -378,7 +378,9 @@ class BBB_Callouts
  // fire and manoeuvre, which never runs on zombies).
  static void OnContact(SCR_AIGroup group, SCR_AITargetInfo target, AIAgent reporter)
  {
-  if (!On() || !group || !target || !target.m_Entity) return;
+  // Fed by a modded vanilla hook that runs whether or not BBB started: only BBB.Tick drains and
+  // prunes these states, so with BBB stopped (or never started) they would only pile up.
+  if (!BBB.IsStarted() || !On() || !group || !target || !target.m_Entity) return;
   BBB_CalloutState state = State(group);
   if (!state) return;
   state.m_bInContact = true;
