@@ -381,7 +381,9 @@ class BBB_ArmorReaction
   }
   float now = GetGame().GetWorld().GetWorldTime();
   for (int r = s_Retry.Count() - 1; r >= 0; r--)
-   if (!s_Retry.GetKey(r) || !s_Vehicles.Contains(s_Retry.GetKey(r)) || now >= s_Retry.GetElement(r)) s_Retry.RemoveElement(r);
+   // Expiry only: s_Vehicles lists one vehicle per group, and a group's second vehicle reacts
+   // through Hit() too, so pruning by it wiped that vehicle's cooldown within a second.
+   if (!s_Retry.GetKey(r) || now >= s_Retry.GetElement(r)) s_Retry.RemoveElement(r);
   for (int j = s_Escapes.Count() - 1; j >= 0; j--)
    if (!groups.Contains(s_Escapes[j].m_Group)) { End(s_Escapes[j]); s_Escapes.RemoveOrdered(j); }
  }
