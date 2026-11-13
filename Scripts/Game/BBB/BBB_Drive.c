@@ -744,11 +744,21 @@ class BBB_Drive : Managed
    probe.End = Vector(p[0], ground - 0.1, p[2]);
    probe.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
    probe.Exclude = m_Vehicle;
-   float f = world.TraceMove(probe, null);
+   float f = world.TraceMove(probe, DeckOnly);
    if (f < 1) ground = top + (ground - 0.1 - top) * f;
   }
   p[1] = ground + 0.9;
   return p;
+ }
+
+ // The deck probe looks for what the wheels roll on: a parked car's roof or a soldier's head on a
+ // downhill stretch is an obstacle for the guard ray, not a deck to lift the ray over.
+ protected static bool DeckOnly(notnull IEntity entity)
+ {
+  if (ChimeraCharacter.Cast(entity)) return false;
+  IEntity root = entity.GetRootParent();
+  if (Vehicle.Cast(entity) || (root && Vehicle.Cast(root))) return false;
+  return true;
  }
 
  protected string m_sHit;
