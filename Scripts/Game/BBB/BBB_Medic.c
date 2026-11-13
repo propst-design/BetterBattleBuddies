@@ -604,7 +604,10 @@ modded class SCR_AIMedicHealBehavior
    BBB_Medic.MarkHeld(casualty);
    return 0;
   }
-  if (!ordered && BBB_Drag.Consider(m_Utility, healer, casualty, EvaluatePriorityLevel())) return 0;
+  // A player's or GM's order on the healer himself (or his group's waypoint) wins over a drag:
+  // a drag picks the casualty up and holds his weapon for up to ~40 s (handbook: orders always win).
+  bool held = BBB_OrderIntent.Held(m_Utility) && !BBB.s_Hooks.HostOrder(BBB_Medic.GroupOf(healer));
+  if (!ordered && !held && BBB_Drag.Consider(m_Utility, healer, casualty, EvaluatePriorityLevel())) return 0;
   if (!fullOn && !smokeOn)
   {
    // Vanilla healing (off, or the test's vanilla side): on his way while this runs.
