@@ -654,6 +654,9 @@ class BBB_Morale
 		state.m_sEndReason = "";
 		state.m_iPhase = 0;
 		state.m_iCoverTeam = 0;
+		// A break is never the host's fall-back: drop flags a fall-back that found nobody left behind.
+		state.m_bOrdered = false;
+		state.m_bRunAll = false;
 
 		s_iWithdrawalsStarted++;
 		PrintFormat("[BBB] MORALE: Squad %1 morale broke (score=%2, initial=%3), withdrawing away from %4 to %5",
@@ -759,6 +762,8 @@ class BBB_Morale
 			state.m_bWithdrawing = false;
 			CancelMoves(state);
 			state.m_sEndReason = "no one able to move";
+			state.m_bOrdered = false;
+			state.m_bRunAll = false;
 			// Cooldown like any ended withdrawal: else a squad held by orders "broke" again every tick.
 			state.m_fNextWithdrawAllowed = GetGame().GetWorld().GetWorldTime() / 1000.0 + WITHDRAW_COOLDOWN_S;
 			return;
