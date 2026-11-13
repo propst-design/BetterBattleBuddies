@@ -223,13 +223,7 @@ class BBB_Callouts
  {
   s_iDecided++;
   s_mDecided.Set(line, s_mDecided.Get(line) + 1);
-  // Per squad, in its state: forgotten with the group (Tick), so nothing grows over a long match.
-  BBB_CalloutState noted = State(group);
-  if (noted)
-  {
-   noted.m_iLines++;
-   noted.m_mLines.Set(line, noted.m_mLines.Get(line) + 1);
-  }
+  Note(group, line);
   bool bypass = comms.CanBypass();
   if (s_bLog) PrintFormat("[BBB] CALLOUT %1: %2 by %3%4", BBB.s_Hooks.NameOf(group), line, speaker, Bypassed(bypass));
   if (bypass) { s_iBypassed++; return; }
@@ -238,6 +232,15 @@ class BBB_Callouts
   request.m_sBBBLine = line;
   request.m_BBBGroup = group;
   comms.AddRequest(request);
+ }
+
+ // Per squad, in its state: forgotten with the group (Tick), so nothing grows over a long match.
+ protected static void Note(SCR_AIGroup group, string line)
+ {
+  BBB_CalloutState noted = State(group);
+  if (!noted) return;
+  noted.m_iLines++;
+  noted.m_mLines.Set(line, noted.m_mLines.Get(line) + 1);
  }
 
  // Lines this squad decided: all of them, or one line (tests and logs).
