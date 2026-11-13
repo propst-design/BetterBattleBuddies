@@ -477,6 +477,7 @@ class BBB_Drive : Managed
   if (!m_Path) return "";
   if (!m_Vehicle || !m_Driver || !BBB.IsAlive(m_Driver)) return "vehicle or driver lost";
   if (BBB.PlayerOf(m_Driver)) return "a player took the driver";
+  if (!BBB.IsConscious(m_Driver)) return "driver down"; // IsAlive is true for the unconscious
   if (BBB_Transport.VehicleOf(m_Driver) != m_Vehicle) return "driver got out";
   if (!m_Group) return "group gone";
   AIWaypoint wp = m_Group.GetCurrentWaypoint();
@@ -537,6 +538,7 @@ class BBB_Drive : Managed
  {
   if (!m_Vehicle || !m_Driver) return;
   if (m_bRecovering) return; // BBB_Unstick has the controls
+  if (BBB.PlayerOf(m_Driver)) return; // a player (or Game Master) took him: Why ends the session within 1 s
   CarControllerComponent car = CarControllerComponent.Cast(m_Vehicle.FindComponent(CarControllerComponent));
   if (!car || !car.GetSimulation()) return;
   VehicleWheeledSimulation sim = car.GetSimulation();
@@ -725,9 +727,27 @@ class BBB_Drive : Managed
   return Math.Sqrt(2 * GUARD_DECEL * (nearest - 3));
  }
 
+ // A guard ray's height: 0.9 m above what the wheels will roll on there. Normally the terrain;
+ // where the terrain lies well below the vehicle (a raised bridge, a ramp over a dip) a short
+ // probe down from just above the vehicle finds the deck, or the ray would run into the bridge
+ // and the guard stop the truck on every crossing.
  protected vector Lift(vector p)
  {
-  p[1] = GetGame().GetWorld().GetSurfaceY(p[0], p[2]) + 0.9;
+  BaseWorld world = GetGame().GetWorld();
+  float ground = world.GetSurfaceY(p[0], p[2]);
+  float top = ground;
+  if (m_Vehicle) top = m_Vehicle.GetOrigin()[1] + 2;
+  if (top - ground > 3.5)
+  {
+   TraceParam probe = new TraceParam();
+   probe.Start = Vector(p[0], top, p[2]);
+   probe.End = Vector(p[0], ground - 0.1, p[2]);
+   probe.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+   probe.Exclude = m_Vehicle;
+   float f = world.TraceMove(probe, null);
+   if (f < 1) ground = top + (ground - 0.1 - top) * f;
+  }
+  p[1] = ground + 0.9;
   return p;
  }
 
