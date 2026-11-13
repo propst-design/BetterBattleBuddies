@@ -106,6 +106,8 @@ class BBB_TacticDrill
    utility.m_bBBBFiringHalf = firing;
    if (!firing || !hasReport || now < utility.m_fBBBCoverOrderUntil || Running(utility.m_BBBWithdrawRun)) continue;
    if (!utility.m_CombatComponent || utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE || BBB_OrderIntent.Held(utility)) continue;
+   // Short tasks skip committed men (claims: rescue, static gun, rearm): a 90.5 burst outranked their runs.
+   if (BBB_Claims.Committed(utility.m_OwnerEntity)) continue;
    BaseTarget target = utility.m_CombatComponent.GetCurrentTarget();
    if (target && utility.m_CombatComponent.IsTargetVisible(target)) continue; // already shooting at the real thing
    bool onCover;
