@@ -46,7 +46,8 @@ class BBB_CrewOrder : Managed
  IEntity m_Vehicle;
  IEntity m_Leader;      // who commands; null: nobody (no AI commander or driver, or a player aboard)
  float m_fBuilt;        // world time s
- bool m_bArmour;        // the gunner's turret has something that hurts armour
+ bool m_bArmour;        // a gunner aboard has something that hurts armour
+ bool m_bKeyArmour;     // the leader's target is armour
  ref array<ref BBB_CrewSighting> m_aSeen = {};
  // The leader's target: a group of enemies.
  bool m_bHas;
@@ -202,6 +203,8 @@ class BBB_CrewLeader
    else if (BBB_Transport.VehicleOf(before) == vehicle) why = "moved to the " + SeatName(before) + " seat";
    PrintFormat("[BBB] CREW LEADER %1: the %2 takes command (the last leader is %3)", Name(vehicle), SeatName(order.m_Leader), why);
   }
+  // Any gunner aboard: the order is the vehicle's, shared by every turret, so it must not
+  // depend on which gunner asked first (a cannon and an MG turret flipped it every second).
   order.m_bArmour = HurtsArmour(gunner);
 
   // Everyone aboard: crew and riders.
@@ -214,6 +217,7 @@ class BBB_CrewLeader
    {
     IEntity mate = slot.GetOccupant();
     if (!mate || BBB.PlayerOf(mate) || !BBB.IsConscious(mate)) continue;
+    if (!order.m_bArmour && slot.GetType() == ECompartmentType.TURRET && HurtsArmour(mate)) order.m_bArmour = true;
     Collect(order, mate, true);
    }
    s_aSlots.Clear();
@@ -447,6 +451,7 @@ class BBB_CrewLeader
  {
   order.m_bHas = true;
   order.m_Key = key.m_Enemy;
+  order.m_bKeyArmour = Armour(key.m_eType);
   order.m_vAim = key.m_vPos;
   order.m_fScore = key.m_fGroup;
   order.m_aMen.Clear();
@@ -512,6 +517,8 @@ class BBB_CrewLeader
   if (BBB.HasPlayer(BBB_HeldGuns.GroupOf(man)) || BBB_OrderIntent.GunnerBlocks(utility)) return null;
   BBB_CrewOrder order = Get(vehicle, man);
   if (!order || !order.m_bHas) return null;
+  // Armour is the leader's target only for a gunner whose turret can hurt it.
+  if (order.m_bKeyArmour && !HurtsArmour(man)) return null;
   return order;
  }
 
