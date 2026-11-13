@@ -172,10 +172,11 @@ class BBB_SquadLeader
    orders.m_fLook = now;
    Look(orders, now);
   }
-  s_aGroups.Clear();
-  // Squads gone.
+  // Squads gone, or no longer the host's (HoldsBack reads these orders for any soldier, so a
+  // split left behind would hold a dropped squad's second team back for good).
   for (int i = s_mOrders.Count() - 1; i >= 0; i--)
-   if (!s_mOrders.GetKey(i)) s_mOrders.RemoveElement(i);
+   if (!s_mOrders.GetKey(i) || !s_aGroups.Contains(s_mOrders.GetKey(i))) s_mOrders.RemoveElement(i);
+  s_aGroups.Clear();
  }
 
  protected static bool InContact(SCR_AIGroup group)
