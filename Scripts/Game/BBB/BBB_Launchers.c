@@ -116,10 +116,9 @@ class BBB_Launchers : Managed
    }
   }
   // Forget soldiers who died.
-  array<IEntity> gone = {};
-  foreach (IEntity owed, ResourceName prefab : m_Owed)
-   if (!owed || !BBB.IsAlive(owed)) gone.Insert(owed);
-  foreach (IEntity dead : gone) m_Owed.Remove(dead);
+  // By index: a deleted soldier's key reads null, and Remove(null) doesn't find its slot.
+  for (int i = m_Owed.Count() - 1; i >= 0; i--)
+   if (!m_Owed.GetKey(i) || !BBB.IsAlive(m_Owed.GetKey(i))) m_Owed.RemoveElement(i);
  }
 
  protected void Drop(SCR_AIGroup group, IEntity soldier, IEntity launcher)

@@ -166,18 +166,21 @@ class BBB_CrewLeader
  {
   if (now < s_fPruneAt) return;
   s_fPruneAt = now + 30;
-  array<IEntity> gone = {};
-  foreach (IEntity vehicle, BBB_CrewOrder order : s_mOrders)
-   if (!vehicle || now - order.m_fBuilt > 30) gone.Insert(vehicle);
-  foreach (IEntity old : gone) s_mOrders.Remove(old);
-  gone.Clear();
-  foreach (IEntity enemy, float until : s_mATUntil)
-   if (!enemy || now > until) gone.Insert(enemy);
-  foreach (IEntity stale : gone)
+  // By index: a deleted entity's key reads null, and Remove(null) doesn't find its slot (BBB_Think.Prune).
+  for (int i = s_mOrders.Count() - 1; i >= 0; i--)
   {
-   s_mATUntil.Remove(stale);
-   s_mAT.Remove(stale);
+   BBB_CrewOrder order = s_mOrders.GetElement(i);
+   if (!s_mOrders.GetKey(i) || !order || now - order.m_fBuilt > 30) s_mOrders.RemoveElement(i);
   }
+  for (int j = s_mATUntil.Count() - 1; j >= 0; j--)
+  {
+   IEntity enemy = s_mATUntil.GetKey(j);
+   if (enemy && now <= s_mATUntil.GetElement(j)) continue;
+   if (enemy) s_mAT.Remove(enemy);
+   s_mATUntil.RemoveElement(j);
+  }
+  for (int k = s_mAT.Count() - 1; k >= 0; k--)
+   if (!s_mAT.GetKey(k)) s_mAT.RemoveElement(k);
  }
 
  // ------------------------------------------------------------------ the picture

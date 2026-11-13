@@ -450,11 +450,10 @@ class BBB_Callouts
    BBB_CalloutState state = State(group);
    Watch(state, now);
   }
-  // Forget groups that are gone.
-  array<SCR_AIGroup> gone = {};
-  foreach (SCR_AIGroup known, BBB_CalloutState kept : s_States)
-   if (!known) gone.Insert(known);
-  foreach (SCR_AIGroup dead : gone) s_States.Remove(dead);
+  // Forget groups that are gone. A deleted group's key reads null, and removing by that null key
+  // doesn't find the slot (BBB_Think.Prune): remove by index.
+  for (int i = s_States.Count() - 1; i >= 0; i--)
+   if (!s_States.GetKey(i)) s_States.RemoveElement(i);
  }
 
  protected static void Watch(BBB_CalloutState state, float now)
