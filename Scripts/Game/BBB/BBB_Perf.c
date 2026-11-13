@@ -28,7 +28,11 @@ class BBB_Perf
  static void Read()
  {
   string value;
-  if (BBB_Settings.Get("bbbPerf", value) && value == "1") { s_bOn = true; s_bOwnReport = true; }
+  // A later mission's preset can turn the own report off again ("0" from BBB_Settings). s_bOn stays as
+  // it is: a host (ACA's perf report) may have turned it on itself.
+  if (!BBB_Settings.Get("bbbPerf", value)) return;
+  s_bOwnReport = value == "1";
+  if (s_bOwnReport) s_bOn = true;
  }
 
  // Time since 'start' goes to this stage; returns the new start.
