@@ -19,5 +19,9 @@ FIXED
 - A faked surrender's grenade goes only at an enemy the soldier can see, medics no longer surrender mid-drag, and long fights keep room for new prisoners.
 - New option -bbbDropTubes 0 keeps spent single-shot launchers; AI in a player's squad keep theirs anyway.
 - Stopping Battle Buddies mid-match hands vehicles and drivers back cleanly and ends leftover callouts and surrender ruses, and the server does less work checking for men stuck on truck beds.
+- Medics under a player's or Game Master's order no longer drag casualties off on their own.
+- A group's second armoured vehicle no longer pops smoke and reverses on every hit, and cannon-and-MG vehicles no longer lay the MG on a tank.
+- During a flank, men rearming, manning a gun or rescuing a casualty are left to it, and a morale break after an empty fall-back order no longer runs the whole squad off.
+- Callouts don't pile up while Battle Buddies isn't running.
 
 For mod makers: new hooks AllowSurrender, AllowCallouts, ZombieRules, IsZombie and AllowScriptedDriving, plus BBB_Morale.IsPrisoner and BBB_Zombies.
