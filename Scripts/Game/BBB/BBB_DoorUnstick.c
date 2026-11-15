@@ -135,7 +135,14 @@ class BBB_DoorUnstick
   BBB_DoorStall stall = s_Stalls.Get(body);
   if (!Eligible(agent, body))
   {
-   if (stall) s_Stalls.Remove(body);
+   // A back-off or give-up still running is kept while he lives: a failed move re-sent leaves him
+   // without a request for a tick, and a fresh entry would swing his door and nudge him all over again.
+   if (stall && now < stall.m_Next && BBB.IsAlive(body))
+   {
+    stall.m_Seen = s_iTick;
+    stall.m_Since = now;
+   }
+   else if (stall) s_Stalls.Remove(body);
    return;
   }
   vector pos = body.GetOrigin();
