@@ -32,12 +32,15 @@ class BBB_StaticGunnerJob : Managed
 	float m_fCrewedSince;
 	float m_fLastThreatInArcMs;
 	bool m_bMounted;                 // false while walking to / climbing into the seat
+	ChimeraCharacter m_Displaced;    // the downed occupant taken out for him: back in if he never arrives
 }
 
 class BBB_StaticWeapons
 {
 	static int s_iRead;
 	static bool s_bOn = true;
+
+	static const float RESTORE_M = 5; // a displaced occupant farther than this from the gun was moved: left there
 
 	// Tunable parameters
 	static float s_fSearchRadiusM = 35.0;
@@ -422,10 +425,12 @@ class BBB_StaticWeapons
 		IEntity vehicle = slot.GetVehicle();
 		if (!vehicle) vehicle = weapon;
 
-		// Remove an incapacitated occupant so the seat is free when he arrives
+		// Remove an incapacitated occupant so the seat is free when he arrives (put back if he never
+		// does: RestoreDisplaced)
+		ChimeraCharacter occCh;
 		if (occ && occ != gunner)
 		{
-			ChimeraCharacter occCh = ChimeraCharacter.Cast(occ);
+			occCh = ChimeraCharacter.Cast(occ);
 			if (occCh)
 			{
 				CompartmentAccessComponent occAcc = occCh.GetCompartmentAccessComponent();
@@ -445,6 +450,7 @@ class BBB_StaticWeapons
 		job.m_Slot = slot;
 		job.m_Utility = utility;
 		job.m_GetIn = getIn;
+		job.m_Displaced = occCh;
 		float now = GetGame().GetWorld().GetWorldTime();
 		job.m_fRequestedMs = now;
 		job.m_fCrewedSince = now;
@@ -458,6 +464,25 @@ class BBB_StaticWeapons
 			gunner, BBB.s_Hooks.NameOf(group), weapon, Math.Round(vector.Distance(gunner.GetOrigin(), weapon.GetOrigin())));
 			BBB_Think.Note(gunner, "Static", "heads for a static weapon " + Math.Round(vector.Distance(gunner.GetOrigin(), weapon.GetOrigin())) + " m away");
 		return true;
+	}
+
+	// Ruling (Jacob, 14 Nov, big review): a gun job that ends before its gunner is seated puts back the
+	// downed occupant it took out for him, if he is still down, still beside the gun (nobody dragged him
+	// off), not a player's, and the seat is still free. Restoring BBB's own change: the seat is where he was.
+	protected static void RestoreDisplaced(BBB_StaticGunnerJob job)
+	{
+		if (!job || !job.m_Displaced || !job.m_Slot) return;
+		ChimeraCharacter man = job.m_Displaced;
+		job.m_Displaced = null;
+		if (!BBB.IsAlive(man) || BBB.PlayerOf(man) || man.IsInVehicle() || BBB_VehicleHelpers.IsAble(man) || BBB_Drag.BeingMoved(man)) return;
+		if (job.m_Slot.GetOccupant() || job.m_Slot.IsReserved()) return;
+		IEntity vehicle = job.m_Slot.GetVehicle();
+		if (!vehicle) vehicle = job.m_StaticWeapon;
+		if (!vehicle || vector.Distance(man.GetOrigin(), vehicle.GetOrigin()) > RESTORE_M) return;
+		CompartmentAccessComponent acc = man.GetCompartmentAccessComponent();
+		if (!acc) return;
+		bool ok = acc.GetInVehicle(vehicle, job.m_Slot, true, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+		PrintFormat("[BBB] STATIC: downed occupant %1 put back on %2 (gunner never arrived): %3", man, job.m_StaticWeapon, ok);
 	}
 
 	// Stop a boarding that has not finished: cancel the native get-in and free the seat
@@ -477,6 +502,7 @@ class BBB_StaticWeapons
 			DismountGunner(job, reason);
 			return;
 		}
+		RestoreDisplaced(job);
 		s_iBoardingsCancelled++;
 		if (job.m_StaticWeapon) s_mWeaponRetry.Set(job.m_StaticWeapon, GetGame().GetWorld().GetWorldTime() + WEAPON_RETRY_MS);
 		PrintFormat("[BBB] STATIC: %1 boarding of %2 cancelled (reason=%3)", job.m_Gunner, job.m_StaticWeapon, reason);
@@ -618,6 +644,7 @@ class BBB_StaticWeapons
 					if (downState != EAIActionState.COMPLETED && downState != EAIActionState.FAILED) job.m_GetIn.Fail();
 				}
 				if (job.m_Slot && job.m_Gunner && job.m_Slot.IsReservedBy(job.m_Gunner)) job.m_Slot.SetReserved(null);
+				if (!job.m_bMounted) RestoreDisplaced(job);
 				Forget(j);
 				continue;
 			}
@@ -631,6 +658,7 @@ class BBB_StaticWeapons
 				if (seated && !gAcc.IsGettingIn())
 				{
 					job.m_bMounted = true;
+					job.m_Displaced = null; // the gun is his now
 					job.m_fCrewedSince = nowMs;
 					job.m_fLastThreatInArcMs = nowMs;
 					s_iWeaponsCrewed++;
