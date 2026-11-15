@@ -212,6 +212,9 @@ class BBB_HotAI
 		if (s_fUnderFireKmh <= 0) return;
 		ChimeraCharacter driver = BBB.DriverOf(vehicle);
 		if (!driver || !BBB_VehiclePosture.Controlled(driver)) return;
+		// Not a player's squad, a vehicle the host leaves alone, or a host's binding move: their speed is theirs.
+		SCR_AIGroup group = BBB_HeldGuns.GroupOf(driver);
+		if (BBB.s_Hooks.LeaveAlone(vehicle) || BBB.HasPlayer(group) || (group && BBB.s_Hooks.IsBinding(group))) return;
 		AICarMovementComponent movement = AICarMovementComponent.Cast(vehicle.FindComponent(AICarMovementComponent));
 		if (!movement) return;
 		InitStatics();
