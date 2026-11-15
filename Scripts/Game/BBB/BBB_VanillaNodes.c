@@ -18,7 +18,8 @@ modded class SCR_AIGetDefendWaypointParameters
    AIGroup group = AIGroup.Cast(owner);
    if (group) waypoint = group.GetCurrentWaypoint();
   }
-  if (waypoint && !SCR_DefendWaypoint.Cast(waypoint)) return ENodeResult.FAIL;
+  // Null too: a port holding the deleted waypoint reads back null, and vanilla then raised the error.
+  if (!SCR_DefendWaypoint.Cast(waypoint)) return ENodeResult.FAIL;
   return super.EOnTaskSimulate(owner, dt);
  }
 }
