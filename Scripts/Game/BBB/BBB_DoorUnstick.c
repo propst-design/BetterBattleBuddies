@@ -5,9 +5,13 @@
 // house door next to him (within 1.6 m) swung fully open, or over to its other side
 // if it already is. Positions only: the door search runs for stalled soldiers alone.
 // Never closes a door. -bbbDoorUnstick 0 turns it off.
-// A man the swings don't free isn't jammed by the leaf: after ROUNDS_BEFORE_STEP rounds he is set
-// a few metres further along his own path, further each time; after MAX_STEPS he and the door are
-// left alone for GIVE_UP_MS (an AC: Actual playtest: one door swung 237 times in 55 minutes for one man).
+// A man the swings don't free isn't jammed by the leaf: after ROUNDS_BEFORE_STEP rounds he is nudged
+// STEP_M along his own path (a little further each time, on the navmesh); after MAX_STEPS he and the
+// door are left alone for GIVE_UP_MS (an AC: Actual playtest: one door swung 237 times in 55 minutes
+// for one man). The nudge is BBB's one teleport of a soldier on foot, a narrow exception to the
+// no-teleport rule (Jacob, 14 Nov): short, only along a path he is walking and past its next metre,
+// and never a man at a post: in cover (sandbags), on a Defend waypoint, indoors on a Buildings job or
+// committed to a gun, rescue or ammo run (OnPost).
 
 class BBB_DoorStall : Managed
 {
@@ -32,7 +36,8 @@ class BBB_DoorUnstick
  static const int MAX_TRIES = 3;
  static const float BACKOFF_MS = 30000;
  static const int ROUNDS_BEFORE_STEP = 2;
- static const float STEP_M = 3;           // along his path, times the step's number
+ static const float STEP_M = 1.5;         // along his path, times the step's number (was 3 m: Jacob, 14 Nov)
+ static const float STEP_BEYOND_M = 1;    // his path must go on at least this far past the nudge
  static const int MAX_STEPS = 3;
  static const float STEP_CLEAR_M = 15;    // this far from the last step: that one worked
  static const float GIVE_UP_MS = 300000;
@@ -195,6 +200,7 @@ class BBB_DoorUnstick
    return;
   }
   vector onward;
+  if (OnPost(agent, body)) return; // a man at his post is never moved off it: the engine keeps him
   if (!StepTarget(agent, pos, STEP_M * (stall.m_Steps + 1), onward)) return;
   stall.m_Steps++;
   stall.m_StepAt = onward;
@@ -209,7 +215,21 @@ class BBB_DoorUnstick
   PrintFormat("[BBB] DOORUNSTICK %1 set %2 m along his path, step %3", body, vector.Distance(pos, onward), stall.m_Steps);
  }
 
- // The point 'distance' m along the path he was just given (WantsToMove read it), on the navmesh.
+ // A man holding a post: in cover (behind sandbags or a wall: vanilla's flag), his squad on a Defend
+ // waypoint, indoors on a Buildings job, or committed to a static gun, rescue or ammo run.
+ static bool OnPost(AIAgent agent, ChimeraCharacter body)
+ {
+  int role = BBB_Claims.Role(body);
+  if (role == BBB_Claims.BUILDINGS || BBB_Claims.Committed(body)) return true;
+  SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+  if (utility && utility.m_CombatMoveState && utility.m_CombatMoveState.m_bInCover) return true;
+  AIGroup group = agent.GetParentGroup();
+  return group && SCR_DefendWaypoint.Cast(group.GetCurrentWaypoint()) != null;
+ }
+
+ // The point 'distance' m along the path he was just given (WantsToMove read it), on the navmesh,
+ // only if the path goes on past it (STEP_BEYOND_M): a man walking the last metre to his spot
+ // isn't jammed in a doorway.
  static bool StepTarget(AIAgent agent, vector pos, float distance, out vector onward)
  {
   float left = distance;
@@ -229,10 +249,18 @@ class BBB_DoorUnstick
    from = point;
    target = point;
   }
-  if (vector.DistanceXZ(pos, target) < 1) return false;
+  if (left > 0 || vector.DistanceXZ(pos, target) < 1) return false;
+  if (!PathGoesOn(target, STEP_BEYOND_M)) return false;
   AIPathfindingComponent pathing = AIPathfindingComponent.Cast(agent.FindComponent(AIPathfindingComponent));
   if (!pathing) return false;
   return pathing.GetClosestPositionOnNavmesh(target, Vector(2, 3, 2), onward);
+ }
+
+ // The path read by WantsToMove reaches at least 'beyond' m (XZ) further than 'from'.
+ static bool PathGoesOn(vector from, float beyond)
+ {
+  if (s_Path.IsEmpty()) return false;
+  return vector.DistanceXZ(from, s_Path[s_Path.Count() - 1]) >= beyond;
  }
 
  // Fully open the way it was already going; if it is fully open, over to the other side.
