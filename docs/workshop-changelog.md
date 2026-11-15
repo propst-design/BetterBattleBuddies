@@ -23,5 +23,7 @@ FIXED
 - A group's second armoured vehicle no longer pops smoke and reverses on every hit, and cannon-and-MG vehicles no longer lay the MG on a tank.
 - During a flank, men rearming, manning a gun or rescuing a casualty are left to it, and a morale break after an empty fall-back order no longer runs the whole squad off.
 - Callouts don't pile up while Battle Buddies isn't running.
+- A commander's forced, quiet or mounted move, or an ordered fall-back, wins over BBB: squads no longer drop prone around armour or get fire orders that fight the move.
+- Turret gunners (hot-vehicle setting) fire only where they last saw an enemy vehicle, doorway nudges are shorter and never move a man off his post, and a wounded static gunner is no longer left on the ground.
 
 For mod makers: new hooks AllowSurrender, AllowCallouts, ZombieRules, IsZombie and AllowScriptedDriving, plus BBB_Morale.IsPrisoner and BBB_Zombies.

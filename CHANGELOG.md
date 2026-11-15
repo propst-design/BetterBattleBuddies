@@ -28,6 +28,11 @@
 - A squad its commander mod drops keeps no split orders, which could hold back its second team's attacks.
 - Less memory builds up over a long match (vehicles hit, squads seen, grenades).
 - `-bbbPerf` can turn BBB's own perf report off again for a later mission.
+- AI squads on a commander's forced, quiet or mounted move no longer drop prone around enemy armour: the commander's move wins.
+- Squads on the move or falling back on orders no longer get squad-leader fire orders that fight the commander's move.
+- With the optional hot-vehicle setting, turret gunners only fire where they last saw an enemy vehicle; they no longer follow it behind cover.
+- Soldiers stuck in a doorway are nudged a shorter way along their path, and never off a sandbag or a post they hold.
+- A soldier sent to man a static gun with a wounded gunner in it no longer leaves the wounded man on the ground if he never gets there.
 
 ## 0.1.10 — released
 
