@@ -43,7 +43,8 @@
 //     the second team stays out of both: it keeps its sector.
 //  The leader calls a split out (vanilla REPORT_TARGET on the second group).
 // Who: AI squads on foot with vanilla's group perception in contact (its most dangerous cluster),
-// not player-led (AiO's), host intent not NONE; per man: AI, conscious, on foot, not on a player or
+// not player-led (AiO's), host intent PUSH or HOLD (TRANSIT and WITHDRAW are the host's moves: BBB
+// stays out, Jacob 14 Nov); per man: AI, conscious, on foot, not on a player or
 // Game Master order (BBB_OrderIntent.Blocks), not committed to a rescue, gun or ammo run
 // (BBB_Claims.Committed), squad not on hold fire. A squad reorganising after losing its leader
 // (BBB_Tactic REORG) gets cues but no new split. Nothing here moves anyone.
@@ -187,7 +188,9 @@ class BBB_SquadLeader
   if (utility.GetCombatModeActual() == EAIGroupCombatMode.HOLD_FIRE) return false;
   vector centre;
   float radius;
-  return BBB_HostIntent.Of(group, centre, radius) != BBB_EIntent.NONE;
+  // Only a squad the host lets fight: TRANSIT (riding, forced and quiet moves) and WITHDRAW (its
+  // fall-back) are the host's moves, and laid bursts or held-back attacks would fight them.
+  return BBB_HostIntent.Fights(BBB_HostIntent.Of(group, centre, radius));
  }
 
  // ------------------------------------------------------------------ the leader's look
