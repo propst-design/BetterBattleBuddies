@@ -149,6 +149,64 @@ class BBB_OrderIntent
  }
 }
 
+// What kind of order a waypoint is, by what it is rather than its exact file (Jacob, 15 Nov). Game
+// Master waypoints are editable copies (PrefabsEditable/.../E_AIWaypoint_Move.et), Conflict and the
+// Scenario Framework use variants (AIWaypoint_Defend_CP, _Large, _Hierarchy): matching the base
+// prefab's path failed all of them, so the leash read a GM move as no order while BBB_Tactic's
+// looser match read it as ground to take. Defend by class; otherwise the prefab and its ancestors,
+// by file stem ("E_" dropped, "_variant" suffixes allowed, any Defend*/Hold*); search and destroy by class last.
+// Used by the order leash (Intent, Defensive) and BBB_Tactic.Advancing, so both read alike.
+class BBB_WaypointKind
+{
+ static const int NONE = 0;
+ static const int MOVE = 1;
+ static const int PATROL = 2;
+ static const int SEARCH = 3;
+ static const int ATTACK = 4;
+ static const int DEFEND = 5;
+
+ static int Of(AIWaypoint waypoint)
+ {
+  if (!waypoint) return NONE;
+  if (SCR_DefendWaypoint.Cast(waypoint)) return DEFEND;
+  EntityPrefabData data = waypoint.GetPrefabData();
+  if (data)
+  {
+   BaseContainer container = data.GetPrefab();
+   for (int depth = 0; container && depth < 12; depth++)
+   {
+    string name = container.GetResourceName();
+    if (!name.IsEmpty())
+    {
+     int kind = OfName(name);
+     if (kind != NONE) return kind;
+    }
+    container = container.GetAncestor();
+   }
+  }
+  if (SCR_SearchAndDestroyWaypoint.Cast(waypoint)) return SEARCH;
+  return NONE;
+ }
+
+ static int OfName(string name)
+ {
+  string stem = FilePath.StripExtension(FilePath.StripPath(name));
+  if (stem.StartsWith("E_")) stem = stem.Substring(2, stem.Length() - 2);
+  if (Is(stem, "AIWaypoint_Move")) return MOVE;
+  if (Is(stem, "AIWaypoint_Patrol")) return PATROL;
+  if (Is(stem, "AIWaypoint_SearchAndDestroy")) return SEARCH;
+  if (Is(stem, "AIWaypoint_Attack")) return ATTACK;
+  // Any defend or hold: _CP, _Large, _ConflictBaseTeam*, DefendSmall.
+  if (stem.StartsWith("AIWaypoint_Defend") || stem.StartsWith("AIWaypoint_Hold")) return DEFEND;
+  return NONE;
+ }
+
+ protected static bool Is(string stem, string base)
+ {
+  return stem == base || stem.StartsWith(base + "_");
+ }
+}
+
 // A route is never removed or replaced. BBB owns only its temporary actions;
 // releasing them lets the engine continue the original waypoint.
 class BBB_OrderLease : Managed
@@ -240,9 +298,7 @@ class BBB_OrderLeash
 
  static bool Defensive(AIWaypoint waypoint)
  {
-  if (!waypoint || !waypoint.GetPrefabData()) return false;
-  string path = waypoint.GetPrefabData().GetPrefabName();
-  return path.Contains("Prefabs/AI/Waypoints/AIWaypoint_Defend.et") || path.Contains("Prefabs/AI/Waypoints/AIWaypoint_Hold.et");
+  return BBB_WaypointKind.Of(waypoint) == BBB_WaypointKind.DEFEND;
  }
 
  // Unknown/scripted specialist orders fail closed. Explicit native priority wins
@@ -250,9 +306,9 @@ class BBB_OrderLeash
  static bool Intent(AIWaypoint waypoint)
  {
   SCR_AIWaypoint scripted = SCR_AIWaypoint.Cast(waypoint);
-  if (!scripted || scripted.GetPriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER || !waypoint.GetPrefabData()) return false;
-  string path = waypoint.GetPrefabData().GetPrefabName();
-  return path.Contains("Prefabs/AI/Waypoints/AIWaypoint_Move.et") || path.Contains("Prefabs/AI/Waypoints/AIWaypoint_Patrol.et") || path.Contains("Prefabs/AI/Waypoints/AIWaypoint_SearchAndDestroy.et") || Defensive(waypoint);
+  if (!scripted || scripted.GetPriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
+  int kind = BBB_WaypointKind.Of(waypoint);
+  return kind == BBB_WaypointKind.MOVE || kind == BBB_WaypointKind.PATROL || kind == BBB_WaypointKind.SEARCH || kind == BBB_WaypointKind.DEFEND;
  }
 
  static bool SameOrder(SCR_AIGroup group, BBB_OrderLease lease)

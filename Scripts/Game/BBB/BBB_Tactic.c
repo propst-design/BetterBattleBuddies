@@ -687,10 +687,9 @@ class BBB_Tactic
  static bool Advancing(SCR_AIGroup group, vector centre)
  {
   AIWaypoint waypoint = group.GetCurrentWaypoint();
-  if (!waypoint || !waypoint.GetPrefabData()) return false;
-  string path = waypoint.GetPrefabData().GetPrefabName();
-  if (path.Contains("AIWaypoint_SearchAndDestroy") || path.Contains("AIWaypoint_Attack")) return true;
-  return path.Contains("AIWaypoint_Move") && vector.DistanceXZ(waypoint.GetOrigin(), centre) > ADVANCE_M;
+  int kind = BBB_WaypointKind.Of(waypoint); // the order leash's reading (BBB_OrderIntent.c)
+  if (kind == BBB_WaypointKind.SEARCH || kind == BBB_WaypointKind.ATTACK) return true;
+  return kind == BBB_WaypointKind.MOVE && vector.DistanceXZ(waypoint.GetOrigin(), centre) > ADVANCE_M;
  }
 
  // A reason to hold even with ground to take: flanked or outnumbered.
