@@ -245,10 +245,12 @@ class BBB_DoorUnstick
  static bool StepTarget(AIAgent agent, vector pos, float distance, out vector onward)
  {
   float left = distance;
-  vector from = pos;
-  vector target = pos;
-  foreach (vector point : s_Path)
+  int first;
+  vector from = PathStart(pos, first);
+  vector target = from;
+  for (int i = first; i < s_Path.Count(); i++)
   {
+   vector point = s_Path[i];
    float leg = vector.DistanceXZ(from, point);
    if (leg <= 0.01) continue;
    if (leg >= left)
@@ -266,6 +268,37 @@ class BBB_DoorUnstick
   AIPathfindingComponent pathing = AIPathfindingComponent.Cast(agent.FindComponent(AIPathfindingComponent));
   if (!pathing) return false;
   return pathing.GetClosestPositionOnNavmesh(target, Vector(2, 3, 2), onward);
+ }
+
+ // Where he stands on the path read by WantsToMove, and the index of the next point: the nearest
+ // point on any of its legs, or himself if its first point is nearer. The path may still hold the
+ // stretch he has walked; measuring the nudge from its first point could set him back behind himself.
+ static vector PathStart(vector pos, out int next)
+ {
+  next = 0;
+  float best = float.MAX;
+  if (!s_Path.IsEmpty()) best = vector.DistanceXZ(pos, s_Path[0]);
+  vector start = pos;
+  for (int i = 1; i < s_Path.Count(); i++)
+  {
+   vector a = s_Path[i - 1];
+   vector ab = s_Path[i] - a;
+   ab[1] = 0;
+   float lengthSq = ab.LengthSq();
+   if (lengthSq < 0.0001) continue;
+   vector ap = pos - a;
+   ap[1] = 0;
+   float t = Math.Clamp(vector.Dot(ap, ab) / lengthSq, 0, 1);
+   vector q = a + (s_Path[i] - a) * t;
+   float d = vector.DistanceXZ(pos, q);
+   if (d < best)
+   {
+    best = d;
+    start = q;
+    next = i;
+   }
+  }
+  return start;
  }
 
  // The path read by WantsToMove reaches at least 'beyond' m (XZ) further than 'from'.
