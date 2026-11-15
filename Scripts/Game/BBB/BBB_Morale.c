@@ -18,8 +18,9 @@
 //    "disarmed" flag (what makes AI ignore the unconscious) keeps enemy AI from engaging
 //    him; players still can. He despawns once no player is near or looking (PRISONER_*).
 //    Host hook AllowSurrender (separate from AllowMorale); hosts ask IsPrisoner.
-// 4. Hard safety constraints: never overrides explicit player/GM orders
-//    (BBB_OrderIntent.Blocks), never affects player-controlled squads or vehicles,
+// 4. Hard safety constraints: never overrides explicit player orders (BBB_OrderIntent.Blocks)
+//    or a Game Master's waypoint (GameMasterOrder: no break, no surrender), never affects
+//    player-controlled squads or vehicles,
 //    and respects host hooks (BBB.s_Hooks.AllowMorale). Never invents positions
 //    or references ACA classes.
 // 5. Ordered fall-back (-bbbWithdrawOrder): when the host's intent is WITHDRAW (BBB_Hooks.Intent:
@@ -1441,8 +1442,12 @@ class BBB_Morale
 			}
 			// The host's fall-back order (intent WITHDRAW) isn't a morale break: AllowMorale doesn't gate it.
 			// Surrender has its own hook: a host running its own retreats can still let men give up.
-			bool moraleAllowed = s_bOn && BBB.s_Hooks.AllowMorale(group);
-			bool surrender = surrenderPass && BBB.s_Hooks.AllowSurrender(group);
+			// A Game Master's waypoint (Jacob, 15 Nov): no morale break and no surrender, the two decisions
+			// that take the squad off where the GM sent it; a break under way ends. Soldiers' own reactions
+			// (return fire, cover, grenades, squad-leader holds) still run.
+			bool gameMaster = BBB_OrderIntent.GameMasterOrder(group);
+			bool moraleAllowed = s_bOn && !gameMaster && BBB.s_Hooks.AllowMorale(group);
+			bool surrender = surrenderPass && !gameMaster && BBB.s_Hooks.AllowSurrender(group);
 			bool managed = moraleAllowed || s_bOrderedOn;
 			if (!managed) DropWithdrawal(group, now);
 			// Morale is off for this squad: it is ours only once the host orders it back. Until then
