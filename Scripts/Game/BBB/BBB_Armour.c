@@ -47,6 +47,7 @@ class BBB_AntiArmorJob : Managed
 {
  IEntity m_Soldier;
  SCR_AIUtilityComponent m_Utility;
+ SCR_AIGroup m_Group;   // his squad when scattered (a host's binding move ends the job: HostBinds)
  ref SCR_AICharacterStanceSetting m_StanceSetting;
  ECharacterStance m_eTargetStance;
  float m_fEndMs;
@@ -523,6 +524,7 @@ class BBB_Armour
  static void CheckGroupAntiArmor(SCR_AIGroup group, IEntity forcedThreat = null)
  {
   if (!group || !ScatterOn() || BBB.HasPlayer(group)) return; // a player's squad isn't forced down
+  if (HostBinds(group)) return; // the host's forced or quiet move wins (Jacob, 14 Nov)
   IEntity threat = forcedThreat;
   if (!threat)
   {
@@ -586,6 +588,7 @@ class BBB_Armour
     job = new BBB_AntiArmorJob();
     job.m_Soldier = soldier;
     job.m_Utility = utility;
+    job.m_Group = group;
     job.m_bIsAT = isAT;
     job.m_fEndMs = endMs;
     s_aAntiArmorJobs.Insert(job);
@@ -654,12 +657,22 @@ class BBB_Armour
   }
  }
 
+ // Ruling (Jacob, 14 Nov, big review): a host's binding move (BBB_Hooks.IsBinding: ACA's forced, quiet,
+ // player-commanded or mounted moves) wins over the scatter: the squad isn't put crouched or prone
+ // under it, and a scatter already running ends when such a move starts. Fed by a modded vanilla
+ // detection hook, so it also waits for BBB to run.
+ static bool HostBinds(SCR_AIGroup group)
+ {
+  if (!BBB.IsStarted()) return true;
+  return group && BBB.s_Hooks && BBB.s_Hooks.IsBinding(group);
+ }
+
  static void StepAntiArmor(float nowMs)
  {
   for (int i = s_aAntiArmorJobs.Count() - 1; i >= 0; i--)
   {
    BBB_AntiArmorJob job = s_aAntiArmorJobs[i];
-   if (!job || !EligibleForAntiArmor(job.m_Utility, job.m_Soldier) || nowMs >= job.m_fEndMs)
+   if (!job || !EligibleForAntiArmor(job.m_Utility, job.m_Soldier) || nowMs >= job.m_fEndMs || HostBinds(job.m_Group))
    {
     ReleaseAntiArmorJob(job);
     s_aAntiArmorJobs.RemoveOrdered(i);
