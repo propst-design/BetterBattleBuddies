@@ -474,6 +474,13 @@ class BBB_StaticWeapons
 		job.m_Displaced = null;
 		if (!BBB.IsAlive(man) || BBB.PlayerOf(man) || man.IsInVehicle() || BBB_VehicleHelpers.IsAble(man) || BBB_Drag.BeingMoved(man)) return;
 		if (job.m_Slot.GetOccupant() || job.m_Slot.IsReserved()) return;
+		// The gunner mid get-in (a timeout can land during the animation, before he is the occupant):
+		// the seat is his, not free; putting the downed man in would seat two men on one gun.
+		if (job.m_Gunner && job.m_Gunner.GetCompartmentAccessComponent())
+		{
+			CompartmentAccessComponent gunnerAcc = job.m_Gunner.GetCompartmentAccessComponent();
+			if (gunnerAcc.IsGettingIn() || gunnerAcc.IsGettingOut()) return;
+		}
 		IEntity vehicle = job.m_Slot.GetVehicle();
 		if (!vehicle) vehicle = job.m_StaticWeapon;
 		if (!vehicle || vector.Distance(man.GetOrigin(), vehicle.GetOrigin()) > RESTORE_M) return;
