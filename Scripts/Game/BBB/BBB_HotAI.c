@@ -297,6 +297,10 @@ class BBB_HotAI
 		BaseWeaponComponent weapon = combat.GetCurrentWeapon();
 		if (!weapon || weapon.GetWeaponType() == EWeaponType.WT_NONE) return; // a commander's seat: no gun
 		bool hot = s_bVehicles && s_bGunnerFire; // otherwise only the crew leader and call-out run
+		// A player's own gunner, a vehicle the host leaves alone, a player's squad or a gunner under orders:
+		// no reloads or re-attacks either (these ran before the gates below; the crew leader gates itself).
+		IEntity vehicle = BBB_Transport.VehicleOf(man);
+		if (hot && (BBB.PlayerOf(man) || (vehicle && BBB.s_Hooks.LeaveAlone(vehicle)) || BBB.HasPlayer(BBB_HeldGuns.GroupOf(man)) || BBB_OrderIntent.GunnerBlocks(utility))) hot = false;
 		if (hot) ReloadCheck(utility, man, weapon, now);
 		BaseTarget current = combat.GetCurrentTarget();
 		if (current && combat.IsTargetVisible(current))
@@ -310,7 +314,6 @@ class BBB_HotAI
 		utility.m_fBBBIdleSince = 0;
 		if (now < utility.m_fBBBHotFireUntil) return; // a series is running
 		if (BBB.PlayerOf(man)) return;
-		IEntity vehicle = BBB_Transport.VehicleOf(man);
 		if (vehicle && BBB.s_Hooks.LeaveAlone(vehicle)) return;
 		if (BBB.HasPlayer(BBB_HeldGuns.GroupOf(man)) || BBB_OrderIntent.GunnerBlocks(utility)) return;
 
