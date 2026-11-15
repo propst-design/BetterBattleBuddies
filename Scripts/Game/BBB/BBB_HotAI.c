@@ -48,9 +48,8 @@
 //    one called out, and he may switch a gunner who sees a lesser target, or break his fight off.
 //  - against vehicles: a gunner whose target is selected and in sight but who isn't attacking it
 //    (vanilla's attack ended and nothing started a new one) gets a new attack after IDLE_S; a vehicle he
-//    lost sight of that has moved more than MOVED_M since is followed by its engine noise (within
-//    HEAR_M) instead of fire on where it was; a turret gun empty for EMPTY_S is reloaded with a box of
-//    the same kind from the vehicle's own stores.
+//    lost sight of is fired on where he last perceived it, never followed to where it really is; a
+//    turret gun empty for EMPTY_S is reloaded with a box of the same kind from the vehicle's own stores.
 //  - main gun (-bbbHotMainGun): where vanilla picks a machine gun against infantry or for suppression,
 //    a turret gunner uses the turret's main gun: its autocannon, else the machine gun in its lowest
 //    weapon slot (the BTR-70's KPVT, not the coaxial PKT that its prefab lists first).
@@ -95,8 +94,6 @@ class BBB_HotAI
 	static const float FIRE_PRIORITY = 95;       // above an attack on a selected target (90)
 	static const float FIRE_PRIORITY_HIGH = 1125; // above a high-priority attack (1120) on one he can't see
 	static const float IDLE_S = 1.5;
-	static const float MOVED_M = 12;
-	static const float HEAR_M = 450;
 	static const float EMPTY_S = 5;
 	static int s_iReattacks;
 	static int s_iReloads;
@@ -334,19 +331,8 @@ class BBB_HotAI
 		{
 			aim = current.GetLastSeenPosition();
 			source = "the target he lost sight of";
-			// A vehicle on the move: he hears where it is now; fire on where it was would be wasted.
-			IEntity seen = current.GetTargetEntity();
-			IEntity moving = seen;
-			if (!Vehicle.Cast(moving)) moving = BBB_Transport.VehicleOf(seen);
-			if (moving && utility.m_LookAction)
-			{
-				vector now3 = moving.GetOrigin();
-				if (vector.DistanceXZ(now3, aim) > MOVED_M && vector.DistanceXZ(now3, man.GetOrigin()) < HEAR_M)
-				{
-					utility.m_LookAction.LookAt(now3 + Vector(0, 1.5, 0), SCR_AILookAction.PRIO_ENEMY_TARGET, 1.2);
-					return;
-				}
-			}
+			// Where he last perceived it, vehicle or not: a vehicle that drove on is not followed to where it
+			// really is now (Jacob, 14 Nov: turrets track only positions the soldier actually perceived).
 		}
 		else if (hot && KnownShooter(utility, targets, aim))
 		{
