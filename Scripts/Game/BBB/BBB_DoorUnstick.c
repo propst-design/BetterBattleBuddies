@@ -192,16 +192,19 @@ class BBB_DoorUnstick
   stall.m_Rounds = 0;
   if (stall.m_Steps >= MAX_STEPS)
   {
-   stall.m_Steps = 0;
-   stall.m_Door = null;
-   stall.m_Next = now + GIVE_UP_MS;
-   s_iGaveUp++;
-   PrintFormat("[BBB] DOORUNSTICK gave up on %1 at %2: not a door he can get past", body, pos);
+   GiveUp(body, stall, pos, now);
    return;
   }
+  // A man at his post is never moved off it, and a nudge with nowhere to go isn't tried: either way
+  // nothing more will be done for him, so leave him and the door alone now. (Returning without a
+  // step left m_Steps where it was, so the give-up never came and his door swung ~6 times a minute
+  // for as long as he stood there.)
   vector onward;
-  if (OnPost(agent, body)) return; // a man at his post is never moved off it: the engine keeps him
-  if (!StepTarget(agent, pos, STEP_M * (stall.m_Steps + 1), onward)) return;
+  if (OnPost(agent, body) || !StepTarget(agent, pos, STEP_M * (stall.m_Steps + 1), onward))
+  {
+   GiveUp(body, stall, pos, now);
+   return;
+  }
   stall.m_Steps++;
   stall.m_StepAt = onward;
   stall.m_Pos = onward;
@@ -213,6 +216,15 @@ class BBB_DoorUnstick
   body.Teleport(transform);
   s_iSteps++;
   PrintFormat("[BBB] DOORUNSTICK %1 set %2 m along his path, step %3", body, vector.Distance(pos, onward), stall.m_Steps);
+ }
+
+ static void GiveUp(ChimeraCharacter body, BBB_DoorStall stall, vector pos, float now)
+ {
+  stall.m_Steps = 0;
+  stall.m_Door = null;
+  stall.m_Next = now + GIVE_UP_MS;
+  s_iGaveUp++;
+  PrintFormat("[BBB] DOORUNSTICK gave up on %1 at %2: not a door he can get past", body, pos);
  }
 
  // A man holding a post: in cover (behind sandbags or a wall: vanilla's flag), his squad on a Defend
