@@ -63,6 +63,26 @@ class BBB_GLArming
   return FuzeM(muzzle.GetMagazine()) >= 0;
  }
 
+ // This pick would fire a grenade at a target inside its arming line (arming distance + MARGIN_M).
+ // The target holds (crew leader's switch, hot turret) ask it: a hold skips the weapon evaluation
+ // and with it the guard, so a launcher approved at range kept firing while the target closed in.
+ static bool Inside(BaseWeaponComponent weapon, int muzzleIndex, BaseMagazineComponent round, BaseTarget target)
+ {
+  if (!weapon || !target) return false;
+  EWeaponType type = weapon.GetWeaponType();
+  if (type == EWeaponType.WT_FRAGGRENADE || type == EWeaponType.WT_SMOKEGRENADE || type == EWeaponType.WT_ROCKETLAUNCHER) return false;
+  Read();
+  if (!s_bOn || s_bTestOff) return false;
+  array<BaseMuzzleComponent> muzzles = {};
+  weapon.GetMuzzlesList(muzzles);
+  if (muzzleIndex < 0 || muzzleIndex >= muzzles.Count()) return false;
+  BaseMuzzleComponent muzzle = muzzles[muzzleIndex];
+  if (!IsLauncherMuzzle(weapon, muzzle) && FuzeM(round) < 0) return false;
+  if (!round) round = muzzle.GetMagazine();
+  float arm = ArmingM(round, true);
+  return arm > 0 && target.GetDistance() < arm + MARGIN_M;
+ }
+
  // How far this round flies before it arms; 0 = no limit (smoke, illumination, a fuze armed at
  // the muzzle, not a grenade round). A launcher round with no trigger to read counts as 15 m.
  static float ArmingM(BaseMagazineComponent round, bool launcher)

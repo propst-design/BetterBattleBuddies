@@ -679,6 +679,8 @@ modded class SCR_AICombatComponent
 		if (GetGame().GetWorld().GetWorldTime() - m_fBBBHotTargetSince > BBB_HotAI.s_fTurretHold * 1000) return false;
 		BaseWeaponComponent weapon = GetCurrentWeapon();
 		if (!weapon || !weapon.GetCurrentMagazine() || weapon.GetCurrentMagazine().GetAmmoCount() <= 0) return false;
+		// A turret grenade launcher the target has closed inside the arming range of: the evaluation (and its arming guard) runs.
+		if (BBB_GLArming.Inside(m_SelectedWeaponComp, m_iSelectedMuzzle, m_SelectedMagazineComp, current)) return false;
 		if (current.GetTimeSinceEndangered() < BBB_HotAI.HOLD_ENDANGER_S || !m_Perception) return true;
 		// Someone else is shooting at him: let vanilla choose (it scores the one shooting at him higher).
 		array<BaseTarget> enemies = {};

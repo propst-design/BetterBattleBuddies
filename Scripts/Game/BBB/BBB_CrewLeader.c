@@ -651,6 +651,8 @@ modded class SCR_AICombatComponent
   }
   BaseWeaponComponent weapon = GetCurrentWeapon();
   if (!weapon || !weapon.GetCurrentMagazine() || weapon.GetCurrentMagazine().GetAmmoCount() <= 0) return false;
+  // A grenade the target has closed inside the arming range of: the evaluation (and its arming guard) runs.
+  if (BBB_GLArming.Inside(m_SelectedWeaponComp, m_iSelectedMuzzle, m_SelectedMagazineComp, m_BBBLeaderHeld)) return false;
   // On foot and under fire: his own picker answers it.
   if (m_bBBBLeaderYields && BBB_SquadLeader.UnderFire(m_Utility))
   {

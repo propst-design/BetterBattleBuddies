@@ -10,6 +10,7 @@
 - A soldier climbing onto a static gun no longer has the wounded gunner he replaced put back onto it in the middle of getting in.
 - With the optional hot-vehicle setting (`-bbbHotVehicles 1`), player-led and host-controlled gunners and vehicles are left alone by its reload, re-attack and under-fire slow-down rules too.
 - A deleted Defend waypoint no longer logs an error.
+- A grenadier kept on a target by his squad leader, or a vehicle's grenade-launcher gunner holding his target, no longer keeps firing grenades once the target has closed inside their arming range: the arming check now also applies while he holds that target.
 
 ## 0.2.0 — released
 
