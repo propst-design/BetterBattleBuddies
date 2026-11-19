@@ -6,18 +6,29 @@ class BBB_DoorTestHooks : BBB_Hooks
  override bool AllowDoorUnstick(SCR_AIGroup group) { return !m_Veto; }
 }
 
-// A fireteam ordered through a real Arland house door left half-open across the
-// doorway, twice: first with the host veto (BBB swings nothing), then with door
-// unstick on. Judged on physical outcomes: soldiers standing jammed next to the
-// door (measured by the test, not by the module's counters), soldiers through the
-// doorway at the end, and the door leaf's real state after a swing. Then the end of a failed round
-// on a soldier really walking (a man held still loses his path, so a real stall can't be staged):
-// he is set further along his path each time, and in the end he and the door are left alone.
+// A fireteam ordered through a real Arland house door, twice: first with the host veto (BBB swings
+// nothing), then with door unstick on. In 1.9 the AI opens a closed house door itself and a leaf
+// rarely stops anyone (the old fixture jammed in 3 of 8 baselines even before 1.9), so the doorway
+// is blocked by a high sandbag wall just inside it: off the baked navmesh, the soldiers keep their
+// path and press against it, a real engine stall next to the door. In the second phase the wall
+// stands in for the leaf: it is lifted the moment the module swings the door, so a freed soldier
+// and more men through prove the module's chain (stall seen, door found, swing, moved on).
+// Judged on physical outcomes: soldiers standing jammed next to the door (measured by the test,
+// not by the module's counters), soldiers past the wall at the end, and the door leaf's real state
+// after a swing. Then the end of a failed round on a soldier really walking (a man held still loses
+// his path): he is set a short way further along his path each time, and in the end he and the
+// door are left alone. Last, the same failed rounds for a man flagged in cover (vanilla's flag, as
+// behind sandbags) with a path a nudge could follow: never moved, and left alone at once.
 class BBB_DoorTest : BBB_AimTest
 {
  static ref BBB_DoorTest s_DoorTest;
  static const float PHASE_S = 40;
  static const float BLOCKING = 0.4;
+ static const float WALL_AT = 1.35;   // wall centre, m inside the door (1.2 m deep: clear of a 0.9 m leaf)
+ static const float THROUGH_AT = 2.3; // past the wall's far face
+ static const int EXPECTED = 19;
+ static const ResourceName WALL = "{BE16EE8FAA315FE2}Prefabs/Props/Military/Sandbags/Sandbag_01_long_high_burlap.et";
+ IEntity m_Wall;
  ref BBB_DoorTestHooks m_Hooks;
  ref BBB_Hooks m_SavedHooks;
  ref array<IEntity> m_Candidates = {};
@@ -163,6 +174,8 @@ class BBB_DoorTest : BBB_AimTest
   m_Last.Clear();
   m_JamSeconds.Clear();
   m_DoorComp.SetControlValue(0, RplId.Invalid());
+  m_Wall = SpawnWall();
+  DoorCheck(string.Format("wall-%1", m_Phase), m_Wall != null, string.Format("at %1", m_Center + m_Inward * WALL_AT));
   m_Team = SCR_AIGroup.Cast(Spawn(TEAM_US, m_Outside - m_Inward * 5, m_Inward));
   if (!m_Team) { DoorCheck("team", false); DoorFinish(); return; }
   m_Hooks.m_Groups.Clear();
@@ -182,8 +195,9 @@ class BBB_DoorTest : BBB_AimTest
    agent.ActivateAI();
   }
   m_Team.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE);
-  m_Order = AIWaypoint.Cast(Spawn("{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et", BBB.Ground(m_Center + m_Inward * 1.5), m_Inward));
-  if (m_Order) { m_Order.SetCompletionRadius(1.5); m_Team.AddWaypoint(m_Order); }
+  // Past the wall, under the roof (ChooseDoor checked 3 m in); short of it can't complete the order.
+  m_Order = AIWaypoint.Cast(Spawn("{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et", m_Center + m_Inward * 3.2, m_Inward));
+  if (m_Order) { m_Order.SetCompletionRadius(0.8); m_Team.AddWaypoint(m_Order); }
   DoorCheck(string.Format("order-%1", m_Phase), m_Order != null);
   m_PhaseStart = Now();
   m_Swings.Insert(BBB_DoorUnstick.s_iSwings);
@@ -191,16 +205,48 @@ class BBB_DoorTest : BBB_AimTest
   GetGame().GetCallqueue().CallLater(Poll, 1000, true);
  }
 
+ // Long side across the doorway, on the floor (the leaf's bottom edge), not the terrain under the house.
+ IEntity SpawnWall()
+ {
+  Resource resource = Resource.Load(WALL);
+  if (!resource.IsValid()) return null;
+  vector mins, maxs;
+  m_Door.GetBounds(mins, maxs);
+  vector at = m_Center + m_Inward * WALL_AT;
+  at[1] = Math.Max(m_Center[1] - (maxs[1] - mins[1]) * 0.5, GetGame().GetWorld().GetSurfaceY(at[0], at[2]));
+  EntitySpawnParams parameters = new EntitySpawnParams();
+  parameters.TransformMode = ETransformMode.WORLD;
+  vector angles = m_Inward.VectorToAngles();
+  angles[1] = 0;
+  angles[2] = 0;
+  Math3D.AnglesToMatrix(angles, parameters.Transform);
+  parameters.Transform[3] = at;
+  return GetGame().SpawnEntityPrefab(resource, GetGame().GetWorld(), parameters);
+ }
+
+ void LiftWall()
+ {
+  if (!m_Wall) return;
+  SCR_EntityHelper.DeleteEntityAndChildren(m_Wall);
+  m_Wall = null;
+ }
+
  bool Through(IEntity man)
  {
   vector offset = man.GetOrigin() - m_Center;
   offset[1] = 0;
-  return vector.Dot(offset, m_Inward) > 0.6 && offset.Length() < 10;
+  return vector.Dot(offset, m_Inward) > THROUGH_AT && offset.Length() < 10;
  }
 
  // Test-side jam measure: next to the door, not through it, and not moving.
  void Poll()
  {
+  // Phase 1: the wall stands in for the leaf, so the module's swing clears the way.
+  if (m_Phase == 1 && m_Wall && BBB_DoorUnstick.s_iSwings > m_Swings[1])
+  {
+   PrintFormat("[BBB] DOORTEST phase=1 swing seen at %1 s: wall lifted", Now() - m_PhaseStart);
+   LiftWall();
+  }
   array<AIAgent> agents = {};
   m_Team.GetAgents(agents);
   foreach (AIAgent agent : agents)
@@ -242,6 +288,7 @@ class BBB_DoorTest : BBB_AimTest
   m_EverJammed.Clear();
   PrintFormat("[BBB] DOORTEST phase=%1 through=%2 jammed=%3 swings=%4 freed=%5", m_Phase, through, m_Jammed[m_Phase], BBB_DoorUnstick.s_iSwings - m_Swings[m_Phase], BBB_DoorUnstick.s_iFreed - m_Freed[m_Phase]);
   if (m_Order) { m_Team.RemoveWaypoint(m_Order); SCR_EntityHelper.DeleteEntityAndChildren(m_Order); }
+  LiftWall();
   foreach (AIAgent agent : agents)
   {
    IEntity man = agent.GetControlledEntity();
@@ -261,7 +308,7 @@ class BBB_DoorTest : BBB_AimTest
   int freedOn = BBB_DoorUnstick.s_iFreed - m_Freed[1];
   DoorCheck("sees-soldiers-walking", m_WalkingSamples > 0, string.Format("walking=%1 moving=%2", m_WalkingSamples, m_MovingSamples));
   DoorCheck("veto-swings-nothing", swingsOff == 0, string.Format("swings=%1", swingsOff));
-  DoorCheck("baseline-jam-reproduced", m_Jammed[0] > 0, string.Format("jammed=%1 through=%2", m_Jammed[0], m_Through[0]));
+  DoorCheck("baseline-jam-reproduced", m_Jammed[0] > 0 && m_Through[0] == 0,string.Format("jammed=%1 through=%2", m_Jammed[0], m_Through[0]));
   DoorCheck("swings-when-jammed", m_Jammed[1] == 0 || swingsOn > 0, string.Format("jammed=%1 swings=%2", m_Jammed[1], swingsOn));
   DoorCheck("jammed-soldier-moves-after-swing", swingsOn == 0 || freedOn > 0, string.Format("swings=%1 freed=%2", swingsOn, freedOn));
   DoorCheck("more-through-than-baseline", m_Through[1] > m_Through[0], string.Format("off=%1 on=%2", m_Through[0], m_Through[1]));
@@ -337,6 +384,48 @@ class BBB_DoorTest : BBB_AimTest
   DoorCheck("set-along-his-path", longer, string.Format("steps:%1", taken));
   DoorCheck("gave-up-after-the-steps", BBB_DoorUnstick.s_iGaveUp > m_WalkerGaveUp && !m_Stall.m_Door, string.Format("gave up %1 next in %2 s", BBB_DoorUnstick.s_iGaveUp - m_WalkerGaveUp, m_Stall.m_Next / 1000 - Now()));
   DoorCheck("then-left-alone-for-minutes", m_Stall.m_Next / 1000 - Now() > 200, "");
+  m_PhaseStart = Now();
+  GetGame().GetCallqueue().CallLater(PostRound, 500, true);
+ }
+
+ // A man at a post (vanilla's in-cover flag, as behind sandbags) who has a path a nudge could
+ // follow: the failed rounds never move him, and the refusal leaves him and the door alone at once
+ // instead of swinging on (the 237-swings bug). The flag is set only for the call.
+ void PostRound()
+ {
+  array<AIAgent> agents = {};
+  if (m_Team) m_Team.GetAgents(agents);
+  AIAgent post;
+  foreach (AIAgent agent : agents)
+  {
+   if (agent && agent.GetControlledEntity() && BBB_DoorUnstick.WantsToMove(agent)) { post = agent; break; }
+  }
+  if (!post && Now() - m_PhaseStart < 15) return;
+  GetGame().GetCallqueue().Remove(PostRound);
+  SCR_AIUtilityComponent utility;
+  if (post) utility = SCR_AIUtilityComponent.Cast(post.FindComponent(SCR_AIUtilityComponent));
+  if (!utility || !utility.m_CombatMoveState)
+  {
+   DoorCheck("post-man-has-path", false, string.Format("agent=%1", post));
+   DoorFinish();
+   return;
+  }
+  ChimeraCharacter man = ChimeraCharacter.Cast(post.GetControlledEntity());
+  vector before = man.GetOrigin();
+  int steps = BBB_DoorUnstick.s_iSteps;
+  int gaveUp = BBB_DoorUnstick.s_iGaveUp;
+  BBB_DoorStall stall = new BBB_DoorStall();
+  bool wasInCover = utility.m_CombatMoveState.m_bInCover;
+  utility.m_CombatMoveState.m_bInCover = true;
+  bool onPost = BBB_DoorUnstick.OnPost(post, man);
+  for (int r = 0; r < BBB_DoorUnstick.ROUNDS_BEFORE_STEP; r++)
+  {
+   BBB_DoorUnstick.WantsToMove(post); // his path, as the module reads it before a nudge
+   BBB_DoorUnstick.RoundFailed(post, man, stall, man.GetOrigin(), Now() * 1000);
+  }
+  utility.m_CombatMoveState.m_bInCover = wasInCover;
+  DoorCheck("post-never-moved", onPost && BBB_DoorUnstick.s_iSteps == steps && stall.m_Steps == 0, string.Format("onPost=%1 steps=%2 moved=%3 m", onPost, BBB_DoorUnstick.s_iSteps - steps, vector.DistanceXZ(before, man.GetOrigin())));
+  DoorCheck("post-refusal-gives-up", BBB_DoorUnstick.s_iGaveUp > gaveUp && stall.m_Next / 1000 - Now() > 200, string.Format("gave up %1 next in %2 s", BBB_DoorUnstick.s_iGaveUp - gaveUp, stall.m_Next / 1000 - Now()));
   DoorFinish();
  }
 
@@ -344,10 +433,12 @@ class BBB_DoorTest : BBB_AimTest
  {
   GetGame().GetCallqueue().Remove(Poll);
   GetGame().GetCallqueue().Remove(WalkerRound);
+  GetGame().GetCallqueue().Remove(PostRound);
+  LiftWall();
   BBB_DoorUnstick.Stop();
   if (m_SavedHooks) BBB.s_Hooks = m_SavedHooks;
   string verdict = "FAIL";
-  if (m_Failures == 0 && m_Checks >= 8) verdict = "PASS";
+  if (m_Failures == 0 && m_Checks == EXPECTED) verdict = "PASS";
   PrintFormat("[ACR] VERDICT %1 test=bbbdoors passed=%2 failed=%3 expected=%4", verdict, m_Checks - m_Failures, m_Failures, m_Checks);
   Print("[ACR] TEST COMPLETE");
  }
