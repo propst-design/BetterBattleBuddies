@@ -525,6 +525,7 @@ class BBB_Armour
  {
   if (!group || !ScatterOn() || BBB.HasPlayer(group)) return; // a player's squad isn't forced down
   if (HostBinds(group)) return; // the host's forced or quiet move wins (Jacob, 14 Nov)
+  if (BBB_Morale.IsWithdrawing(group)) return; // so does a morale withdrawal (Jacob, 18 Nov): no prone crawl out
   IEntity threat = forcedThreat;
   if (!threat)
   {
@@ -660,7 +661,8 @@ class BBB_Armour
  // Ruling (Jacob, 14 Nov, big review): a host's binding move (BBB_Hooks.IsBinding: ACA's forced, quiet,
  // player-commanded or mounted moves) wins over the scatter: the squad isn't put crouched or prone
  // under it, and a scatter already running ends when such a move starts. Fed by a modded vanilla
- // detection hook, so it also waits for BBB to run.
+ // detection hook, so it also waits for BBB to run. A morale withdrawal (BBB_Morale.IsWithdrawing, a break
+// or the host's ordered fall-back) wins the same way (Jacob, 18 Nov): its bounds aren't crawled prone.
  static bool HostBinds(SCR_AIGroup group)
  {
   if (!BBB.IsStarted()) return true;
@@ -672,7 +674,7 @@ class BBB_Armour
   for (int i = s_aAntiArmorJobs.Count() - 1; i >= 0; i--)
   {
    BBB_AntiArmorJob job = s_aAntiArmorJobs[i];
-   if (!job || !EligibleForAntiArmor(job.m_Utility, job.m_Soldier) || nowMs >= job.m_fEndMs || HostBinds(job.m_Group))
+   if (!job || !EligibleForAntiArmor(job.m_Utility, job.m_Soldier) || nowMs >= job.m_fEndMs || HostBinds(job.m_Group) || BBB_Morale.IsWithdrawing(job.m_Group))
    {
     ReleaseAntiArmorJob(job);
     s_aAntiArmorJobs.RemoveOrdered(i);
