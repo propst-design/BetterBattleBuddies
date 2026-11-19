@@ -72,11 +72,19 @@ modded class SCR_AIEnemyMarkingSystem
 // whatever the gunner would have got (a post or a sector).
 modded class SCR_AIClearActionsForDefendActivity
 {
+ protected float m_fBBBSaidAt = -1; // one DEFEND line per group every LOG_MS (the step runs several times a re-plan)
+
  override ENodeResult EOnTaskSimulate(AIAgent owner, float dt)
  {
   IEntity waypoint;
   GetVariableIn(PORT_WAYPOINT, waypoint);
   if (m_bKeepTurrets || !m_groupOwner || !BBB_DefendGuns.AllOnDefendGuns(m_groupOwner, SCR_DefendWaypoint.Cast(waypoint))) return super.EOnTaskSimulate(owner, dt);
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (m_fBBBSaidAt < 0 || now - m_fBBBSaidAt >= BBB_DefendGuns.LOG_MS)
+  {
+   m_fBBBSaidAt = now;
+   PrintFormat("[BBB] DEFEND %1: re-planning the defence, its gunners stay on their guns", BBB.s_Hooks.NameOf(m_groupOwner));
+  }
   m_bKeepTurrets = true;
   ENodeResult result = super.EOnTaskSimulate(owner, dt);
   m_bKeepTurrets = false;
@@ -134,6 +142,7 @@ modded class SCR_AIDefendActivity
 class BBB_DefendGuns
 {
  static int s_iKept; // tests
+ static const float LOG_MS = 300000;
 
  // Each of the group's Defend guns (its allocated turret seats) with an able member of the group on it.
  static void Gunners(SCR_AIGroup group, notnull map<BaseCompartmentSlot, AIAgent> gunners)
@@ -178,7 +187,6 @@ class BBB_DefendGuns
   }
   if (kept == 0) return false;
   s_iKept++;
-  PrintFormat("[BBB] DEFEND %1: re-planning the defence, %2 gunner(s) stay on their guns", BBB.s_Hooks.NameOf(group), kept);
   return true;
  }
 
