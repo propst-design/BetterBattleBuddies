@@ -74,7 +74,9 @@ modded class SCR_AIClearActionsForDefendActivity
 {
  override ENodeResult EOnTaskSimulate(AIAgent owner, float dt)
  {
-  if (m_bKeepTurrets || !m_groupOwner || !BBB_DefendGuns.AllOnOwnGuns(m_groupOwner)) return super.EOnTaskSimulate(owner, dt);
+  IEntity waypoint;
+  GetVariableIn(PORT_WAYPOINT, waypoint);
+  if (m_bKeepTurrets || !m_groupOwner || !BBB_DefendGuns.AllOnDefendGuns(m_groupOwner, SCR_DefendWaypoint.Cast(waypoint))) return super.EOnTaskSimulate(owner, dt);
   m_bKeepTurrets = true;
   ENodeResult result = super.EOnTaskSimulate(owner, dt);
   m_bKeepTurrets = false;
@@ -152,22 +154,31 @@ class BBB_DefendGuns
   }
  }
 
- // Every able man of the group in a turret sits on one of its Defend guns (then the clear step may keep them).
- static bool AllOnOwnGuns(SCR_AIGroup group)
+ // Margin past the Defend waypoint's radius within which a gun counts as the defence's own.
+ static const float GUN_MARGIN_M = 30;
+
+ // The clear step runs before the re-plan allocates the group's guns again (GetAllocatedCompartments is
+ // empty then), so it goes by place: there are AI gunners of the group, every one of them able and on a
+ // gun inside the Defend waypoint's area. A man in any other turret (a vehicle parked elsewhere) still
+ // gets vanilla's get-out.
+ static bool AllOnDefendGuns(SCR_AIGroup group, SCR_DefendWaypoint waypoint)
  {
-  map<BaseCompartmentSlot, AIAgent> gunners = new map<BaseCompartmentSlot, AIAgent>();
-  Gunners(group, gunners);
-  if (gunners.IsEmpty()) return false;
+  if (!group || !waypoint) return false;
+  float reach = waypoint.GetCompletionRadius() + GUN_MARGIN_M;
+  int kept;
   array<AIAgent> agents = {};
   group.GetAgents(agents);
   foreach (AIAgent agent : agents)
   {
    IEntity body = agent.GetControlledEntity();
-   if (!body || !BBB_VehicleHelpers.IsAble(body) || BBB_Transport.SeatOf(body) != ECompartmentType.TURRET) continue;
-   bool own = false;
-   foreach (BaseCompartmentSlot seat, AIAgent gunner : gunners) if (gunner == agent) own = true;
-   if (!own) return false;
+   if (!body || BBB_Transport.SeatOf(body) != ECompartmentType.TURRET) continue;
+   IEntity gun = BBB_Transport.VehicleOf(body);
+   if (!BBB_VehicleHelpers.IsAble(body) || BBB.PlayerOf(body) || !gun || vector.DistanceXZ(gun.GetOrigin(), waypoint.GetOrigin()) > reach) return false;
+   kept++;
   }
+  if (kept == 0) return false;
+  s_iKept++;
+  PrintFormat("[BBB] DEFEND %1: re-planning the defence, %2 gunner(s) stay on their guns", BBB.s_Hooks.NameOf(group), kept);
   return true;
  }
 
