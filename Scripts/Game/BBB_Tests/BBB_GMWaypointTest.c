@@ -9,12 +9,14 @@
 // the hooks list no groups). Then the morale gate, once BBB runs: the team (tracked at full strength
 // with no order) loses three of four men under a GM defend with an enemy team in sight (both hold
 // fire): no break; with the order taken away the same squad breaks (the control); a GM order given
-// again ends the break under way. The morale stage runs only alone (preset gmwaypoint): the reactions
+// again ends the break under way. Anti-armour scatter (Jacob, 18 Nov): it puts the survivor down near a
+// BTR while he holds (control), and a withdrawal beats it: renewed at the break, he is out of it at once.
+// The morale stage runs only alone (preset gmwaypoint): the reactions
 // preset switches morale off and swaps the hooks at 15 s (18 Nov run: the control could not break).
 class BBB_GMWaypointTest : BBB_AimTest
 {
  static ref BBB_GMWaypointTest s_GM;
- static const int EXPECTED = 30;
+ static const int EXPECTED = 32;
  static const int ORDER_CHECKS = 26; // without the morale stage (beside the reactions preset)
  static const ResourceName E_MOVE = "{FFF9518F73279473}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_Move.et";
  static const ResourceName E_DEFEND = "{D9C14ECEC9772CC6}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_Defend.et";
@@ -27,9 +29,11 @@ class BBB_GMWaypointTest : BBB_AimTest
  static const ResourceName WP_DEFEND_SMALL = "{2FCBE5C76E285A7B}Prefabs/AI/Waypoints/AIWaypoint_DefendSmall.et";
  static const ResourceName WP_FORCED = "{06E1B6EBD480C6E0}Prefabs/AI/Waypoints/AIWaypoint_ForcedMove.et";
  static const ResourceName WP_GETIN = "{712F4795CF8B91C7}Prefabs/AI/Waypoints/AIWaypoint_GetIn.et";
+ static const ResourceName BTR = "{C012BB3488BEA0C2}Prefabs/Vehicles/Wheeled/BTR70/BTR70.et";
  SCR_AIGroup m_Team;
  SCR_AIGroup m_Enemy;
  ChimeraCharacter m_Survivor;
+ IEntity m_Armour;
  int m_iWait;
  int m_iPolls;
  vector m_vHome;
@@ -251,6 +255,11 @@ class BBB_GMWaypointTest : BBB_AimTest
   vector threat;
   bool seen = BBB_Morale.GetThreatCentroid(m_Team, threat);
   GMCheck("morale-gm-no-break", alive && BBB_Morale.IsOn() && BBB_OrderIntent.GameMasterOrder(m_Team) && !BBB_Morale.IsWithdrawing(m_Team), string.Format("survivor=%1 threat=%2 withdrawing=%3", alive, seen, BBB_Morale.IsWithdrawing(m_Team)));
+  // The scatter's control: a BTR 60 m off puts him down (8-14 s) while he holds.
+  m_Armour = Spawn(BTR, m_Survivor.GetOrigin() + Vector(60, 0, 0), Vector(-1, 0, 0));
+  if (m_Armour) m_Spawned.Insert(m_Armour);
+  BBB_Armour.CheckGroupAntiArmor(m_Team, m_Armour);
+  GMCheck("scatter-control-holding", m_Armour && BBB_Armour.InAntiArmorJob(m_Survivor), string.Format("armour=%1", m_Armour != null));
   Give(null);
   m_iWait = 0;
   GetGame().GetCallqueue().CallLater(WaitBreak, 1000);
@@ -263,8 +272,9 @@ class BBB_GMWaypointTest : BBB_AimTest
   if (BBB_Morale.IsWithdrawing(m_Team))
   {
    GMCheck("morale-breaks-without-gm", true, string.Format("after %1 s", m_iWait));
-   Give(Waypoint(E_DEFEND, m_Survivor.GetOrigin()));
-   GetGame().GetCallqueue().CallLater(CheckEnded, 3000);
+   // Seen again at the break: without the rule this would renew his job; with it the watch ends it.
+   BBB_Armour.CheckGroupAntiArmor(m_Team, m_Armour);
+   GetGame().GetCallqueue().CallLater(CheckScatterYields, 600);
    return;
   }
   if (m_iWait >= 12)
@@ -275,6 +285,14 @@ class BBB_GMWaypointTest : BBB_AimTest
    return;
   }
   GetGame().GetCallqueue().CallLater(WaitBreak, 1000);
+ }
+
+ // A morale withdrawal beats anti-armour scatter (Jacob, 18 Nov): his job (8-14 s, started a few s ago) is gone.
+ void CheckScatterYields()
+ {
+  GMCheck("withdrawal-beats-scatter", BBB_Morale.IsWithdrawing(m_Team) && !BBB_Armour.InAntiArmorJob(m_Survivor), string.Format("withdrawing=%1 job=%2", BBB_Morale.IsWithdrawing(m_Team), BBB_Armour.InAntiArmorJob(m_Survivor)));
+  Give(Waypoint(E_DEFEND, m_Survivor.GetOrigin()));
+  GetGame().GetCallqueue().CallLater(CheckEnded, 3000);
  }
 
  // A GM order given to the squad mid-break ends the break.
