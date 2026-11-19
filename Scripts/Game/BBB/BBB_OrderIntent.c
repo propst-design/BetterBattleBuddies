@@ -153,8 +153,11 @@ class BBB_OrderIntent
 // Master waypoints are editable copies (PrefabsEditable/.../E_AIWaypoint_Move.et), Conflict and the
 // Scenario Framework use variants (AIWaypoint_Defend_CP, _Large, _Hierarchy): matching the base
 // prefab's path failed all of them, so the leash read a GM move as no order while BBB_Tactic's
-// looser match read it as ground to take. Defend by class; otherwise the prefab and its ancestors,
-// by file stem ("E_" dropped, "_variant" suffixes allowed, any Defend*/Hold*); search and destroy by class last.
+// looser match read it as ground to take. The prefab and its ancestors, by file stem ("E_" dropped,
+// "_variant" suffixes allowed, any Defend*/Hold*); search and destroy by class last.
+// Defend is NOT read from the class alone: every vanilla defend prefab (1.9 paks) descends from an
+// AIWaypoint_Defend* stem, while a host's custom SCR_DefendWaypoint on AIWaypoint_Base (e.g. a host
+// garrison that keeps its men in their buildings) stays no order, as before 15 Nov (fail closed).
 // Used by the order leash (Intent, Defensive) and BBB_Tactic.Advancing, so both read alike.
 class BBB_WaypointKind
 {
@@ -168,7 +171,6 @@ class BBB_WaypointKind
  static int Of(AIWaypoint waypoint)
  {
   if (!waypoint) return NONE;
-  if (SCR_DefendWaypoint.Cast(waypoint)) return DEFEND;
   EntityPrefabData data = waypoint.GetPrefabData();
   if (data)
   {
