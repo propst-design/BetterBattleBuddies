@@ -235,6 +235,12 @@ class BBB_Morale
 		PrintFormat("[BBB] MORALE enabled=%1 surrender=%2 casualtyThreshold=%3", s_bOn, s_bSurrenderOn, s_fCasualtyThreshold);
 	}
 
+	static bool IsOn()
+	{
+		Read();
+		return s_bOn;
+	}
+
 	// Host or other modules can query if a group is currently breaking contact.
 	static bool IsWithdrawing(SCR_AIGroup group)
 	{
