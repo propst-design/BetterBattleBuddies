@@ -312,15 +312,29 @@ class BBB_DoorTest : BBB_AimTest
  void Poll()
  {
   // Phase 1: the blockers stand in for the leaf, so the module's swing clears the way.
+  bool justLifted = false;
   if (m_Phase == 1 && !m_Blockers.IsEmpty() && BBB_DoorUnstick.s_iSwings > m_Swings[1])
   {
    PrintFormat("[BBB] DOORTEST phase=1 swing seen at %1 s: doorways cleared", Now() - m_PhaseStart);
    LiftBlockers();
    m_LiftedAt = Now();
    m_Lifted = true;
+   justLifted = true;
   }
   array<AIAgent> agents = {};
   m_Team.GetAgents(agents);
+  // Everyone still held at a doorway when the swing is seen was jammed before it: the module can
+  // spot a stall (and swing) a second before this poll's own 3 s count does (integration, run of
+  // 0755422: the TL was swung for, then counted jammed after the swing, so "jammed before=0").
+  if (justLifted)
+  {
+   foreach (AIAgent held : agents)
+   {
+    IEntity heldMan = held.GetControlledEntity();
+    if (!heldMan || m_JamAt.Contains(heldMan) || !NearDoorway(heldMan.GetOrigin()) || Through(heldMan)) continue;
+    m_JamAt.Set(heldMan, heldMan.GetOrigin());
+   }
+  }
   foreach (AIAgent agent : agents)
   {
    IEntity man = agent.GetControlledEntity();
