@@ -1472,7 +1472,8 @@ class BBB_Morale
 
 			// Any member may give up, a withdrawing squad's stragglers included.
 			if (surrender) CheckSurrenders(agents);
-			if (!managed) continue;
+			// His last man gave up: the engine may delete the emptied group then and there.
+			if (!group || !managed) continue;
 
 			BBB_GroupMoraleState state = GetOrCreateState(group, agents.Count());
 			if (!state) continue;

@@ -15,6 +15,7 @@
 - Soldiers sent prone or crouching by nearby enemy armour get up as soon as a player joins or takes over their squad.
 - For mod makers: a squad already falling back after its morale broke now switches to the host mod's own fall-back order (covered bounds toward the host's spot) when one comes, instead of running straight away from the enemy and then waiting a minute.
 - A squad its host mod has ordered to fall back no longer drops prone or crouches around enemy armour, from the moment of the order, not only once it is bounding back under fire.
+- Fixed a possible script error when the last man of a squad surrenders.
 
 ## 0.2.0 — released
 
