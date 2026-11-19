@@ -9,11 +9,13 @@
 // the hooks list no groups). Then the morale gate, once BBB runs: the team (tracked at full strength
 // with no order) loses three of four men under a GM defend with an enemy team in sight (both hold
 // fire): no break; with the order taken away the same squad breaks (the control); a GM order given
-// again ends the break under way.
+// again ends the break under way. The morale stage runs only alone (preset gmwaypoint): the reactions
+// preset switches morale off and swaps the hooks at 15 s (18 Nov run: the control could not break).
 class BBB_GMWaypointTest : BBB_AimTest
 {
  static ref BBB_GMWaypointTest s_GM;
  static const int EXPECTED = 30;
+ static const int ORDER_CHECKS = 26; // without the morale stage (beside the reactions preset)
  static const ResourceName E_MOVE = "{FFF9518F73279473}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_Move.et";
  static const ResourceName E_DEFEND = "{D9C14ECEC9772CC6}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_Defend.et";
  static const ResourceName WP_MOVE = "{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et";
@@ -164,6 +166,12 @@ class BBB_GMWaypointTest : BBB_AimTest
   GMCheck("conflict-defend-leash-defensive", BBB_OrderLeash.Intent(defend) && BBB_OrderLeash.Defensive(defend));
   GMCheck("conflict-defend-tactic-holds", !BBB_Tactic.Advancing(m_Team, anchor.GetOrigin()));
   BBB_OrderLeash.Stop(); // the leases captured above, before BBB runs (later: other presets' leases)
+  if (System.IsCLIParam("bbbReactionTest"))
+  {
+   Print("[BBB] GMWAYPOINT morale stage skipped beside the reactions preset (it turns morale off)");
+   FinishGM();
+   return;
+  }
   MoraleBaseline();
  }
 
@@ -242,7 +250,7 @@ class BBB_GMWaypointTest : BBB_AimTest
   bool alive = BBB.IsConscious(m_Survivor);
   vector threat;
   bool seen = BBB_Morale.GetThreatCentroid(m_Team, threat);
-  GMCheck("morale-gm-no-break", alive && BBB_OrderIntent.GameMasterOrder(m_Team) && !BBB_Morale.IsWithdrawing(m_Team), string.Format("survivor=%1 threat=%2 withdrawing=%3", alive, seen, BBB_Morale.IsWithdrawing(m_Team)));
+  GMCheck("morale-gm-no-break", alive && BBB_Morale.IsOn() && BBB_OrderIntent.GameMasterOrder(m_Team) && !BBB_Morale.IsWithdrawing(m_Team), string.Format("survivor=%1 threat=%2 withdrawing=%3", alive, seen, BBB_Morale.IsWithdrawing(m_Team)));
   Give(null);
   m_iWait = 0;
   GetGame().GetCallqueue().CallLater(WaitBreak, 1000);
@@ -300,9 +308,11 @@ class BBB_GMWaypointTest : BBB_AimTest
    foreach (IEntity spawned : m_Spawned)
     if (spawned) SCR_EntityHelper.DeleteEntityAndChildren(spawned);
   }
+  int expected = EXPECTED;
+  if (System.IsCLIParam("bbbReactionTest")) expected = ORDER_CHECKS;
   string verdict = "PASS";
-  if (m_Failures > 0 || m_Checks != EXPECTED) verdict = "FAIL";
-  PrintFormat("[ACR] VERDICT %1 test=bbb-gm-waypoint checks=%2 failed=%3 expected=%4", verdict, m_Checks, m_Failures, EXPECTED);
+  if (m_Failures > 0 || m_Checks != expected) verdict = "FAIL";
+  PrintFormat("[ACR] VERDICT %1 test=bbb-gm-waypoint checks=%2 failed=%3 expected=%4", verdict, m_Checks, m_Failures, expected);
   // Alone it ends the run; beside the reactions preset, that test ends it.
   if (!System.IsCLIParam("bbbReactionTest")) Print("[ACR] TEST COMPLETE");
  }
