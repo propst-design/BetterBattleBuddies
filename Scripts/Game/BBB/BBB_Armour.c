@@ -674,7 +674,9 @@ class BBB_Armour
   for (int i = s_aAntiArmorJobs.Count() - 1; i >= 0; i--)
   {
    BBB_AntiArmorJob job = s_aAntiArmorJobs[i];
-   if (!job || !EligibleForAntiArmor(job.m_Utility, job.m_Soldier) || nowMs >= job.m_fEndMs || HostBinds(job.m_Group) || BBB_Morale.IsWithdrawing(job.m_Group))
+   // A player who joins or takes the squad (or a man who changed squads) ends it too, as at the start.
+   if (!job || !EligibleForAntiArmor(job.m_Utility, job.m_Soldier) || nowMs >= job.m_fEndMs || HostBinds(job.m_Group) || BBB_Morale.IsWithdrawing(job.m_Group)
+    || !job.m_Group || BBB.HasPlayer(job.m_Group) || BBB_HeldGuns.GroupOf(job.m_Soldier) != job.m_Group)
    {
     ReleaseAntiArmorJob(job);
     s_aAntiArmorJobs.RemoveOrdered(i);
