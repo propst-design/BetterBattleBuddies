@@ -13,6 +13,7 @@
 - A grenadier kept on a target by his squad leader, or a vehicle's grenade-launcher gunner holding his target, no longer keeps firing grenades once the target has closed inside their arming range: the arming check now also applies while he holds that target.
 - A soldier on his way to man a static gun now turns back with his squad when it falls back, instead of walking on toward the enemy alone.
 - Soldiers sent prone or crouching by nearby enemy armour get up as soon as a player joins or takes over their squad.
+- For mod makers: a squad already falling back after its morale broke now switches to the host mod's own fall-back order (covered bounds toward the host's spot) when one comes, instead of running straight away from the enemy and then waiting a minute.
 
 ## 0.2.0 — released
 

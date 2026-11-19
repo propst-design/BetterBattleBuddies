@@ -1488,6 +1488,9 @@ class BBB_Morale
 			if (state.m_bWithdrawing)
 			{
 				if (state.m_bOrdered && !state.m_bOrderedNow) EndWithdrawal(state, now, false, "the host's order changed", 0, ORDER_RETRY_S);
+				// A break under way when the host orders a fall-back: the fall-back takes over (its covered bounds
+				// toward the host's spot start next tick; no cooldown, or a minute in contact with neither).
+				else if (!state.m_bOrdered && state.m_bOrderedNow) EndWithdrawal(state, now, false, "the host ordered a fall-back", 0, 0);
 				else if (!state.m_bOrdered && !moraleAllowed) DropWithdrawal(group, now);
 				else UpdateWithdrawal(state, now);
 				continue;
