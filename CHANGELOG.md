@@ -3,6 +3,13 @@
 ## 0.2.1 — unreleased
 
 - Grenadiers no longer waste their grenades on targets too close for them to go off. A 40 mm grenade only arms after flying about 15 m, but the game let AI fire it from 14 m, measured to the middle of the target rather than the side it hits, so at a jeep a stone's throw away the grenades landed as duds until he had none left. Now a grenadier with an HE or dual-purpose grenade loaded doesn't fire it at a target inside its arming range plus 5 m: he uses his rifle or sidearm, and a man with only a grenade launcher, such as an M79, holds fire and backs off until he is far enough. The arming distance is read from each grenade, so modded launchers and rounds are covered too. Smoke and flare rounds, and targets further away, are unaffected. In a test, M79 grenadiers 15 m from a jeep fired their grenades from there before (where they can't arm); now they backed off to 24 m before firing. M203 grenadiers 10 m from an armoured car switched to their rifles, and at 80 m both fired as before. Option: `-bbbGLArming 0` (or the Battle Buddies settings tab, Awareness and aim).
+- Game Master orders come first for morale: a squad on a Game Master waypoint no longer breaks and falls back or surrenders, and a break already under way ends when the Game Master gives it an order. The men still react to fire as usual.
+- Game Master and Conflict waypoints are read the same way as the base ones: an editable move or defend waypoint, and Conflict's defend variants, now get the order leash and squad tactics a base move or defend gets. Custom defend waypoints of other mods (such as AC: Actual's garrisons) are treated as before.
+- A squad falling back after its morale breaks no longer drops prone around enemy armour: the withdrawal goes on.
+- Soldiers stuck in a doorway no longer swing the door open and shut every minute or so: a man the nudge can't move (he holds a post, or there is nowhere to step) gives up at once, and the nudge is measured from where he is on his path.
+- A soldier climbing onto a static gun no longer has the wounded gunner he replaced put back onto it in the middle of getting in.
+- With the optional hot-vehicle setting (`-bbbHotVehicles 1`), player-led and host-controlled gunners and vehicles are left alone by its reload, re-attack and under-fire slow-down rules too.
+- A deleted Defend waypoint no longer logs an error.
 
 ## 0.2.0 — released
 
