@@ -231,7 +231,7 @@ $flags.armour = '-bbbArmourTest 1'
 $timeouts.armour = 1080
 $flags.gunner = '-bbbGunnerTest 1'
 $timeouts.gunner = 1800
-$world ='{AC230926A00100E0}Worlds/BBB_TestArland.ent'
+$world ='{BBB07E5700000001}Worlds/BBB_TestArland.ent'
 if ($Preset -eq 'compile') { $world = '{77C41EA429B6AC35}worlds/GameMaster/GM_Arland.ent' }
 # The game loads the first addon with BBB's GUID it finds in -addonsDir, and the parent folder can
 # hold several: every sibling worktree under .claude/worktrees has the same GUID (9 Nov: a run from
