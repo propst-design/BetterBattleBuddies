@@ -62,3 +62,119 @@ modded class SCR_AIEnemyMarkingSystem
   super.MarkTarget(targetInfo, spottingGroup);
  }
 }
+
+// A gunner keeps his group's gun while it defends (AC: Actual, 19 Nov 2026: a machine-gun team holding
+// a roadblock swapped men on its gun every 2.5-3.5 min all match, the gun empty a few seconds each time;
+// srv:rbgunner reproduced it, 150 s apart, no enemy near). Vanilla's Defend re-plans now and then: its
+// clear step orders every turret occupant out (m_bKeepTurrets off) and its allocation hands each of the
+// group's guns to a random member. Now a man already on one of the group's own Defend guns is left on it,
+// and if the draw gives that gun to someone else, the two swap: the gunner stays, the other man takes
+// whatever the gunner would have got (a post or a sector).
+modded class SCR_AIClearActionsForDefendActivity
+{
+ override ENodeResult EOnTaskSimulate(AIAgent owner, float dt)
+ {
+  if (m_bKeepTurrets || !m_groupOwner || !BBB_DefendGuns.AllOnOwnGuns(m_groupOwner)) return super.EOnTaskSimulate(owner, dt);
+  m_bKeepTurrets = true;
+  ENodeResult result = super.EOnTaskSimulate(owner, dt);
+  m_bKeepTurrets = false;
+  return result;
+ }
+}
+
+modded class SCR_AIAllocateActionsForDefendActivity
+{
+ // The gunner on each of the group's guns, and who took his place in the draw (this run only).
+ protected ref map<BaseCompartmentSlot, AIAgent> m_mBBBGunners;
+
+ override ENodeResult EOnTaskSimulate(AIAgent owner, float dt)
+ {
+  if (!m_groupOwner || !m_RelatedActivity) return super.EOnTaskSimulate(owner, dt);
+  m_mBBBGunners = new map<BaseCompartmentSlot, AIAgent>();
+  BBB_DefendGuns.Gunners(m_groupOwner, m_mBBBGunners);
+  m_RelatedActivity.m_mBBBStandIn = new map<AIAgent, AIAgent>();
+  ENodeResult result = super.EOnTaskSimulate(owner, dt);
+  m_RelatedActivity.m_mBBBStandIn = null;
+  m_mBBBGunners = null;
+  return result;
+ }
+
+ override protected bool OccupyTurret(AIAgent who, BaseCompartmentSlot slot, bool teleport)
+ {
+  AIAgent gunner;
+  if (m_mBBBGunners && m_mBBBGunners.Find(slot, gunner) && gunner)
+  {
+   // He keeps it; the man drawn for it stands in for him in the rest of the draw.
+   if (who != gunner && m_RelatedActivity && m_RelatedActivity.m_mBBBStandIn) m_RelatedActivity.m_mBBBStandIn.Set(gunner, who);
+   BBB_DefendGuns.s_iKept++;
+   return true;
+  }
+  return super.OccupyTurret(who, slot, teleport);
+ }
+
+ override protected bool OccupySA(AIAgent who, AISmartActionComponent smartAction, bool teleport)
+ {
+  return super.OccupySA(BBB_DefendGuns.StandIn(m_RelatedActivity, who), smartAction, teleport);
+ }
+}
+
+modded class SCR_AIDefendActivity
+{
+ // While the allocation runs: a gunner kept on his gun -> the man who takes his other job.
+ ref map<AIAgent, AIAgent> m_mBBBStandIn;
+
+ override void AddAgentToRadialCover(AIAgent agent)
+ {
+  super.AddAgentToRadialCover(BBB_DefendGuns.StandIn(this, agent));
+ }
+}
+
+class BBB_DefendGuns
+{
+ static int s_iKept; // tests
+
+ // Each of the group's Defend guns (its allocated turret seats) with an able member of the group on it.
+ static void Gunners(SCR_AIGroup group, notnull map<BaseCompartmentSlot, AIAgent> gunners)
+ {
+  gunners.Clear();
+  if (!group) return;
+  array<BaseCompartmentSlot> seats = {};
+  group.GetAllocatedCompartments(seats);
+  array<AIAgent> agents = {};
+  group.GetAgents(agents);
+  foreach (BaseCompartmentSlot seat : seats)
+  {
+   if (!TurretCompartmentSlot.Cast(seat)) continue;
+   IEntity occupant = seat.GetOccupant();
+   if (!occupant || !BBB_VehicleHelpers.IsAble(occupant) || BBB.PlayerOf(occupant)) continue;
+   foreach (AIAgent agent : agents)
+    if (agent && agent.GetControlledEntity() == occupant) gunners.Set(seat, agent);
+  }
+ }
+
+ // Every able man of the group in a turret sits on one of its Defend guns (then the clear step may keep them).
+ static bool AllOnOwnGuns(SCR_AIGroup group)
+ {
+  map<BaseCompartmentSlot, AIAgent> gunners = new map<BaseCompartmentSlot, AIAgent>();
+  Gunners(group, gunners);
+  if (gunners.IsEmpty()) return false;
+  array<AIAgent> agents = {};
+  group.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!body || !BBB_VehicleHelpers.IsAble(body) || BBB_Transport.SeatOf(body) != ECompartmentType.TURRET) continue;
+   bool own = false;
+   foreach (BaseCompartmentSlot seat, AIAgent gunner : gunners) if (gunner == agent) own = true;
+   if (!own) return false;
+  }
+  return true;
+ }
+
+ static AIAgent StandIn(SCR_AIDefendActivity activity, AIAgent agent)
+ {
+  AIAgent standIn;
+  if (activity && activity.m_mBBBStandIn && activity.m_mBBBStandIn.Find(agent, standIn) && standIn) return standIn;
+  return agent;
+ }
+}
