@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.2.1 — unreleased
+## 0.2.2 — unreleased
+
+## 0.2.1 — released
 
 - Grenadiers no longer waste their grenades on targets too close for them to go off. A 40 mm grenade only arms after flying about 15 m, but the game let AI fire it from 14 m, measured to the middle of the target rather than the side it hits, so at a jeep a stone's throw away the grenades landed as duds until he had none left. Now a grenadier with an HE or dual-purpose grenade loaded doesn't fire it at a target inside its arming range plus 5 m: he uses his rifle or sidearm, and a man with only a grenade launcher, such as an M79, holds fire and backs off until he is far enough. The arming distance is read from each grenade, so modded launchers and rounds are covered too. Smoke and flare rounds, and targets further away, are unaffected. In a test, M79 grenadiers 15 m from a jeep fired their grenades from there before (where they can't arm); now they backed off to 24 m before firing. M203 grenadiers 10 m from an armoured car switched to their rifles, and at 80 m both fired as before. Option: `-bbbGLArming 0` (or the Battle Buddies settings tab, Awareness and aim).
 - Game Master orders come first for morale: a squad on a Game Master waypoint no longer breaks and falls back or surrenders, and a break already under way ends when the Game Master gives it an order. The men still react to fire as usual.
