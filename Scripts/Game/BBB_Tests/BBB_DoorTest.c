@@ -6,29 +6,35 @@ class BBB_DoorTestHooks : BBB_Hooks
  override bool AllowDoorUnstick(SCR_AIGroup group) { return !m_Veto; }
 }
 
-// A fireteam ordered through a real Arland house door, twice: first with the host veto (BBB swings
+// A fireteam ordered into a real Arland house, twice: first with the host veto (BBB swings
 // nothing), then with door unstick on. In 1.9 the AI opens a closed house door itself and a leaf
-// rarely stops anyone (the old fixture jammed in 3 of 8 baselines even before 1.9), so the doorway
-// is blocked by a high sandbag wall just inside it: off the baked navmesh, the soldiers keep their
-// path and press against it, a real engine stall next to the door. In the second phase the wall
-// stands in for the leaf: it is lifted the moment the module swings the door, so a freed soldier
-// and more men through prove the module's chain (stall seen, door found, swing, moved on).
-// Judged on physical outcomes: soldiers standing jammed next to the door (measured by the test,
-// not by the module's counters), soldiers past the wall at the end, and the door leaf's real state
-// after a swing. Then the end of a failed round on a soldier really walking (a man held still loses
-// his path): he is set a short way further along his path each time, and in the end he and the
-// door are left alone. Last, the same failed rounds for a man flagged in cover (vanilla's flag, as
-// behind sandbags) with a path a nudge could follow: never moved, and left alone at once.
+// rarely stops anyone (the old fixture jammed in 3 of 8 baselines even before 1.9), so every
+// ground-floor doorway of the house is held by a soldier whose AI is off, standing in the
+// threshold with the leaf open beside him: the navmesh doesn't see a man, so the team keeps its
+// path and presses against him, a real engine stall next to a house door, with no way round
+// (a sandbag wall, tried 18 Nov, is cut into the navmesh and the team walked to another door).
+// In the second phase the blockers stand in for the leaf: they are lifted the moment the module
+// swings a door, so a freed soldier and men reaching the order prove the module's chain (stall
+// seen, door found, swing, moved on). Judged on physical outcomes: team members standing jammed
+// next to a house door (measured by the test, not by the module's counters), men at the order at
+// the end, and the door leaf's real state after a swing. Then the end of a failed round on a
+// soldier really walking (a man held still loses his path): he is set a short way further along
+// his path each time, and in the end he and the door are left alone. Last, the same failed rounds
+// for a man flagged in cover (vanilla's flag, as behind sandbags) with a path a nudge could
+// follow: never moved, and left alone at once.
 class BBB_DoorTest : BBB_AimTest
 {
  static ref BBB_DoorTest s_DoorTest;
  static const float PHASE_S = 40;
  static const float BLOCKING = 0.4;
- static const float WALL_AT = 1.35;   // wall centre, m inside the door (1.2 m deep: clear of a 0.9 m leaf)
- static const float THROUGH_AT = 2.3; // past the wall's far face
+ static const float ORDER_IN = 3.2;   // order this far inside the chosen door (ChooseDoor checked a roof 3 m in)
+ static const float AT_ORDER = 1.6;   // a man this close to it got in
  static const int EXPECTED = 19;
- static const ResourceName WALL = "{BE16EE8FAA315FE2}Prefabs/Props/Military/Sandbags/Sandbag_01_long_high_burlap.et";
- IEntity m_Wall;
+ static const ResourceName BLOCKER = "{26A9756790131354}Prefabs/Characters/Factions/BLUFOR/US_Army/Character_US_Rifleman.et";
+ ref array<IEntity> m_Blockers = {};
+ ref array<BaseDoorComponent> m_HouseDoors = {};
+ ref array<vector> m_Doorways = {};  // each house door's closed-leaf centre: the threshold
+ vector m_Target;
  ref BBB_DoorTestHooks m_Hooks;
  ref BBB_Hooks m_SavedHooks;
  ref array<IEntity> m_Candidates = {};
@@ -137,8 +143,10 @@ class BBB_DoorTest : BBB_AimTest
    m_Center = center;
    break;
   }
-  DoorCheck("door-fixture", m_Door != null, string.Format("door=%1 center=%2 inward=%3", m_Door, m_Center, m_Inward));
+  if (m_Door) CollectHouseDoors();
+  DoorCheck("door-fixture", m_Door != null, string.Format("door=%1 center=%2 inward=%3 house doors=%4", m_Door, m_Center, m_Inward, m_HouseDoors.Count()));
   if (!m_Door) { DoorFinish(); return; }
+  m_Target = m_Center + m_Inward * ORDER_IN;
   DoorCheck("finds-house-door", BBB_DoorUnstick.HouseDoorNear(m_Center) == m_DoorComp);
   // Mechanism on its own: a half-open leaf is swung fully open, physically.
   m_DoorComp.SetControlValue(BLOCKING, RplId.Invalid());
@@ -173,9 +181,8 @@ class BBB_DoorTest : BBB_AimTest
   BBB_DoorUnstick.Stop();
   m_Last.Clear();
   m_JamSeconds.Clear();
-  m_DoorComp.SetControlValue(0, RplId.Invalid());
-  m_Wall = SpawnWall();
-  DoorCheck(string.Format("wall-%1", m_Phase), m_Wall != null, string.Format("at %1", m_Center + m_Inward * WALL_AT));
+  int held = HoldDoorways();
+  DoorCheck(string.Format("doorways-held-%1", m_Phase), held == m_Doorways.Count() && held > 0, string.Format("held %1 of %2", held, m_Doorways.Count()));
   m_Team = SCR_AIGroup.Cast(Spawn(TEAM_US, m_Outside - m_Inward * 5, m_Inward));
   if (!m_Team) { DoorCheck("team", false); DoorFinish(); return; }
   m_Hooks.m_Groups.Clear();
@@ -195,8 +202,7 @@ class BBB_DoorTest : BBB_AimTest
    agent.ActivateAI();
   }
   m_Team.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE);
-  // Past the wall, under the roof (ChooseDoor checked 3 m in); short of it can't complete the order.
-  m_Order = AIWaypoint.Cast(Spawn("{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et", m_Center + m_Inward * 3.2, m_Inward));
+  m_Order = AIWaypoint.Cast(Spawn("{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et", m_Target, m_Inward));
   if (m_Order) { m_Order.SetCompletionRadius(0.8); m_Team.AddWaypoint(m_Order); }
   DoorCheck(string.Format("order-%1", m_Phase), m_Order != null);
   m_PhaseStart = Now();
@@ -205,47 +211,81 @@ class BBB_DoorTest : BBB_AimTest
   GetGame().GetCallqueue().CallLater(Poll, 1000, true);
  }
 
- // Long side across the doorway, on the floor (the leaf's bottom edge), not the terrain under the house.
- IEntity SpawnWall()
+ // Every ground-floor door of the chosen house (all closed since Setup): its threshold.
+ void CollectHouseDoors()
  {
-  Resource resource = Resource.Load(WALL);
-  if (!resource.IsValid()) return null;
-  vector mins, maxs;
-  m_Door.GetBounds(mins, maxs);
-  vector at = m_Center + m_Inward * WALL_AT;
-  at[1] = Math.Max(m_Center[1] - (maxs[1] - mins[1]) * 0.5, GetGame().GetWorld().GetSurfaceY(at[0], at[2]));
-  EntitySpawnParams parameters = new EntitySpawnParams();
-  parameters.TransformMode = ETransformMode.WORLD;
-  vector angles = m_Inward.VectorToAngles();
-  angles[1] = 0;
-  angles[2] = 0;
-  Math3D.AnglesToMatrix(angles, parameters.Transform);
-  parameters.Transform[3] = at;
-  return GetGame().SpawnEntityPrefab(resource, GetGame().GetWorld(), parameters);
+  IEntity house = m_Door.GetRootParent();
+  foreach (IEntity door : m_Candidates)
+  {
+   if (door.GetRootParent() != house) continue;
+   vector center = SCR_EntityHelper.GetEntityCenterWorld(door);
+   if (Math.AbsFloat(center[1] - m_Center[1]) > 1.5) continue;
+   m_HouseDoors.Insert(BaseDoorComponent.Cast(door.FindComponent(BaseDoorComponent)));
+   m_Doorways.Insert(center);
+  }
  }
 
- void LiftWall()
+ // Leaves open, a soldier with his AI off in each threshold, on the floor (the leaf's bottom edge,
+ // not the terrain under the house). He is in no group the module or the test watches.
+ int HoldDoorways()
  {
-  if (!m_Wall) return;
-  SCR_EntityHelper.DeleteEntityAndChildren(m_Wall);
-  m_Wall = null;
+  LiftBlockers();
+  Resource resource = Resource.Load(BLOCKER);
+  if (!resource.IsValid()) return 0;
+  vector mins, maxs;
+  m_Door.GetBounds(mins, maxs);
+  float half = (maxs[1] - mins[1]) * 0.5;
+  foreach (int i, vector at : m_Doorways)
+  {
+   m_HouseDoors[i].SetControlValue(1, RplId.Invalid());
+   at[1] = Math.Max(at[1] - half, GetGame().GetWorld().GetSurfaceY(at[0], at[2])) + 0.05;
+   EntitySpawnParams parameters = new EntitySpawnParams();
+   parameters.TransformMode = ETransformMode.WORLD;
+   vector angles = m_Inward.VectorToAngles();
+   angles[1] = 0;
+   angles[2] = 0;
+   Math3D.AnglesToMatrix(angles, parameters.Transform);
+   parameters.Transform[3] = at;
+   IEntity blocker = GetGame().SpawnEntityPrefab(resource, GetGame().GetWorld(), parameters);
+   if (!blocker) continue;
+   AIControlComponent control = AIControlComponent.Cast(blocker.FindComponent(AIControlComponent));
+   if (control) control.DeactivateAI();
+   m_Blockers.Insert(blocker);
+  }
+  return m_Blockers.Count();
+ }
+
+ void LiftBlockers()
+ {
+  foreach (IEntity blocker : m_Blockers)
+  {
+   if (blocker) SCR_EntityHelper.DeleteEntityAndChildren(blocker);
+  }
+  m_Blockers.Clear();
+ }
+
+ bool NearDoorway(vector pos)
+ {
+  foreach (vector at : m_Doorways)
+  {
+   if (vector.DistanceXZ(pos, at) < 2.2) return true;
+  }
+  return false;
  }
 
  bool Through(IEntity man)
  {
-  vector offset = man.GetOrigin() - m_Center;
-  offset[1] = 0;
-  return vector.Dot(offset, m_Inward) > THROUGH_AT && offset.Length() < 10;
+  return vector.DistanceXZ(man.GetOrigin(), m_Target) < AT_ORDER;
  }
 
- // Test-side jam measure: next to the door, not through it, and not moving.
+ // Test-side jam measure: a team member next to a house door, not at the order, and not moving.
  void Poll()
  {
-  // Phase 1: the wall stands in for the leaf, so the module's swing clears the way.
-  if (m_Phase == 1 && m_Wall && BBB_DoorUnstick.s_iSwings > m_Swings[1])
+  // Phase 1: the blockers stand in for the leaf, so the module's swing clears the way.
+  if (m_Phase == 1 && !m_Blockers.IsEmpty() && BBB_DoorUnstick.s_iSwings > m_Swings[1])
   {
-   PrintFormat("[BBB] DOORTEST phase=1 swing seen at %1 s: wall lifted", Now() - m_PhaseStart);
-   LiftWall();
+   PrintFormat("[BBB] DOORTEST phase=1 swing seen at %1 s: doorways cleared", Now() - m_PhaseStart);
+   LiftBlockers();
   }
   array<AIAgent> agents = {};
   m_Team.GetAgents(agents);
@@ -257,7 +297,7 @@ class BBB_DoorTest : BBB_AimTest
    vector last = pos + "9 0 0";
    if (m_Last.Contains(man)) last = m_Last.Get(man);
    m_Last.Set(man, pos);
-   bool still = BBB_DoorUnstick.WantsToMove(agent) && vector.DistanceXZ(pos, last) < 0.2 && vector.DistanceXZ(pos, m_Center) < 2.2 && !Through(man);
+   bool still = BBB_DoorUnstick.WantsToMove(agent) && vector.DistanceXZ(pos, last) < 0.2 && NearDoorway(pos) && !Through(man);
    bool walked = vector.DistanceXZ(pos, last) > 0.5 && vector.DistanceXZ(pos, last) < 8;
    if (walked) m_MovingSamples++;
    if (walked && BBB_DoorUnstick.WantsToMove(agent)) m_WalkingSamples++;
@@ -288,7 +328,7 @@ class BBB_DoorTest : BBB_AimTest
   m_EverJammed.Clear();
   PrintFormat("[BBB] DOORTEST phase=%1 through=%2 jammed=%3 swings=%4 freed=%5", m_Phase, through, m_Jammed[m_Phase], BBB_DoorUnstick.s_iSwings - m_Swings[m_Phase], BBB_DoorUnstick.s_iFreed - m_Freed[m_Phase]);
   if (m_Order) { m_Team.RemoveWaypoint(m_Order); SCR_EntityHelper.DeleteEntityAndChildren(m_Order); }
-  LiftWall();
+  LiftBlockers();
   foreach (AIAgent agent : agents)
   {
    IEntity man = agent.GetControlledEntity();
@@ -434,7 +474,7 @@ class BBB_DoorTest : BBB_AimTest
   GetGame().GetCallqueue().Remove(Poll);
   GetGame().GetCallqueue().Remove(WalkerRound);
   GetGame().GetCallqueue().Remove(PostRound);
-  LiftWall();
+  LiftBlockers();
   BBB_DoorUnstick.Stop();
   if (m_SavedHooks) BBB.s_Hooks = m_SavedHooks;
   string verdict = "FAIL";
