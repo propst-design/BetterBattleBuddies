@@ -678,6 +678,9 @@ class BBB_StaticWeapons
 				else
 				{
 					string pendingReason = ReleaseReason(job, nowMs);
+					// His squad started withdrawing while he walked to the gun: he goes with it (a gun already
+					// crewed stays until tethered off). Picked for its arc on the threat, the gun is toward the enemy.
+					if (pendingReason == "" && BBB_Morale.IsWithdrawing(job.m_Group)) pendingReason = "squad withdrawing";
 					// A rescue (drag, medic) outranks walking to the gun: he goes there instead.
 					if (pendingReason == "" && !BBB_Claims.Take(job.m_Gunner, BBB_Claims.STATIC)) pendingReason = "taken for " + BBB_Claims.Name(BBB_Claims.Role(job.m_Gunner));
 					if (pendingReason == "")
