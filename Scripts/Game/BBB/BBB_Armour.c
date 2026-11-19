@@ -551,6 +551,7 @@ class BBB_Armour
    }
   }
   if (!threat) return;
+  if (FallingBack(group)) return; // the host's fall-back order wins from the order on (Jacob, 19 Nov), not only once BBB bounds
 
   vector threatPos = threat.GetOrigin();
   array<AIAgent> agents = {};
@@ -669,13 +670,38 @@ class BBB_Armour
   return group && BBB.s_Hooks && BBB.s_Hooks.IsBinding(group);
  }
 
+ // The host has ordered this squad to fall back (BBB_Hooks.Intent WITHDRAW), whether or not BBB's covered
+ // bounds (BBB_Morale, in contact only) have started: no crouch or prone hold for it (Jacob, 19 Nov).
+ static bool FallingBack(SCR_AIGroup group)
+ {
+  if (!group || !BBB.s_Hooks) return false;
+  vector destination;
+  float radius;
+  return BBB_HostIntent.Of(group, destination, radius) == BBB_EIntent.WITHDRAW;
+ }
+
  static void StepAntiArmor(float nowMs)
  {
+  // The host's intent once per squad per step (several men of one squad share it).
+  array<SCR_AIGroup> asked = {};
+  array<bool> fallingBack = {};
   for (int i = s_aAntiArmorJobs.Count() - 1; i >= 0; i--)
   {
    BBB_AntiArmorJob job = s_aAntiArmorJobs[i];
+   bool back = false;
+   if (job && job.m_Group)
+   {
+    int at = asked.Find(job.m_Group);
+    if (at < 0)
+    {
+     asked.Insert(job.m_Group);
+     fallingBack.Insert(FallingBack(job.m_Group));
+     at = asked.Count() - 1;
+    }
+    back = fallingBack[at];
+   }
    // A player who joins or takes the squad (or a man who changed squads) ends it too, as at the start.
-   if (!job || !EligibleForAntiArmor(job.m_Utility, job.m_Soldier) || nowMs >= job.m_fEndMs || HostBinds(job.m_Group) || BBB_Morale.IsWithdrawing(job.m_Group)
+   if (!job || !EligibleForAntiArmor(job.m_Utility, job.m_Soldier) || nowMs >= job.m_fEndMs || HostBinds(job.m_Group) || BBB_Morale.IsWithdrawing(job.m_Group) || back
     || !job.m_Group || BBB.HasPlayer(job.m_Group) || BBB_HeldGuns.GroupOf(job.m_Soldier) != job.m_Group)
    {
     ReleaseAntiArmorJob(job);

@@ -14,6 +14,7 @@
 - A soldier on his way to man a static gun now turns back with his squad when it falls back, instead of walking on toward the enemy alone.
 - Soldiers sent prone or crouching by nearby enemy armour get up as soon as a player joins or takes over their squad.
 - For mod makers: a squad already falling back after its morale broke now switches to the host mod's own fall-back order (covered bounds toward the host's spot) when one comes, instead of running straight away from the enemy and then waiting a minute.
+- A squad its host mod has ordered to fall back no longer drops prone or crouches around enemy armour, from the moment of the order, not only once it is bounding back under fire.
 
 ## 0.2.0 — released
 
