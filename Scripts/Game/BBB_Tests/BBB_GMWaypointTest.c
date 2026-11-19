@@ -1,17 +1,19 @@
 // Game Master waypoints and waypoint kinds (-bbbGMWaypointTest 1, Test-BBB.ps1 -Preset gmwaypoint, or
-// via -ExtraArgs beside another preset; about 15 s, done before other tests set up at 15 s).
+// via -ExtraArgs beside another preset; about 35 s: the kinds and orders before other tests set up at 15 s, the morale gate after BBB starts, far from other fixtures).
 // Rulings (Jacob, 15 Nov): the order leash and BBB_Tactic.Advancing read a waypoint by kind
 // (BBB_WaypointKind), so a GM's editable waypoint and Conflict's variants are orders both agree on;
 // a GM waypoint is seen (GameMasterOrder) but isn't a player order (Held), so soldiers' own
 // reactions keep running. Real vanilla prefabs are spawned: the editable E_AIWaypoint_* a GM places,
 // Conflict's Defend_* variants, and the base ones. A US team far from other fixtures gets a GM move,
 // a GM defend and a Conflict defend, and the leash captures each order (Capture: before BBB starts
-// the hooks list no groups). Not covered: the morale gate (a break under a GM waypoint), which needs
-// a squad broken on cue.
+// the hooks list no groups). Then the morale gate, once BBB runs: the team (tracked at full strength
+// with no order) loses three of four men under a GM defend with an enemy team in sight (both hold
+// fire): no break; with the order taken away the same squad breaks (the control); a GM order given
+// again ends the break under way.
 class BBB_GMWaypointTest : BBB_AimTest
 {
  static ref BBB_GMWaypointTest s_GM;
- static const int EXPECTED = 26;
+ static const int EXPECTED = 30;
  static const ResourceName E_MOVE = "{FFF9518F73279473}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_Move.et";
  static const ResourceName E_DEFEND = "{D9C14ECEC9772CC6}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_Defend.et";
  static const ResourceName WP_MOVE = "{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et";
@@ -24,6 +26,10 @@ class BBB_GMWaypointTest : BBB_AimTest
  static const ResourceName WP_FORCED = "{06E1B6EBD480C6E0}Prefabs/AI/Waypoints/AIWaypoint_ForcedMove.et";
  static const ResourceName WP_GETIN = "{712F4795CF8B91C7}Prefabs/AI/Waypoints/AIWaypoint_GetIn.et";
  SCR_AIGroup m_Team;
+ SCR_AIGroup m_Enemy;
+ ChimeraCharacter m_Survivor;
+ int m_iWait;
+ int m_iPolls;
  vector m_vHome;
  ref array<IEntity> m_Spawned;
  int m_Checks;
@@ -157,6 +163,116 @@ class BBB_GMWaypointTest : BBB_AimTest
   GMCheck("conflict-defend-not-gm", defend && !BBB_OrderIntent.GameMasterOrder(m_Team));
   GMCheck("conflict-defend-leash-defensive", BBB_OrderLeash.Intent(defend) && BBB_OrderLeash.Defensive(defend));
   GMCheck("conflict-defend-tactic-holds", !BBB_Tactic.Advancing(m_Team, anchor.GetOrigin()));
+  BBB_OrderLeash.Stop(); // the leases captured above, before BBB runs (later: other presets' leases)
+  MoraleBaseline();
+ }
+
+ // The morale gate (Jacob, 15 Nov): no order first, so morale tracks the squad at full strength.
+ void MoraleBaseline()
+ {
+  Give(null);
+  m_iWait = 0;
+  m_iPolls = 0;
+  GetGame().GetCallqueue().CallLater(WaitTracked, 1000);
+ }
+
+ void WaitTracked()
+ {
+  array<SCR_AIGroup> groups = {};
+  if (BBB.IsStarted()) BBB.s_Hooks.GetGroups(groups);
+  if (groups.Contains(m_Team)) m_iWait++;
+  else if (m_iWait > 0 || !BBB.IsStarted()) m_iWait = 0;
+  // Three morale passes listed with no order: the squad's state holds its full strength.
+  if (m_iWait >= 4)
+  {
+   GMCheck("morale-team-tracked", BBB_Morale.IsOn() && !BBB_Morale.IsWithdrawing(m_Team));
+   Breakdown();
+   return;
+  }
+  m_iPolls++;
+  if (m_iPolls > 40)
+  {
+   GMCheck("morale-team-tracked", false, "BBB never listed the team");
+   FinishGM();
+   return;
+  }
+  GetGame().GetCallqueue().CallLater(WaitTracked, 1000);
+ }
+
+ // Under a GM defend: three of four men down, the leader among them, and an enemy team in sight.
+ void Breakdown()
+ {
+  array<AIAgent> agents = {};
+  m_Team.GetAgents(agents);
+  IEntity leader = m_Team.GetLeaderEntity();
+  foreach (AIAgent agent : agents)
+  {
+   ChimeraCharacter man;
+   if (agent) man = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (man && !m_Survivor && man != leader) m_Survivor = man;
+  }
+  if (!m_Survivor || agents.Count() < 3)
+  {
+   GMCheck("morale-gm-no-break", false, "fixture: team too small");
+   FinishGM();
+   return;
+  }
+  Give(Waypoint(E_DEFEND, m_Survivor.GetOrigin()));
+  foreach (AIAgent other : agents)
+  {
+   if (!other || other.GetControlledEntity() == m_Survivor) continue;
+   SCR_DamageManagerComponent damage = SCR_DamageManagerComponent.GetDamageManager(other.GetControlledEntity());
+   if (damage)
+   {
+    damage.EnableDamageHandling(true);
+    damage.Kill(Instigator.CreateInstigator(null));
+   }
+  }
+  m_Team.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE);
+  SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(m_Survivor);
+  if (utility && utility.m_CombatComponent) utility.m_CombatComponent.SetPerceptionFactor(10);
+  vector at = m_Survivor.GetOrigin() + Vector(0, 0, 45);
+  m_Enemy = SCR_AIGroup.Cast(Spawn(TEAM_USSR, at, Vector(0, 0, -1)));
+  if (m_Enemy) m_Enemy.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE);
+  GetGame().GetCallqueue().CallLater(CheckGMHolds, 9000);
+ }
+
+ void CheckGMHolds()
+ {
+  bool alive = BBB.IsConscious(m_Survivor);
+  vector threat;
+  bool seen = BBB_Morale.GetThreatCentroid(m_Team, threat);
+  GMCheck("morale-gm-no-break", alive && BBB_OrderIntent.GameMasterOrder(m_Team) && !BBB_Morale.IsWithdrawing(m_Team), string.Format("survivor=%1 threat=%2 withdrawing=%3", alive, seen, BBB_Morale.IsWithdrawing(m_Team)));
+  Give(null);
+  m_iWait = 0;
+  GetGame().GetCallqueue().CallLater(WaitBreak, 1000);
+ }
+
+ // The control: the same squad with no order breaks, so the gate above held something back.
+ void WaitBreak()
+ {
+  m_iWait++;
+  if (BBB_Morale.IsWithdrawing(m_Team))
+  {
+   GMCheck("morale-breaks-without-gm", true, string.Format("after %1 s", m_iWait));
+   Give(Waypoint(E_DEFEND, m_Survivor.GetOrigin()));
+   GetGame().GetCallqueue().CallLater(CheckEnded, 3000);
+   return;
+  }
+  if (m_iWait >= 12)
+  {
+   vector threat;
+   GMCheck("morale-breaks-without-gm", false, string.Format("survivor=%1 threat=%2", BBB.IsConscious(m_Survivor), BBB_Morale.GetThreatCentroid(m_Team, threat)));
+   FinishGM();
+   return;
+  }
+  GetGame().GetCallqueue().CallLater(WaitBreak, 1000);
+ }
+
+ // A GM order given to the squad mid-break ends the break.
+ void CheckEnded()
+ {
+  GMCheck("morale-gm-ends-break", BBB_OrderIntent.GameMasterOrder(m_Team) && !BBB_Morale.IsWithdrawing(m_Team));
   FinishGM();
  }
 
@@ -171,12 +287,19 @@ class BBB_GMWaypointTest : BBB_AimTest
     if (agent && agent.GetControlledEntity()) SCR_EntityHelper.DeleteEntityAndChildren(agent.GetControlledEntity());
    SCR_EntityHelper.DeleteEntityAndChildren(m_Team);
   }
+  if (m_Enemy)
+  {
+   array<AIAgent> enemies = {};
+   m_Enemy.GetAgents(enemies);
+   foreach (AIAgent enemy : enemies)
+    if (enemy && enemy.GetControlledEntity()) SCR_EntityHelper.DeleteEntityAndChildren(enemy.GetControlledEntity());
+   SCR_EntityHelper.DeleteEntityAndChildren(m_Enemy);
+  }
   if (m_Spawned)
   {
    foreach (IEntity spawned : m_Spawned)
     if (spawned) SCR_EntityHelper.DeleteEntityAndChildren(spawned);
   }
-  BBB_OrderLeash.Stop();
   string verdict = "PASS";
   if (m_Failures > 0 || m_Checks != EXPECTED) verdict = "FAIL";
   PrintFormat("[ACR] VERDICT %1 test=bbb-gm-waypoint checks=%2 failed=%3 expected=%4", verdict, m_Checks, m_Failures, EXPECTED);
