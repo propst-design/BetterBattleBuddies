@@ -1,7 +1,7 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','callouts','glarming','glarmingm79','gmwaypoint','fidelity','unstick','glasscover','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','callouts','glarming','glarmingm79','gmwaypoint','fidelity','unstick','glasscover','nightfight','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
@@ -144,6 +144,8 @@ $flags.commanderseat = '-bbbCommanderSeatTest 1'
 $timeouts.commanderseat = 70
 $flags.flares = '-bbbFlareTest 1 -bbbPerf 1'
 $timeouts.flares = 150
+$flags.nightfight = '-bbbNightFightTest 1 -bbbPerf 1'
+$timeouts.nightfight = 220
 $flags.think = '-bbbThinkTest 1 -bbbThink 2'
 $timeouts.think = 130
 $flags.orderleash = '-bbbOrderLeashTest 1 -bbbPerf 1'
