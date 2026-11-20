@@ -783,8 +783,10 @@ class BBB_PullOver : Managed
      m_fLogAt = elapsed + 1000;
      PrintFormat("[BBB] TRAFFIC pull-over %1 t=%2 s: spot %3 m right, %4 m ahead; steer %5, %6 km/h, gear %7, roll %8 deg, pitch %9 deg", BBB_Traffic.Name(vehicle), Math.Round(elapsed / 100) / 10, Math.Round(local[0] * 10) / 10, Math.Round(local[2] * 10) / 10, Math.Round(steer * 100) / 100, Math.Round(speed * 36) / 10, sim.GetGear(), Math.Round(roll), Math.Round(pitch));
     }
-    // Down to the turn-in pace (a truck slower than a car), then a walking pace onto the verge.
-    if (speed > m_Limits.m_fBrakeAbove) BBB_Unstick.Drive(m_Driver, sim, 0, steer, 0.6);
+    // Down to the turn-in pace (a truck slower than a car), then a walking pace onto the verge; slow again
+    // near the spot, so it stops on it, not past it.
+    bool nearSpot = distance < 4 + speed * 2;
+    if (speed > m_Limits.m_fBrakeAbove || (nearSpot && speed > m_Limits.m_fTurnSpeed)) BBB_Unstick.Drive(m_Driver, sim, 0, steer, 0.6);
     else if (speed < m_Limits.m_fTurnSpeed - 1) BBB_Unstick.Drive(m_Driver, sim, 0.7, steer, 0);
     else BBB_Unstick.Drive(m_Driver, sim, 0.3, steer, 0);
     return true;
@@ -794,8 +796,13 @@ class BBB_PullOver : Managed
   BBB_Unstick.Drive(m_Driver, sim, 0, 0, 1);
   if (m_iMode == MODE_PARK)
   {
-   if (speed > 0.4) return true;
+   // Out of gear (an engaged gear creeps a heavy truck on at walking pace under full brake: srv:pulloverbank,
+   // 20 Nov, an M923 crawled 25 m on off the road's edge and down the bank), handbrake on once slow, or at
+   // once if it is rolling.
+   if (sim.GetGear() != neutral) sim.SetGear(neutral);
+   if (speed > 1.5 && Math.AbsFloat(roll) <= m_Limits.m_fAbortRollDeg) return true;
    car.SetPersistentHandBrake(true);
+   if (speed > 0.4) return true;
    s_iParked++;
    End(car, true);
    return false;
