@@ -890,7 +890,8 @@ class BBB_FiringCover
  static bool Protected(vector position, vector observed)
  {
   vector threat = BBB.Ground(observed) + Vector(0, 0.8, 0);
-  return Ray(threat, position + Vector(0, 0.35, 0)) < 0.95 && Ray(position + Vector(0, 1.2, 0), threat) >= 0.99;
+  // Rounds and eyes pass glass and nets (BBB_SolidCover): a pane is neither his cover nor in his way.
+  return BBB_SolidCover.Ray(threat, position + Vector(0, 0.35, 0)) < 0.95 && BBB_SolidCover.Ray(position + Vector(0, 1.2, 0), threat) >= 0.99;
  }
  static bool Find(SCR_AIUtilityComponent utility, vector observed, out vector position)
  {

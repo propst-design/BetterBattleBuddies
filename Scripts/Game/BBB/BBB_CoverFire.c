@@ -72,7 +72,9 @@ class BBB_CoverFire
   IEntity hit = trace.TraceEnt;
   if (hit && (hit == object || hit.GetRootParent() == object)) return true;
   float length = vector.Distance(eye, point);
-  return length > 0 && (1 - fraction) * length < 1.5;
+  if (length > 0 && (1 - fraction) * length < 1.5) return true;
+  // A greenhouse, window or net in the way: he sees (and shoots) through it (BBB_SolidCover).
+  return !BBB_SolidCover.Stops(trace) && BBB_SolidCover.Ray(eye, point) >= 0.99;
  }
 
  // The suppression box for covering fire on this report, or null (out of range, friendlies near).
