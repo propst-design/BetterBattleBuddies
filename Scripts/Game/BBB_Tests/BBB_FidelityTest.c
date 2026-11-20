@@ -16,6 +16,7 @@ class BBB_FidelityTest : BBB_FireManeuverTest
  protected float m_fStart;
  protected bool m_bWindow;
  protected int m_iFastBefore;
+ protected int m_iContactSum, m_iAliveSum;
  protected int m_iPassF, m_iFailF;
  protected string m_sSummary = "";
 
@@ -155,16 +156,36 @@ class BBB_FidelityTest : BBB_FireManeuverTest
 
  // ------------------------------------------------------------------ the ramp
 
+ // Lane sites: 34 m apart along three rows of Arland's farmland, kept only where a man at the near end
+ // can see one at the far end (eye height, 80 m): blind lanes measured idle soldiers (first runs).
+ protected int m_iSite;
+ protected bool NextSite(out vector from, out vector dir)
+ {
+  array<float> rows = {2520, 2770, 2350, 2900};
+  dir = Vector(0.087, 0, 0.996);
+  while (m_iSite < rows.Count() * 30)
+  {
+   float x = 1100 + (m_iSite % 30) * 34;
+   float z = rows[m_iSite / 30];
+   m_iSite++;
+   from = BBB.Ground(Vector(x, 0, z));
+   vector to = BBB.Ground(from + dir * 80);
+   if (BBB_FiringCover.Ray(from + Vector(0, 1.6, 0), to + Vector(0, 1.6, 0)) >= 0.99) return true;
+  }
+  return false;
+ }
+
  protected void Grow(int target)
  {
   int men = m_LanesF.Count() * 10;
   while (men < target)
   {
-   int k = m_LanesF.Count();
+   vector from, dir;
+   if (!NextSite(from, dir)) { CheckF("enough clear lane sites", false); return; }
    BBB_AimLane lane = new BBB_AimLane();
-   lane.m_vFrom = BBB.Ground(Vector(1230 + k * 34, 0, 2520));
-   lane.m_vDir = Vector(0.087, 0, 0.996);
-   lane.m_vTo = BBB.Ground(lane.m_vFrom + lane.m_vDir * 100);
+   lane.m_vFrom = from;
+   lane.m_vDir = dir;
+   lane.m_vTo = BBB.Ground(lane.m_vFrom + lane.m_vDir * 80);
    lane.m_A.m_Group = SpawnSquad(false, lane.m_vFrom, lane.m_vDir, lane, 5);
    lane.m_B.m_Group = SpawnSquad(true, lane.m_vTo, lane.m_vDir * -1, lane, 5);
    lane.m_fStart = Now();
@@ -224,6 +245,14 @@ class BBB_FidelityTest : BBB_FireManeuverTest
    m_bWindow = true;
    BBB_Perf.Take(); // a fresh window
    m_iFastBefore = BBB.s_iFastTicks;
+   m_iContactSum = 0;
+   m_iAliveSum = 0;
+  }
+  if (m_bWindow)
+  {
+   int seen;
+   m_iAliveSum += Alive(seen);
+   m_iContactSum += seen;
   }
   if (!m_bWindow || into < STEP_S) return;
   Measure();
@@ -249,7 +278,7 @@ class BBB_FidelityTest : BBB_FireManeuverTest
    string name = token.Substring(0, eq);
    string rest = token.Substring(eq + 1, token.Length() - eq - 1);
    if (name == "frame") { rest.Replace("ms", ""); frameMs = rest.ToFloat(); continue; }
-   if (!name.StartsWith("tick.")) continue;
+   if (!name.StartsWith("tick.") || name.StartsWith("tick.vh.")) continue; // vh.* are parts of tick.vehicleHelpers
    int slash = rest.IndexOf("/");
    if (slash < 0) continue;
    float ms = rest.Substring(0, slash).ToFloat();
@@ -263,11 +292,13 @@ class BBB_FidelityTest : BBB_FireManeuverTest
   int tierSet = BBB_Fidelity.s_iSet;
   int expected = tierSet;
   if (tierSet != BBB_Fidelity.STANDARD && BBB_Fidelity.s_bGovernor) expected = Math.Min(tierSet, BBB_Fidelity.Ceiling(target, 0));
-  PrintFormat("[BBB] FIDTEST STEP n=%1 set=%2 governor=%3 tier=%4 counted=%5 alive=%6 contacts=%7 tickMsPerS=%8 frameMs=%9", target, BBB_Fidelity.NameOf(tierSet), BBB_Fidelity.s_bGovernor, BBB_Fidelity.NameOf(BBB_Fidelity.s_iTier), BBB_Fidelity.s_iCombatants, alive, contacts, tickMs.ToString(5, 2), frameMs.ToString(4, 1));
+  PrintFormat("[BBB] FIDTEST STEP n=%1 set=%2 governor=%3 tier=%4 counted=%5 alive=%6 contactShare=%7 tickMsPerS=%8 frameMs=%9", target, BBB_Fidelity.NameOf(tierSet), BBB_Fidelity.s_bGovernor, BBB_Fidelity.NameOf(BBB_Fidelity.s_iTier), BBB_Fidelity.s_iCombatants, alive, (m_iContactSum / Math.Max(1.0, m_iAliveSum)).ToString(4, 2), tickMs.ToString(5, 2), frameMs.ToString(4, 1));
   PrintFormat("[BBB] FIDTEST STAGES n=%1 top=%2 (%3) fastTicks=%4 |%5", target, top, topMs.ToString(4, 2), fast, stages);
   m_sSummary += string.Format(" n%1:%2:%3ms:%4fr", target, BBB_Fidelity.NameOf(BBB_Fidelity.s_iTier), tickMs.ToString(5, 2), frameMs.ToString(4, 1));
   CheckF(string.Format("n=%1: all spawned men alive (%2)", target, alive), alive >= target - 2 && alive <= target);
-  CheckF(string.Format("n=%1: half the men in contact (%2 of %3)", target, contacts, alive), contacts * 2 >= alive);
+  // Contact averaged over the window (men with a current target per second).
+  float share = m_iContactSum / Math.Max(1.0, m_iAliveSum);
+  CheckF(string.Format("n=%1: half the men in contact over the window (%2)", target, share.ToString(4, 2)), share >= 0.5);
   CheckF(string.Format("n=%1: effective tier %2 (expected %3)", target, BBB_Fidelity.NameOf(BBB_Fidelity.s_iTier), BBB_Fidelity.NameOf(expected)), BBB_Fidelity.s_iTier == expected);
   // The governor counts only above Standard (Standard costs what it did).
   if (tierSet != BBB_Fidelity.STANDARD) CheckF(string.Format("n=%1: governor counted %2", target, BBB_Fidelity.s_iCombatants), BBB_Fidelity.s_iCombatants >= alive - 2 && BBB_Fidelity.s_iCombatants <= alive + 2);
