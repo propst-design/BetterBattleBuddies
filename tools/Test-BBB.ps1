@@ -1,7 +1,7 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','callouts','glarming','glarmingm79','gmwaypoint','fidelity','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','callouts','glarming','glarmingm79','gmwaypoint','fidelity','glasscover','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
@@ -151,6 +151,9 @@ $timeouts.orderleash = 190
 # Cost per fidelity tier on a 20 -> 50 -> 100 combatant ramp; pick the tier with -ExtraArgs '-bbbFidelity 2'.
 $flags.fidelity = '-bbbFidelityTest 1'
 $timeouts.fidelity = 260
+# Glass, foil and wire aren't cover: a greenhouse beside real cover on Arland.
+$flags.glasscover = '-bbbGlassCoverTest 1'
+$timeouts.glasscover = 260
 $flags.gmwaypoint = '-bbbGMWaypointTest 1'
 $timeouts.gmwaypoint = 100
 $flags.doors = '-bbbDoorTest 1 -bbbPerf 1'

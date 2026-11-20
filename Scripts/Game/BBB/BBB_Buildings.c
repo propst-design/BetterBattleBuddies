@@ -326,7 +326,8 @@ class BBB_Buildings
   trace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
   if (GetGame().GetWorld().TraceMove(trace, null) >= 1) return null;
   IEntity hit = trace.TraceEnt;
-  if (!hit) return null;
+  // A greenhouse roof shelters nobody: a man in one is in the open (BBB_SolidCover).
+  if (!hit || BBB_SolidCover.Flimsy(hit)) return null;
   if (BaseBuilding.Cast(hit)) return hit;
   if (BaseBuilding.Cast(hit.GetRootParent())) return hit.GetRootParent();
   return null;
