@@ -267,6 +267,10 @@ class BBB_Settings
   On(g, "bbbBios", "Soldier bios", "Soldiers carry personal bios.");
   Num(g, "bbbIdentityEggs", 1, 0, 3, 0.25, "Names, birthdays and blood types in bios", "How often bios give a soldier a name, birthday or blood type. 0 keeps the bios without them; above 1 makes them more common.");
 
+  Def(g, "bbbFidelity", BBB_ESettingKind.CHOICE, "0", "Fidelity", "How much server time BBB spends on each soldier's decisions. Standard holds every feature to its usual budget, for big battles. High and Uncapped re-check sooner (squad leader looks, cover, grenades, launchers, static guns, squad tactics) and test cover with more rays: quicker reactions and better judged cover in smaller battles. Soldiers never learn anything more than they see or hear.").Choices("0|1|2", "Standard|High|Uncapped");
+  On(g, "bbbFidelityGovernor", "Fidelity steps down in big battles", "With High or Uncapped fidelity, BBB counts its AI soldiers every 5 s and steps down to High, then Standard, as the battle grows (back up once it shrinks), so a mission that grows to 100 AI keeps its frame rate.");
+  Num(g, "bbbFidelityUncappedMax", 30, 5, 200, 5, "Uncapped: most AI soldiers", "With the step-down on. Above this many AI soldiers Uncapped runs as High.");
+  Num(g, "bbbFidelityHighMax", 60, 5, 300, 5, "High: most AI soldiers", "With the step-down on. Above this many AI soldiers High and Uncapped run as Standard.");
   g = "Awareness and aim";
   On(g, "bbbHorizonScan", "Horizon scanning", "Soldiers turn their heads to scan the horizon and flanks, so they notice threats outside where they're looking.");
   On(g, "bbbWeaponReady", "Weapon back in hand", "An armed soldier walking empty-handed takes his weapon out again without waiting to be shot at.");

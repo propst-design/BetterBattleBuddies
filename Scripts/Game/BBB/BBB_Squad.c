@@ -89,7 +89,7 @@ class BBB_Squad
   if (!On(group)) return null;
   float now = Now();
   BBB_SquadPicture picture = s_Pictures.Get(group);
-  if (picture && now - picture.m_fBuilt < REFRESH_S) return picture;
+  if (picture && now - picture.m_fBuilt < BBB_Fidelity.F(BBB_Fidelity.SQUAD_REFRESH_S)) return picture;
   if (!picture)
   {
    picture = new BBB_SquadPicture();

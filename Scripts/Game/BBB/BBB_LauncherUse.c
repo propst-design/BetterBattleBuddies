@@ -498,7 +498,7 @@ modded class SCR_AICombatComponent
   if (!m_WeaponTargetSelector.HasWeaponOfType(EWeaponType.WT_ROCKETLAUNCHER, false)) return false;
   BBB_LauncherUse.Read();
   if (!BBB_LauncherUse.s_bOn || target.IsDisarmed() || !IsTargetVisible(target)) return false;
-  m_fBBBLaunchCheckAt = now + BBB_LauncherUse.CHECK_MS;
+  m_fBBBLaunchCheckAt = now + BBB_Fidelity.F(BBB_Fidelity.LAUNCHER_CHECK_MS);
   if (!m_Perception || !BBBCanUse()) return false;
   float distance = target.GetDistance();
   if (distance < BBB_LauncherUse.AT_MIN_M || distance > BBB_LauncherUse.MAX_M) return false;

@@ -763,7 +763,7 @@ class BBB_StaticWeapons
 			{
 				if (nowMs < s_mNextCheck.Get(group)) continue;
 			}
-			s_mNextCheck.Set(group, nowMs + CHECK_INTERVAL_MS);
+			s_mNextCheck.Set(group, nowMs + BBB_Fidelity.F(BBB_Fidelity.STATIC_CHECK_MS));
 
 			IEntity groupAnchor = BBB.AnchorOf(group);
 			if (!groupAnchor) continue;

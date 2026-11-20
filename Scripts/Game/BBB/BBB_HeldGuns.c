@@ -131,7 +131,7 @@ class BBB_HeldGuns
   foreach (int index, SCR_AIGroup group : groups)
   {
    if (!group || BBB.HasPlayer(group)) continue;
-   if (s_bWinchester && (index + s_iTicks) % WINCHESTER_EVERY == 0) Winchester(group, now);
+   if (s_bWinchester && (index + s_iTicks) % BBB_Fidelity.I(BBB_Fidelity.HELDGUNS_EVERY) == 0) Winchester(group, now);
    if (!s_bOn) continue;
    BBB.s_Hooks.GetHeldGuns(group, guns);
    foreach (IEntity gun : guns)

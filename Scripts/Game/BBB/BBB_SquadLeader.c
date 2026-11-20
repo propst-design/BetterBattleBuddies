@@ -169,7 +169,7 @@ class BBB_SquadLeader
     orders.m_Group = group;
     s_mOrders.Set(group, orders);
    }
-   if (now - orders.m_fLook < LOOK_S) continue;
+   if (now - orders.m_fLook < BBB_Fidelity.F(BBB_Fidelity.LEADER_LOOK_S)) continue;
    orders.m_fLook = now;
    Look(orders, now);
   }
@@ -475,7 +475,7 @@ class BBB_SquadLeader
  protected static void Cue(SCR_AIUtilityComponent utility, BBB_SquadGroup mine, float now)
  {
   if (!s_bCue || now < utility.m_fBBBCueNext || !utility.m_LookAction) return;
-  utility.m_fBBBCueNext = now + CUE_EVERY_S;
+  utility.m_fBBBCueNext = now + BBB_Fidelity.F(BBB_Fidelity.LEADER_CUE_S);
   utility.m_LookAction.LookAt(mine.m_vAim + Vector(0, 1, 0), SCR_AILookAction.PRIO_COMMANDER, 2);
   s_iCues++;
   BBB_Think.NoteUtility(utility, "SquadLeader", "told where the enemy is: looks " + Math.Round(vector.DistanceXZ(utility.m_OwnerEntity.GetOrigin(), mine.m_vAim)).ToString() + " m off");

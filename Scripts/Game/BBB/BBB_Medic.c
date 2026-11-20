@@ -268,7 +268,7 @@ class BBB_Medic
    if (target.m_eCategory != EAITargetInfoCategory.DETECTED && target.m_eCategory != EAITargetInfoCategory.IDENTIFIED) continue;
    if (now - target.m_fTimestamp > RECENT_S) continue;
    if (vector.DistanceSqXZ(target.m_vWorldPos, at) > danger) continue;
-   if (traces >= MAX_TRACES) return true;
+   if (traces >= BBB_Fidelity.I(BBB_Fidelity.MEDIC_TRACES)) return true;
    traces++;
    if (ClearLine(target.m_vWorldPos, at)) return true;
   }

@@ -110,6 +110,9 @@ class BBB_Hooks : Managed
  bool IsZombie(IEntity entity) { return false; }
  // The AI squad leader of this group may voice orders and calls (BBB_Callouts). False: the host keeps it quiet.
  bool AllowCallouts(SCR_AIGroup group) { return true; }
+ // The highest fidelity tier BBB may run at (BBB_Fidelity: 0 Standard, 1 High, 2 Uncapped), on top of
+ // -bbbFidelity and its combatant governor. -1 (default): no host cap, the setting decides.
+ int MaxFidelity() { return -1; }
 }
 
 class BBB
@@ -215,6 +218,7 @@ class BBB
   if (s_bStarted || !Replication.IsServer()) return;
 		s_bStarted = true;
 		BBB_Perf.Read();
+  BBB_Fidelity.Read();
   BBB_OrderLeash.Read();
 		BBB_Rearm.Read();
 		BBB_Morale.Read();
@@ -245,6 +249,34 @@ class BBB
 		s_Combat = new BBB_Combat();
 		BBB_Combat.s_Combat = s_Combat;
   GetGame().GetCallqueue().CallLater(Tick, 1000, true);
+  FidelityChanged();
+ }
+
+ // BBB's fast lane (BBB_Fidelity, High and Uncapped only): the reaction features whose looks are
+ // timed in seconds, not ticks, run between the once-a-second ticks too, so a shorter look interval
+ // from the tier takes effect. Standard has no fast lane (today's timing exactly).
+ protected static int s_iFastMs;
+ static void FidelityChanged()
+ {
+  int ms = 0;
+  if (s_bStarted) ms = BBB_Fidelity.I(BBB_Fidelity.FAST_LANE_MS);
+  if (ms == s_iFastMs) return;
+  if (s_iFastMs > 0 && GetGame()) GetGame().GetCallqueue().Remove(FastTick);
+  s_iFastMs = ms;
+  if (ms > 0) GetGame().GetCallqueue().CallLater(FastTick, ms, true);
+ }
+
+ static int s_iFastTicks; // fast-lane runs (tests read it)
+ protected static void FastTick()
+ {
+  if (!s_bStarted) return;
+  s_iFastTicks++;
+  int t = System.GetTickCount();
+  RosterOpen();
+  // Same stage name as the tick's: tick stages are summed per second, so the total stays comparable.
+  BBB_SquadLeader.Tick();
+  BBB_Perf.Lap("tick.squadLeader", t);
+  RosterClose();
  }
 
  static bool IsStarted() { return s_bStarted; }
@@ -252,6 +284,9 @@ class BBB
  static void Stop()
  {
   if (GetGame()) GetGame().GetCallqueue().Remove(Tick);
+  if (GetGame()) GetGame().GetCallqueue().Remove(FastTick);
+  s_iFastMs = 0;
+  BBB_Fidelity.Stop();
   BBB_DriverAlignment.Stop();
   BBB_CrewTurnout.Stop();
   BBB_Drive.StopAll();
@@ -304,6 +339,8 @@ class BBB
  {
   RosterOpen();
   int t = System.GetTickCount();
+  BBB_Fidelity.Tick();
+  t = BBB_Perf.Lap("tick.fidelity", t);
   BBB_OrderLeash.Tick();
   t = BBB_Perf.Lap("tick.orderLeash", t);
   BBB_Claims.Tick();

@@ -469,7 +469,7 @@ class BBB_Tactic
    if (!group) continue;
    BBB_TacticState state = s_States.Get(group);
    // Squads not in contact are looked at a quarter at a time (host checks included).
-   if (!state && (index + s_iTick) % STAGGER != 0) continue;
+   if (!state && (index + s_iTick) % BBB_Fidelity.I(BBB_Fidelity.TACTIC_STAGGER) != 0) continue;
    if (s_aVanilla.Contains(group)) { if (s_States.Contains(group)) Drop(group); continue; }
    int veto = 0;
    BBB_EIntent intent;
@@ -492,7 +492,7 @@ class BBB_Tactic
    }
    state.m_iIntent = intent;
    if (now < state.m_fNextLook) continue;
-   state.m_fNextLook = now + LOOK_S;
+   state.m_fNextLook = now + BBB_Fidelity.F(BBB_Fidelity.TACTIC_LOOK_S);
    Look(state, now);
   }
   if (s_bStats) StatReport(now);
