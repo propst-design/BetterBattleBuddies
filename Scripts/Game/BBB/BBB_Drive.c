@@ -197,6 +197,7 @@ class BBB_Drive : Managed
  static const float PROBE_MS = 200;
  static const float STALL_MS = 3500;         // throttle on, not moving: stuck
  static const float BLOCKED_MS = 8000;       // something in the way that doesn't clear
+ static const float QUEUE_MAX_MS = 40000;    // a stopped vehicle ahead: waited for this long at most
  static const int RECOVER_LIMIT = 3;         // back-outs within RECOVER_WINDOW_MS, then hand back
  static const float RECOVER_WINDOW_MS = 120000;
  static const float CONTACT_REST_MS = 30000; // after a hand-back for contact, wait before driving again
@@ -254,6 +255,7 @@ class BBB_Drive : Managed
  protected float m_fStallSince = -1;
  protected float m_fBlockedSince = -1;
  protected bool m_bRecovering;
+ protected bool m_bQueueLogged;
  protected ref BBB_DriveUnstick m_Listener;
  protected ref array<float> m_aRecoveries;
  protected float m_fGain;          // curvature per unit of steering, learnt while driving
@@ -652,7 +654,18 @@ class BBB_Drive : Managed
   }
   else m_fBlockedSince = -1;
   if (m_fStallSince >= 0 && now - m_fStallSince > STALL_MS) { m_sStuckWhy = "not moving on throttle"; Recover(now); }
-  else if (m_fBlockedSince >= 0 && now - m_fBlockedSince > BLOCKED_MS) { m_sStuckWhy = "blocked ahead"; Recover(now); }
+  else if (m_fBlockedSince >= 0 && now - m_fBlockedSince > BLOCKED_MS)
+  {
+   // Held up behind a stopped vehicle (a convoy, a gate, traffic) is a queue, not a wall: wait, up
+   // to QUEUE_MAX_MS (the one ahead may never move), instead of backing into whoever is behind.
+   if (now - m_fBlockedSince < QUEUE_MAX_MS && BBB_Unstick.QueuedBehind(m_Vehicle))
+   {
+    if (!m_bQueueLogged) PrintFormat("[BBB] DRIVER %1: queued behind a stopped vehicle, waiting", BBB.s_Hooks.NameOf(m_Group));
+    m_bQueueLogged = true;
+   }
+   else { m_sStuckWhy = "blocked ahead"; Recover(now); }
+  }
+  if (m_fBlockedSince < 0) m_bQueueLogged = false;
  }
 
  // Signed distance from the line (positive: right of it).
@@ -844,7 +857,8 @@ class BBB_Drive : Managed
   return 1;
  }
 
- // Stuck: back out (BBB_Unstick), wheel opposite to where we were steering; too many: hand back.
+ // Stuck: get free (BBB_Unstick; the wheel opposite to where we were steering is its hint, it looks
+ // for the open side itself); too many, or boxed in: hand back.
  protected void Recover(float now)
  {
   m_fStallSince = -1;
@@ -870,6 +884,9 @@ class BBB_Drive : Managed
   if (m_Vehicle) { vector f1 = m_Vehicle.GetTransformAxis(2); m_fLastHeading = Math.Atan2(f1[0], f1[2]) * Math.RAD2DEG; }
   m_fSteer = 0;
   if (!m_Path || !m_Vehicle) return;
+  // Boxed in or bogged: another back-out does the same; the game's driver (and the host) take it.
+  int outcome = BBB_Unstick.LastOutcome(m_Vehicle);
+  if (BBB_Unstick.Hopeless(outcome)) { End("stuck: " + BBB_Unstick.OutcomeName(outcome) + ", handed back", GetGame().GetWorld().GetWorldTime()); return; }
   // Back on the line from wherever the back-out left it.
   m_iIdx = m_Path.Nearest(m_Vehicle.GetOrigin(), Math.Max(0, m_iIdx - 10), 40);
  }
