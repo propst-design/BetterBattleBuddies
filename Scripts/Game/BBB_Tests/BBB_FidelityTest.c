@@ -19,7 +19,7 @@ class BBB_FidelityTest : BBB_FireManeuverTest
  protected int m_iPassF, m_iFailF;
  protected string m_sSummary = "";
 
- static void MaybeStart()
+ static void MaybeStartFid()
  {
   if (s_Fid || !Replication.IsServer() || !System.IsCLIParam("bbbFidelityTest")) return;
   s_Fid = new BBB_FidelityTest();
@@ -50,23 +50,23 @@ class BBB_FidelityTest : BBB_FireManeuverTest
  {
   CheckF("table has a row per knob", BBB_Fidelity.Rows() == BBB_Fidelity.KNOBS);
   int s = BBB_Fidelity.STANDARD;
-  bool standard = BBB_Fidelity.At(BBB_Fidelity.FAST_LANE_MS, s) == 0
-   && BBB_Fidelity.At(BBB_Fidelity.SQUAD_REFRESH_S, s) == BBB_Squad.REFRESH_S
-   && BBB_Fidelity.At(BBB_Fidelity.LEADER_LOOK_S, s) == BBB_SquadLeader.LOOK_S
-   && BBB_Fidelity.At(BBB_Fidelity.LEADER_CUE_S, s) == BBB_SquadLeader.CUE_EVERY_S
-   && BBB_Fidelity.At(BBB_Fidelity.COVER_RECHECK_MS, s) == BBB_Cover.RECHECK_MS
-   && BBB_Fidelity.At(BBB_Fidelity.COVER_RAYS, s) == 1
-   && BBB_Fidelity.At(BBB_Fidelity.TACTIC_LOOK_S, s) == BBB_Tactic.LOOK_S
-   && BBB_Fidelity.At(BBB_Fidelity.TACTIC_STAGGER, s) == BBB_Tactic.STAGGER
-   && BBB_Fidelity.At(BBB_Fidelity.RELAY_STAGGER, s) == BBB_ContactRelay.STAGGER
-   && BBB_Fidelity.At(BBB_Fidelity.GRENADE_CHECK_MS, s) == BBB_Grenades.CHECK_INTERVAL_MS
-   && BBB_Fidelity.At(BBB_Fidelity.LAUNCHER_CHECK_MS, s) == BBB_LauncherUse.CHECK_MS
-   && BBB_Fidelity.At(BBB_Fidelity.LAUNCHERS_CHECK_MS, s) == BBB_Launchers.CHECK_MS
-   && BBB_Fidelity.At(BBB_Fidelity.STATIC_CHECK_MS, s) == BBB_StaticWeapons.CHECK_INTERVAL_MS
-   && BBB_Fidelity.At(BBB_Fidelity.FM_ADMISSIONS, s) == BBB_FireManeuver.MAX_ADMISSIONS_PER_TICK
-   && BBB_Fidelity.At(BBB_Fidelity.PAIR_GROUPS, s) == BBB_Teams.PAIR_GROUPS_PER_TICK
-   && BBB_Fidelity.At(BBB_Fidelity.HELDGUNS_EVERY, s) == BBB_HeldGuns.WINCHESTER_EVERY
-   && BBB_Fidelity.At(BBB_Fidelity.MEDIC_TRACES, s) == BBB_Medic.MAX_TRACES;
+  bool standard = BBB_Fidelity.At(BBB_Fidelity.FAST_LANE_MS, s) == 0;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.SQUAD_REFRESH_S, s) == BBB_Squad.REFRESH_S;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.LEADER_LOOK_S, s) == BBB_SquadLeader.LOOK_S;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.LEADER_CUE_S, s) == BBB_SquadLeader.CUE_EVERY_S;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.COVER_RECHECK_MS, s) == BBB_Cover.RECHECK_MS;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.COVER_RAYS, s) == 1;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.TACTIC_LOOK_S, s) == BBB_Tactic.LOOK_S;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.TACTIC_STAGGER, s) == BBB_Tactic.STAGGER;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.RELAY_STAGGER, s) == BBB_ContactRelay.STAGGER;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.GRENADE_CHECK_MS, s) == BBB_Grenades.CHECK_INTERVAL_MS;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.LAUNCHER_CHECK_MS, s) == BBB_LauncherUse.CHECK_MS;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.LAUNCHERS_CHECK_MS, s) == BBB_Launchers.CHECK_MS;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.STATIC_CHECK_MS, s) == BBB_StaticWeapons.CHECK_INTERVAL_MS;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.FM_ADMISSIONS, s) == BBB_FireManeuver.MAX_ADMISSIONS_PER_TICK;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.PAIR_GROUPS, s) == BBB_Teams.PAIR_GROUPS_PER_TICK;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.HELDGUNS_EVERY, s) == BBB_HeldGuns.WINCHESTER_EVERY;
+  standard = standard && BBB_Fidelity.At(BBB_Fidelity.MEDIC_TRACES, s) == BBB_Medic.MAX_TRACES;
   CheckF("Standard column equals the constants it replaced", standard);
   // Intervals only shrink up the tiers, counts (rays, admissions, traces) only grow; the fast lane
   // exists only above Standard.
@@ -230,7 +230,7 @@ class BBB_FidelityTest : BBB_FireManeuverTest
   m_bWindow = false;
   m_iStep++;
   if (m_iStep < m_aTargets.Count()) { Grow(m_aTargets[m_iStep]); return; }
-  Finish();
+  FinishFid();
  }
 
  protected void Measure()
@@ -260,22 +260,22 @@ class BBB_FidelityTest : BBB_FireManeuverTest
   int contacts;
   int alive = Alive(contacts);
   int fast = BBB.s_iFastTicks - m_iFastBefore;
-  int set = BBB_Fidelity.s_iSet;
-  int expected = set;
-  if (set != BBB_Fidelity.STANDARD && BBB_Fidelity.s_bGovernor) expected = Math.Min(set, BBB_Fidelity.Ceiling(target, 0));
-  PrintFormat("[BBB] FIDTEST STEP n=%1 set=%2 governor=%3 tier=%4 counted=%5 alive=%6 contacts=%7 tickMsPerS=%8 frameMs=%9", target, BBB_Fidelity.NameOf(set), BBB_Fidelity.s_bGovernor, BBB_Fidelity.NameOf(BBB_Fidelity.s_iTier), BBB_Fidelity.s_iCombatants, alive, contacts, tickMs.ToString(5, 2), frameMs.ToString(4, 1));
+  int tierSet = BBB_Fidelity.s_iSet;
+  int expected = tierSet;
+  if (tierSet != BBB_Fidelity.STANDARD && BBB_Fidelity.s_bGovernor) expected = Math.Min(tierSet, BBB_Fidelity.Ceiling(target, 0));
+  PrintFormat("[BBB] FIDTEST STEP n=%1 set=%2 governor=%3 tier=%4 counted=%5 alive=%6 contacts=%7 tickMsPerS=%8 frameMs=%9", target, BBB_Fidelity.NameOf(tierSet), BBB_Fidelity.s_bGovernor, BBB_Fidelity.NameOf(BBB_Fidelity.s_iTier), BBB_Fidelity.s_iCombatants, alive, contacts, tickMs.ToString(5, 2), frameMs.ToString(4, 1));
   PrintFormat("[BBB] FIDTEST STAGES n=%1 top=%2 (%3) fastTicks=%4 |%5", target, top, topMs.ToString(4, 2), fast, stages);
   m_sSummary += string.Format(" n%1:%2:%3ms:%4fr", target, BBB_Fidelity.NameOf(BBB_Fidelity.s_iTier), tickMs.ToString(5, 2), frameMs.ToString(4, 1));
   CheckF(string.Format("n=%1: all spawned men alive (%2)", target, alive), alive >= target - 2 && alive <= target);
   CheckF(string.Format("n=%1: half the men in contact (%2 of %3)", target, contacts, alive), contacts * 2 >= alive);
   CheckF(string.Format("n=%1: effective tier %2 (expected %3)", target, BBB_Fidelity.NameOf(BBB_Fidelity.s_iTier), BBB_Fidelity.NameOf(expected)), BBB_Fidelity.s_iTier == expected);
   // The governor counts only above Standard (Standard costs what it did).
-  if (set != BBB_Fidelity.STANDARD) CheckF(string.Format("n=%1: governor counted %2", target, BBB_Fidelity.s_iCombatants), BBB_Fidelity.s_iCombatants >= alive - 2 && BBB_Fidelity.s_iCombatants <= alive + 2);
+  if (tierSet != BBB_Fidelity.STANDARD) CheckF(string.Format("n=%1: governor counted %2", target, BBB_Fidelity.s_iCombatants), BBB_Fidelity.s_iCombatants >= alive - 2 && BBB_Fidelity.s_iCombatants <= alive + 2);
   if (expected == BBB_Fidelity.STANDARD) CheckF(string.Format("n=%1: no fast lane at Standard (%2 runs)", target, fast), fast == 0);
   else CheckF(string.Format("n=%1: fast lane ran (%2 runs in %3 s)", target, fast, WINDOW_S), WINDOW_S * 1000 / BBB_Fidelity.At(BBB_Fidelity.FAST_LANE_MS, expected) * 0.5 <= fast);
  }
 
- protected void Finish()
+ protected void FinishFid()
  {
   GetGame().GetCallqueue().Remove(TickF);
   foreach (BBB_AimLane lane : m_LanesF) Clear(lane);
@@ -293,6 +293,6 @@ modded class SCR_BaseGameMode
  protected override void OnGameStart()
  {
   super.OnGameStart();
-  BBB_FidelityTest.MaybeStart();
+  BBB_FidelityTest.MaybeStartFid();
  }
 }
