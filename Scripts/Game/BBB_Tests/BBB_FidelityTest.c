@@ -165,8 +165,10 @@ class BBB_FidelityTest : BBB_FireManeuverTest
   dir = Vector(0.087, 0, 0.996);
   while (m_iSite < rows.Count() * 30)
   {
-   float x = 1100 + (m_iSite % 30) * 34;
-   float z = rows[m_iSite / 30];
+   int column = m_iSite % 30;
+   int row = m_iSite / 30;
+   float x = 1100 + column * 34;
+   float z = rows[row];
    m_iSite++;
    from = BBB.Ground(Vector(x, 0, z));
    vector to = BBB.Ground(from + dir * 80);
