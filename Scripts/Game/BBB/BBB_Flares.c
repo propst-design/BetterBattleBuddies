@@ -356,11 +356,21 @@ class BBB_Flares
   {
    BBB_FlareJob job = s_Jobs[i];
    bool ended = !job.m_Action || job.m_Action.GetRemoveAction() || job.m_Action.GetActionState() == EAIActionState.COMPLETED || job.m_Action.GetActionState() == EAIActionState.FAILED;
-   bool cancelled = !groups.Contains(job.m_Group) || !Allowed(job.m_Utility) || now - job.m_Started > 15000;
-   if (!RecentTarget(job.m_Contact, 20)) cancelled = true;
-   else if (vector.DistanceXZ(job.m_Contact.GetLastSeenPosition(), job.m_ContactPosition) > AREA_RADIUS_M) cancelled = true;
+   // Why a request is called off goes in the log (20 Nov 2026: a host veto cancelled every request silently).
+   string why;
+   if (!groups.Contains(job.m_Group)) why = "squad no longer BBB's";
+   else if (!Allowed(job.m_Utility)) why = "no longer allowed (host, order or soldier)";
+   else if (now - job.m_Started > 15000) why = "not fired within 15 s";
+   else if (!RecentTarget(job.m_Contact, 20)) why = "contact lost";
+   else if (vector.DistanceXZ(job.m_Contact.GetLastSeenPosition(), job.m_ContactPosition) > AREA_RADIUS_M) why = "contact moved off";
+   bool cancelled = !why.IsEmpty();
    if (!ended && !cancelled) continue;
-   if (cancelled && !ended) { job.m_Action.Fail(); s_iCancelled++; }
+   if (cancelled && !ended)
+   {
+    job.m_Action.Fail();
+    s_iCancelled++;
+    PrintFormat("[BBB] FLARES request by %1 called off: %2", BBB.s_Hooks.NameOf(job.m_Group), why);
+   }
    s_Jobs.Remove(i);
   }
   for (int a = s_Areas.Count() - 1; a >= 0; a--) if (now >= s_Areas[a].m_Until) s_Areas.Remove(a);
