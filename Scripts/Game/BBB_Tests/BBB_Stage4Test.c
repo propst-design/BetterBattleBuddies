@@ -13,9 +13,9 @@ class BBB_Stage4TestHooks : BBB_Hooks
 //          shared with fire and manoeuvre's cover orders). Shots in bursts and A vs B shots are
 //          printed, not judged: bursts ended within a second and team noise swamped the effect,
 //          so the HOLD base of fire is opt-in.
-//  flank:  one enemy team 150 m north. A on the tactic must hold to fix it, then FLANK, and
-//          within 120 s stand at least 35 deg round the enemy from where it started and 15 deg
-//          more than B (old rules).
+//  flank:  one enemy team 150 m north. A on the tactic assaults (its fire fixes the enemy), then
+//          FLANKs with half the team, and within 120 s its farthest man stands at least 35 deg
+//          round the enemy from where the team started and 15 deg more than B's (old rules).
 //  search: one enemy team 100 m north with two sheds near it; once A has had contact for 15 s
 //          the enemy team is removed (it slipped away). A must SEARCH and reach at least 2
 //          search points within 100 s, one more than B comes near.
@@ -219,6 +219,24 @@ class BBB_Stage4Test : BBB_AimTest
   return BBB_Squad.AngleBetween(Math.Atan2(a[0], a[2]) * Math.RAD2DEG, Math.Atan2(b[0], b[2]) * Math.RAD2DEG);
  }
 
+ // The farthest any living man of team t stands round the enemy from where the team started.
+ float ManAngle(int t)
+ {
+  vector a = m_vStart[t] - m_vFoe;
+  float from = Math.Atan2(a[0], a[2]) * Math.RAD2DEG;
+  float best;
+  array<AIAgent> agents = {};
+  m_Teams[t].GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity man = agent.GetControlledEntity();
+   if (!man || !BBB.IsAlive(man)) continue;
+   vector b = man.GetOrigin() - m_vFoe;
+   best = Math.Max(best, BBB_Squad.AngleBetween(from, Math.Atan2(b[0], b[2]) * Math.RAD2DEG));
+  }
+  return best;
+ }
+
  void Watch()
  {
   m_Wait++;
@@ -261,7 +279,9 @@ class BBB_Stage4Test : BBB_AimTest
  void WatchFlank(int a)
  {
   if (a == BBB_Tactic.FLANK && m_iMark < 0) m_iMark = m_Wait;
-  for (int t = 0; t < 2; t++) m_fBestAngle[t] = Math.Max(m_fBestAngle[t], Angle(t));
+  // Since 19 Nov only half the team goes round (the rest stay as the base of fire), so the
+  // team centre moves half as far: judge the man farthest round, for A and B alike.
+  for (int t = 0; t < 2; t++) m_fBestAngle[t] = Math.Max(m_fBestAngle[t], ManAngle(t));
   if (m_iMark >= 0 && m_Wait - m_iMark < 120 && a == BBB_Tactic.FLANK) return;
   if (m_iMark < 0 && m_Wait < 100) return;
   if (m_iMark >= 0 && a != BBB_Tactic.FLANK && m_Wait - m_iMark < 20) return;

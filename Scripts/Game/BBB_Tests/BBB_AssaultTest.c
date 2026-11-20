@@ -133,6 +133,21 @@ class BBB_AssaultTest : BBB_AimTest
   GetGame().GetCallqueue().CallLater(Watch, 1000, true);
  }
 
+ void AddLate(SCR_AIGroup group, notnull array<IEntity> men)
+ {
+  if (!group) return;
+  array<AIAgent> agents = {};
+  group.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity man = agent.GetControlledEntity();
+   if (!man || men.Contains(man)) continue;
+   PinDetail(agent);
+   agent.ActivateAI();
+   men.Insert(man);
+  }
+ }
+
  int DownCount(notnull array<IEntity> men)
  {
   int count;
@@ -162,6 +177,9 @@ class BBB_AssaultTest : BBB_AimTest
   bool over = true;
   foreach (BBB_AssaultLane lane : m_aAssaultLanes)
   {
+   // A squad prefab spawns its men over a few seconds: Prepare saw 6 of the rifle squad's 9.
+   // Pick up the late ones (nobody has died this early; the dead leave the group, so only add).
+   if (m_Wait <= 15) { AddLate(lane.m_Squad, lane.m_aMen); AddLate(lane.m_Foe, lane.m_aFoes); }
    vector seen;
    if (lane.m_fContactAt < 0 && BBB_Squad.Threat(lane.m_Squad, BBB_Squad.RECENT_S, seen)) lane.m_fContactAt = m_Wait;
    vector centre;
@@ -190,7 +208,7 @@ class BBB_AssaultTest : BBB_AimTest
    string times = "";
    for (int t = 1; t < done.m_aTacticS.Count(); t++)
     if (done.m_aTacticS[t] > 0) times += string.Format(" %1=%2", BBB_Tactic.Name(t), done.m_aTacticS[t]);
-   string counts = string.Format("usDown=%1/%2 ruDown=%3/%4 fmS=%5 t=%6", usDown, done.m_aMen.Count(), ruDown, done.m_aFoes.Count(), done.m_iFmS, m_Wait);
+   string counts = string.Format("usDown=%1/%2 ruDown=%3/%4 fmS=%5 t=%6 flanksIn=%7", usDown, done.m_aMen.Count(), ruDown, done.m_aFoes.Count(), done.m_iFmS, m_Wait, BBB_TacticDrill.s_iFlanksIn);
    PrintFormat("[BBB] ASSAULTTEST RESULT lane=%1 tactic=%2 contact=%3 closest=%4 reached=%5 cleared=%6 %7 tacticS:%8", done.m_sName, done.m_bTactic, done.m_fContactAt, Math.Round(done.m_fClosest), done.m_fReachedAt, done.m_fClearedAt, counts, times);
   }
   BBB_AssaultLane only = m_aAssaultLanes[0];

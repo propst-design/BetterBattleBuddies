@@ -8,10 +8,11 @@
 //             may still take a man indoors, vanilla still sends men to look at heard fire);
 //             leader: "defend this position". Never inside 45 m
 //             unless outnumbered: close in, the squad fights it out (ASSAULT)
-//   FLANK     120 s (stage 4): instead of ASSAULT when the enemy has stayed put 20 s at 120-250 m
-//             and a covered flank point exists (in that band the squad first holds and fires
-//             until it knows he is staying put: fix, then flank); halves swap moving there and covering
-//             (BBB_TacticDrill), then ASSAULT from the new angle; leader: "move" (to the point)
+//   FLANK     120 s (stage 4; reworked 19 Nov, BBB #9): fix and flank. While a squad assaults
+//             (its fire is what fixes him), once the enemy has stayed put 20 s at 70-250 m and a
+//             covered flank point exists, the half nearer the point goes round while the other
+//             half stays as the base of fire (BBB_TacticDrill), then the squad assaults from two
+//             sides; once per contact; leader: "move" (to the point)
 //   REORG     20 s after the leader goes down: hold, no new assault, then the acting leader picks
 //   SEARCH    90 s (stage 4), once per contact: 20 s after contact is lost, halves take turns
 //             looking at the last known position and the cover around it; leader: "search and
@@ -31,7 +32,9 @@
 // (BBB #9: "leader pinned -> hold" stopped ACA assaults).
 // A squad with ground to take (search and destroy/attack order, or a move order still 30 m off)
 // holds only when outnumbered or flanked, and never searches (its order already takes it to
-// the enemy). Pinned, too far, too few, host or leash, or contact lost: the tactic stands aside
+// the enemy). It never freezes either (BBB #9, 19 Nov): no contact pause, and when its leader
+// falls the next man takes over while the squad fights on (no new plan for the reorganising
+// time, but no hold). Pinned, too far, too few, host or leash, or contact lost: the tactic stands aside
 // (NONE) and the order carries the squad on, as without BBB; vanilla's own suppression reactions
 // still put pinned men in cover. In a real-fight A/B (assault preset) a held or searching
 // attacker stood 130 m off while the same squad without the tactic closed in and won.
@@ -97,6 +100,9 @@ class BBB_TacticState : Managed
  vector m_vStatThreat;
  int m_iStatMen;
  bool m_bZombies;        // the last contact was zombies alone (BBB_Zombies): no search afterwards
+ int m_iFlanks;          // flanks tried this contact (one: a second would walk the squad round in circles)
+ float m_fNoPickUntil;   // a pushing squad whose leader fell: no new plan before this (it fights on meanwhile)
+ float m_fFlankTryAt;    // no covered flank point last time: don't look again before this
 }
 
 class BBB_Tactic
@@ -112,7 +118,8 @@ class BBB_Tactic
  static const float FLANK_S = 120;
  static const float SEARCH_S = 90;
  static const float SEARCH_AFTER_S = 20;
- static const float FLANK_MIN_M = 120;
+ static const float FLANK_MIN_M = 70;
+ static const float FLANK_BLIND_S = 60;    // a flank carries on this long without a sighting (it moves out of view)
  static const float FLANK_MAX_M = 250;
  static const float STILL_S = 20;          // enemy stayed within 15 m this long: dug in, worth flanking
  static const float LOOK_S = 2;
@@ -535,15 +542,19 @@ class BBB_Tactic
   }
   if (!contact)
   {
+   float blind = now - state.m_fLastContact;
+   // A flank goes through cover out of the enemy's sight, so out of the squad's too: it carries
+   // on that long (it was dropped within seconds in every assault run, never arriving).
+   bool flankGoesOn = state.m_iTactic == FLANK && blind < FLANK_BLIND_S;
    // An attacker that lost sight of the enemy goes on with its order rather than wait or search.
-   if (advancing && state.m_iTactic != NONE && state.m_iTactic != WITHDRAW && state.m_iTactic != SEARCH) StandAside(state, now, "contact lost: the order carries them on");
+   if (advancing && !flankGoesOn && state.m_iTactic != NONE && state.m_iTactic != WITHDRAW && state.m_iTactic != SEARCH) StandAside(state, now, "contact lost: the order carries them on");
    if (state.m_iTactic == SEARCH)
    {
     if (BBB_TacticDrill.Search(state, now) || now >= state.m_fUntil) { Say(group, ECommunicationType.REPORT_CLEAR, vector.Zero); PrintFormat("[BBB] TACTIC %1: search over", BBB.s_Hooks.NameOf(group)); Drop(group, "search over"); }
     return;
    }
    float lost = now - state.m_fLastContact;
-   if (s_bSearch && !advancing && !state.m_bZombies && lost >= SEARCH_AFTER_S && !state.m_bSearched && state.m_iTactic != WITHDRAW && picture.m_iConscious >= 2 && state.m_vLastThreat.LengthSq() > 0)
+   if (s_bSearch && !advancing && !flankGoesOn && !state.m_bZombies && lost >= SEARCH_AFTER_S && !state.m_bSearched && state.m_iTactic != WITHDRAW && picture.m_iConscious >= 2 && state.m_vLastThreat.LengthSq() > 0)
    {
     state.m_bSearched = true;
     BBB_TacticDrill.SearchPoints(state, state.m_vLastThreat, picture.m_vCentre, state.m_aPoints);
@@ -555,7 +566,7 @@ class BBB_Tactic
      return;
     }
    }
-   if (lost > LOST_S) { Drop(group, "contact lost"); return; }
+   if (lost > LOST_S && !flankGoesOn) { Drop(group, "contact lost"); return; }
   }
   else if (state.m_iTactic == SEARCH) state.m_fUntil = now; // found again: pick afresh
   // Leader down: the acting leader takes over only after the squad reorganises.
@@ -563,8 +574,12 @@ class BBB_Tactic
   if (state.m_Leader && state.m_Leader != leader && Down(state.m_Leader))
   {
    state.m_Leader = leader;
-   Set(state, REORG, now, s_fReorgS, "leader down", vector.Zero);
-   return;
+   if (!advancing) { Set(state, REORG, now, s_fReorgS, "leader down", vector.Zero); return; }
+   // A pushing squad doesn't stop in the open to reorganise: an assault or flank in hand goes
+   // on, anything else gives way to the order; no new plan until the next man has taken over.
+   state.m_fNoPickUntil = now + s_fReorgS;
+   PrintFormat("[BBB] TACTIC %1: leader down, the next man takes over (no new plan for %2 s, no hold)", BBB.s_Hooks.NameOf(group), s_fReorgS);
+   if (state.m_iTactic != ASSAULT && state.m_iTactic != FLANK) { StandAside(state, now, "leader down: the order carries them on"); return; }
   }
   if (leader && !Down(leader)) state.m_Leader = leader;
   bool assaultFits = contact && CanAssault(group, picture, threat, flanked, enemies);
@@ -613,13 +628,17 @@ class BBB_Tactic
    BBB_TacticDrill.Swap(state, now);
    BBB_TacticDrill.BaseOfFire(state, now, members);
   }
+  // Fix and flank: an assault whose enemy has shown he stays put sends a half round him.
+  if (state.m_iTactic == ASSAULT && assaultFits && TryFlank(state, picture, threat, now)) return;
   if (now < state.m_fUntil) return;
   if (!contact) return; // nothing to decide on; the tactic runs out at LOST_S
+  if (now < state.m_fNoPickUntil) return; // the next man is still taking over; the squad fights on
   if (state.m_iTactic == NONE && (!s_mContactLock.Contains(group) || now >= s_mContactLock.Get(group)))
   {
    s_mContactLock.Set(group, now + CONTACT_LOCK_S);
-   Set(state, CONTACT, now, CONTACT_S, "first contact", vector.Zero);
-   return;
+   // A squad with ground to take doesn't stop for it (vanilla already calls the contact and turns
+   // the men to it; the pause only cost the attack its momentum, BBB #9).
+   if (!advancing) { Set(state, CONTACT, now, CONTACT_S, "first contact", vector.Zero); return; }
   }
   // Only a conscious leader who isn't pinned down picks; otherwise the squad keeps its tactic.
   SCR_AIUtilityComponent deciding = LeaderUtility(group);
@@ -633,22 +652,11 @@ class BBB_Tactic
   }
   if (assaultFits)
   {
-   // A dug-in enemy at 120-250 m is worth going round rather than at.
+   // A dug-in enemy at 70-250 m is worth going round as well as at. The assault's own fire
+   // fixes him meanwhile (until 19 Nov the squad held still for up to 20 s first, in the open,
+   // at exactly the range it should have been closing).
+   if (TryFlank(state, picture, threat, now)) return;
    float range = vector.DistanceXZ(threat, picture.m_vCentre);
-   vector flankAt;
-   // In flanking range, first fix him: hold and fire until he has shown he is staying put.
-   float still = now - state.m_fThreatStillSince;
-   if (s_bFlank && range >= FLANK_MIN_M && range <= FLANK_MAX_M && still < STILL_S && BaseAssault(group, picture) && state.m_iTactic != HOLD)
-   {
-    Set(state, HOLD, now, STILL_S - still + 1, string.Format("fixing the enemy %1 m away before deciding", Math.Round(range)), vector.Zero);
-    return;
-   }
-   if (s_bFlank && range >= FLANK_MIN_M && range <= FLANK_MAX_M && now - state.m_fThreatStillSince >= STILL_S && BaseAssault(group, picture) && BBB_TacticDrill.FlankPoint(state, picture, threat, flankAt))
-   {
-    state.m_vFlankPoint = flankAt;
-    Set(state, FLANK, now, FLANK_S, string.Format("enemy dug in %1 m away: flanking to a point %2 m from us", Math.Round(range), Math.Round(vector.DistanceXZ(flankAt, picture.m_vCentre))), flankAt);
-    return;
-   }
    Set(state, ASSAULT, now, s_fAssaultS, string.Format("enemy %1 m, %2 seen, %3 of us", Math.Round(range), enemies, picture.m_iConscious), threat);
   }
   else if (!advancing) Set(state, HOLD, now, s_fHoldS, HoldReason(group, picture, threat, flanked, enemies), vector.Zero);
@@ -661,6 +669,29 @@ class BBB_Tactic
  {
   if (advancing && now < state.m_fNoHoldUntil) { StandAside(state, now, why + ": held enough, the order carries them on"); return; }
   Set(state, HOLD, now, s_fHoldS, why, vector.Zero);
+ }
+
+ // Fix and flank, once per contact: the enemy has stayed put STILL_S at 70-250 m, the squad can
+ // bound (four fit men, host and orders allow it), its leader can decide and isn't reorganising,
+ // and a covered flank point exists. The caller has checked the odds (assaultFits).
+ protected static bool TryFlank(BBB_TacticState state, BBB_SquadPicture picture, vector threat, float now)
+ {
+  if (!s_bFlank || state.m_iFlanks > 0 || now < state.m_fNoPickUntil || !picture.m_bHasCentre) return false;
+  float range = vector.DistanceXZ(threat, picture.m_vCentre);
+  if (range < FLANK_MIN_M || range > FLANK_MAX_M || now - state.m_fThreatStillSince < STILL_S) return false;
+  if (!BaseAssault(state.m_Group, picture)) return false;
+  SCR_AIUtilityComponent deciding = LeaderUtility(state.m_Group);
+  if (!deciding || (deciding.m_ThreatSystem && deciding.m_ThreatSystem.GetSuppressionMeasure() >= LEADER_PINNED)) return false;
+  // No covered point now: ground doesn't change fast, look again in a while (six sphere queries a try).
+  if (now < state.m_fFlankTryAt) return false;
+  vector flankAt;
+  if (!BBB_TacticDrill.FlankPoint(state, picture, threat, flankAt)) { state.m_fFlankTryAt = now + 10; return false; }
+  state.m_vFlankPoint = flankAt;
+  state.m_iFlanks++;
+  Set(state, FLANK, now, FLANK_S, string.Format("enemy dug in %1 m away: half the squad flanks to a point %2 m from us, the rest keep firing", Math.Round(range), Math.Round(vector.DistanceXZ(flankAt, picture.m_vCentre))), flankAt);
+  BBB_TacticDrill.FlankHalves(state); // after Set, which resets the halves
+  BBB_TacticDrill.Flank(state, now);
+  return true;
  }
 
  // What a host can read about a squad the tactic runs (BBB #15): null when it runs none.

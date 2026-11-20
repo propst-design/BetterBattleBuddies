@@ -2,9 +2,13 @@
 // this moves and fires. The squad works in two halves that swap (LAMBS: no fixed MG role):
 //   base of fire  (HOLD, REORG, FLANK) the firing half puts bursts on the cover nearest the
 //                 freshest real report (<= 8 s, BBB_CoverFire); halves swap every 15 s
-//   flank         the other half runs (BBB_AIWithdrawMove, 91, attack held off as in a
-//                 withdrawal) to a flank point 60-80 deg off the line to the enemy at 0.6 of
-//                 the range; whoever arrives covers, the rest move; done once all are near it
+//   flank         fix and flank (BBB #9, 19 Nov): the half nearer the flank point runs there
+//                 (BBB_AIWithdrawMove, 91, attack held off as in a withdrawal) while the other
+//                 half stays where it is as the base of fire, for the whole move; the point is
+//                 50-70 deg off the line to the enemy at 0.55 of the range; done once the
+//                 movers are in, then the squad assaults from two sides. (Until 19 Nov the halves
+//                 leap-frogged and the whole squad ended up at the point: one 150 m sidestep
+//                 with nobody left in front, no crossfire, and two minutes out of the fight.)
 //   search        after contact is lost: the last known position, then up to four building
 //                 sides and solid cover within 30 m of it, nearest first; half walks to each
 //                 (vanilla move-and-investigate) while the other half watches, then they swap
@@ -14,15 +18,16 @@ class BBB_TacticDrill
  static const float SWAP_S = 15;
  static const float REPORT_S = 8;
  static const float BURST_S = 6;
- static const float FLANK_MIN_DEG = 60;
- static const float FLANK_MAX_DEG = 80;
- static const float FLANK_RANGE = 0.6;
+ static const float FLANK_MIN_DEG = 50;
+ static const float FLANK_MAX_DEG = 70;
+ static const float FLANK_RANGE = 0.55;
  static const float ARRIVE_M = 15;
+ static const float STRAGGLER_M = 40;  // a mover whose run ended this close counts as in (cover, a fence, a dead end)
  static const float SEARCH_RADIUS_M = 30;
  static const float POINT_M = 5;
  static const float POINT_S = 20;     // per point, plus walking time at 1.5 m/s
  static const int SEARCH_EXTRA = 4;
- static int s_iBursts, s_iRuns, s_iLooks, s_iPointsDone; // tests read these
+ static int s_iBursts, s_iRuns, s_iLooks, s_iPointsDone, s_iFlanksIn; // tests read these
  static ref array<SCR_AIGroup> s_aNoFire; // test only: squads that hold without a base of fire
  protected static ref array<IEntity> s_aFound;
  // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
@@ -178,7 +183,7 @@ class BBB_TacticDrill
   if (range < 1) return false;
   back.Normalize();
   int bestScore = 0;
-  array<float> angles = {70, FLANK_MIN_DEG, FLANK_MAX_DEG};
+  array<float> angles = {60, FLANK_MIN_DEG, FLANK_MAX_DEG};
   array<float> sides = {1, -1};
   foreach (float sign : sides)
   {
@@ -209,22 +214,44 @@ class BBB_TacticDrill
   return false;
  }
 
- // One flank step. True once the whole squad is near the flank point.
+ // Which half moves: the one nearer the flank point (the leader's left/right halves, or every
+ // other man); the other half is the base of fire for the whole move. Called once per flank.
+ static void FlankHalves(BBB_TacticState state)
+ {
+  array<SCR_AIUtilityComponent> members = {};
+  Members(state, members);
+  float near0, near1;
+  int count0, count1;
+  foreach (int i, SCR_AIUtilityComponent utility : members)
+  {
+   float to = vector.DistanceXZ(utility.m_OwnerEntity.GetOrigin(), state.m_vFlankPoint);
+   if (Half(i, utility) == 0) { near0 += to; count0++; }
+   else { near1 += to; count1++; }
+  }
+  // The firing half is the one farther from the point (an empty half can't move).
+  state.m_iFireHalf = 1;
+  if (count0 == 0) return;
+  if (count1 == 0 || near0 / count0 > near1 / count1) state.m_iFireHalf = 0;
+ }
+
+ // One flank step: the moving half runs to the point, the base of fire stays and covers it.
+ // True once every mover is in (within ARRIVE_M, or a run that ended within STRAGGLER_M).
  static bool Flank(BBB_TacticState state, float now)
  {
   array<SCR_AIUtilityComponent> members = {};
   Members(state, members);
   if (members.IsEmpty()) return false;
-  bool allThere = true;
-  bool moversBusy;
+  int movers, inPlace;
   foreach (int i, SCR_AIUtilityComponent utility : members)
   {
-   float left = vector.DistanceXZ(utility.m_OwnerEntity.GetOrigin(), state.m_vFlankPoint);
-   if (left > ARRIVE_M) allThere = false;
    if (Half(i, utility) == state.m_iFireHalf) continue;
-   if (left <= ARRIVE_M) continue;
-   if (Running(utility.m_BBBWithdrawRun)) { moversBusy = true; BBB_Claims.Take(utility.m_OwnerEntity, BBB_Claims.FIRE); continue; }
-   if (!BBB_Claims.Take(utility.m_OwnerEntity, BBB_Claims.FIRE)) continue;
+   movers++;
+   float left = vector.DistanceXZ(utility.m_OwnerEntity.GetOrigin(), state.m_vFlankPoint);
+   if (left <= ARRIVE_M) { inPlace++; continue; }
+   if (Running(utility.m_BBBWithdrawRun)) { BBB_Claims.Take(utility.m_OwnerEntity, BBB_Claims.FIRE); continue; }
+   // His run is over (arrived near, blocked, or never started): close enough counts.
+   if (left <= STRAGGLER_M && utility.m_bBBBTacticRunner) { inPlace++; continue; }
+   if (!BBB_Claims.Take(utility.m_OwnerEntity, BBB_Claims.FIRE)) { movers--; continue; } // busy elsewhere: not waited for
    // Spread the movers a few metres apart around the point.
    int column = i % 3;
    int row = i / 3;
@@ -235,13 +262,10 @@ class BBB_TacticDrill
    utility.m_BBBWithdrawRun = run;
    utility.m_bBBBTacticRunner = true;
    state.m_aRuns.Insert(run);
-   moversBusy = true;
    s_iRuns++;
   }
-  if (allThere) return true;
-  // The movers made it (or can't): they cover, the others go.
-  if (!moversBusy) state.m_fSwapAt = now;
-  Swap(state, now);
+  if (movers > 0 && inPlace >= movers) { s_iFlanksIn++; return true; }
+  // The base of fire keeps the enemy's head down on the freshest real report.
   BaseOfFire(state, now, members);
   return false;
  }
