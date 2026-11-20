@@ -1,7 +1,8 @@
 # Changelog
 
-## 0.2.2 — unreleased
+## 0.3.0 — unreleased
 
+- Squad tactics (when switched on) no longer slow an attacking squad down. A squad on an attack order used to stop for a few seconds on first contact, hold 20 s in the open to "fix" a dug-in enemy, freeze when its leader fell, and flank by walking the whole squad out to the side, leaving nobody firing in front. Now an attacking squad keeps moving on contact, and the next man takes over when the leader falls. Against an enemy that stays put at 70–250 m, half the squad flanks while the other half keeps firing from the front, then both close in from two sides. A flank also no longer gives up the moment the squad loses sight of the enemy while working round. A defending squad uses its tactics as before.
 - A squad defending a spot with a machine gun or other static gun should keep the same man on it. Every few minutes the game re-planned the defence, ordered the gunner off and handed the gun to a random squad mate, so the gun stood empty for a few seconds each time. Now the gunner stays put, and if the game picks someone else for the gun, that man takes the gunner's other job instead.
 ## 0.2.1 — released
 
