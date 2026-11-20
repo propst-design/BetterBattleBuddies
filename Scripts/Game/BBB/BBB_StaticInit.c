@@ -30,6 +30,7 @@ class BBB_StaticInit : Managed
   BBB_Drag.BBB_InitStatics();
   BBB_DriverAlignment.BBB_InitStatics();
   BBB_Drive.BBB_InitStatics();
+  BBB_Fidelity.BBB_InitStatics();
   BBB_FireManeuver.BBB_InitStatics();
   BBB_Flares.BBB_InitStatics();
   BBB_Grenades.BBB_InitStatics();

@@ -240,6 +240,7 @@ class BBB_FireManeuver
    if (!s_Next.GetKey(c) || !groups.Contains(s_Next.GetKey(c))) s_Next.RemoveElement(c);
   if (!s_bOn) return;
   int admissions;
+  int admit = BBB_Fidelity.I(BBB_Fidelity.FM_ADMISSIONS);
   for (int offset = 0; offset < groups.Count(); offset++)
   {
    int groupIndex = (s_iAdmissionCursor + offset) % groups.Count();
@@ -247,7 +248,7 @@ class BBB_FireManeuver
    BBB_FireTeamJob job = s_Jobs.Get(group);
    if (!job)
    {
-    if (admissions >= MAX_ADMISSIONS_PER_TICK || now < s_Next.Get(group)) continue;
+    if (admissions >= admit || now < s_Next.Get(group)) continue;
     admissions++;
     // Admission scans do not need to repeat every second for squads that
     // cannot form a job. Active jobs still validate orders/update every tick.
@@ -257,7 +258,7 @@ class BBB_FireManeuver
    }
    if (job) Update(job, now);
   }
-  if (!groups.IsEmpty()) s_iAdmissionCursor = (s_iAdmissionCursor + MAX_ADMISSIONS_PER_TICK) % groups.Count();
+  if (!groups.IsEmpty()) s_iAdmissionCursor = (s_iAdmissionCursor + admit) % groups.Count();
  }
 
  protected static BBB_FireTeamJob Start(SCR_AIGroup group, float now)

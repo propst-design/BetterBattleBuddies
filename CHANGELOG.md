@@ -1,7 +1,9 @@
 # Changelog
 
-## 0.2.2 — unreleased
+## 0.3.0 — unreleased
 
+- New Fidelity setting for smaller battles. Better Battle Buddies keeps every soldier's decisions cheap so a 100-AI battle stays smooth, which also meant a 20-AI Game Master mission got the same slow re-checks. Fidelity Standard (the default) is exactly as before. High and Uncapped spend more server time where it shows: the squad leader looks again two to four times a second instead of once, so a man who hasn't seen the enemy his mates are fighting is turned onto it, or switched onto a more dangerous target, sooner; squads re-plan their tactic every second; grenadiers, AT gunners and static gun crews check for a chance up to three times as often; and cover is tested with three or five rays across a soldier's shoulders instead of one through his middle, so a man behind a post that hides only his middle no longer counts as covered and moves to real cover. Soldiers never learn anything more than they see or hear. As the battle grows the setting steps down by itself: above 30 AI soldiers Uncapped runs as High, above 60 everything runs as Standard, and it steps back up when the battle shrinks, so a Game Master mission that grows to 100 AI keeps its frame rate. Option: `-bbbFidelity 0|1|2` (Standard, High, Uncapped), `-bbbFidelityGovernor 0` to keep the chosen tier at any size, `-bbbFidelityUncappedMax` and `-bbbFidelityHighMax` for the two lines (or the Battle Buddies settings tab, General).
+- For mod makers: new hook `MaxFidelity()` lets a host mod cap the fidelity tier (-1, the default: no cap).
 - A squad defending a spot with a machine gun or other static gun should keep the same man on it. Every few minutes the game re-planned the defence, ordered the gunner off and handed the gun to a random squad mate, so the gun stood empty for a few seconds each time. Now the gunner stays put, and if the game picks someone else for the gun, that man takes the gunner's other job instead.
 ## 0.2.1 — released
 

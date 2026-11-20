@@ -268,7 +268,7 @@ class BBB_Teams
   BBB.Groups(groups);
   for (int i = s_aPairs.Count() - 1; i >= 0; i--)
    if (!s_aPairs[i].m_Group || !groups.Contains(s_aPairs[i].m_Group)) Drop(i);
-  int budget = PAIR_GROUPS_PER_TICK;
+  int budget = BBB_Fidelity.I(BBB_Fidelity.PAIR_GROUPS);
   foreach (SCR_AIGroup group : groups)
   {
    if (!group) continue;

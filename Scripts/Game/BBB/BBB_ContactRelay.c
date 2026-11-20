@@ -80,7 +80,7 @@ class BBB_ContactRelay
   float perceptionNow = perception.GetTime();
   foreach (int i, SCR_AIGroup sender : groups)
   {
-   if ((i + s_iTick) % STAGGER != 0) continue;
+   if ((i + s_iTick) % BBB_Fidelity.I(BBB_Fidelity.RELAY_STAGGER) != 0) continue;
    Send(sender, groups, perceptionNow, now);
   }
   // Forget receivers that are gone, and radio checks of the dead.

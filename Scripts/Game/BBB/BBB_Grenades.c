@@ -484,7 +484,7 @@ class BBB_Grenades
 			{
 				if (nowMs < s_mNextCheck.Get(group)) continue;
 			}
-			s_mNextCheck.Set(group, nowMs + CHECK_INTERVAL_MS);
+			s_mNextCheck.Set(group, nowMs + BBB_Fidelity.F(BBB_Fidelity.GRENADE_CHECK_MS));
 
 			// Search perceived enemy targets in cover or structures within throwing distance
 			array<AIAgent> agents = {};

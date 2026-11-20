@@ -87,7 +87,7 @@ class BBB_Launchers : Managed
  {
   float now = GetGame().GetWorld().GetWorldTime();
   if (now < m_fNextCheck) return;
-  m_fNextCheck = now + CHECK_MS;
+  m_fNextCheck = now + BBB_Fidelity.F(BBB_Fidelity.LAUNCHERS_CHECK_MS);
   Read();
   array<SCR_AIGroup> groups = {};
   BBB.Groups(groups);
