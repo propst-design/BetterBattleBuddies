@@ -20,7 +20,9 @@ class BBB_VehicleHelpers : Managed
  static const float STALL_SECONDS = 8.0;
  static const float STALL_SECONDS_FIGHTING = 25.0;
  static const float STALL_SECONDS_HELPLESS = 3.0;
- static const int UNSTICK_TRIES = 2;
+ static const int UNSTICK_TRIES = 3;     // at one spot (BBB_Unstick escalates each), then the crew gives up on it
+ static const float UNSTICK_CLEAR_M = 25;  // this far from where the last one began: a new spot, the count starts again
+ static const float WAIT_MAX_S = 40;       // its crew boarding or a queue ahead excuses a stop this long at most
  static const float GUNNER_REPLACE_COOLDOWN_MS = 8000.0;
  static const float GUNNER_FOOT_REACH_M = 8.0;
 
@@ -34,6 +36,9 @@ class BBB_VehicleHelpers : Managed
  protected ref map<IEntity, vector> m_StallPos = new map<IEntity, vector>();
  protected ref map<IEntity, float> m_StallSince = new map<IEntity, float>();
  protected ref map<IEntity, int> m_Unsticks = new map<IEntity, int>();
+ protected ref map<IEntity, vector> m_UnstickFrom = new map<IEntity, vector>();
+ protected ref map<IEntity, float> m_WaitSince = new map<IEntity, float>();
+ protected ref array<IEntity> m_GaveUp = {};  // stuck for good: an armed crew holding (logged once)
  static ref map<IEntity, float> s_mGunnerReplaceNext;
  protected ref array<IEntity> m_Unsticking = {};
  protected ref BBB_VehicleHelpersUnstick m_UnstickListener;
@@ -986,6 +991,9 @@ class BBB_VehicleHelpers : Managed
   m_StallPos.Remove(vehicle);
   m_StallSince.Remove(vehicle);
   m_Unsticks.Remove(vehicle);
+  m_UnstickFrom.Remove(vehicle);
+  m_WaitSince.Remove(vehicle);
+  m_GaveUp.RemoveItem(vehicle);
  }
 
  void OnUnstickEnded(IEntity vehicle)
@@ -1055,11 +1063,39 @@ class BBB_VehicleHelpers : Managed
   vector stallPos = m_StallPos.Get(vehicle);
   if (!eligible || !wantsToMove || !hasStall || (speed > 1.0 && vector.DistanceXZ(vehicle.GetOrigin(), stallPos) > 5))
   {
-   if (!eligible || !wantsToMove) m_Unsticks.Remove(vehicle);
+   if (!eligible || !wantsToMove) { m_Unsticks.Remove(vehicle); m_UnstickFrom.Remove(vehicle); m_GaveUp.RemoveItem(vehicle); }
+   else if (m_UnstickFrom.Contains(vehicle) && vector.DistanceXZ(vehicle.GetOrigin(), m_UnstickFrom.Get(vehicle)) > UNSTICK_CLEAR_M) { m_Unsticks.Remove(vehicle); m_UnstickFrom.Remove(vehicle); m_GaveUp.RemoveItem(vehicle); }
    m_StallPos.Set(vehicle, vehicle.GetOrigin());
+   m_StallSince.Set(vehicle, now);
+   m_WaitSince.Remove(vehicle);
+   return;
+  }
+
+  // Standing still on purpose isn't being stuck (Jacob, 19 Nov: the timed reverse often made things
+  // worse): another BBB manoeuvre for as long as it runs (giving way, pulling over: reversing then
+  // fought it for the wheel); its crew getting in or a queue behind a stopped vehicle for WAIT_MAX_S
+  // at most, and not under fire, where the usual limits apply.
+  string why;
+  int waiting = BBB_Unstick.WaitingFor(vehicle, driver, group, why);
+  if (waiting == BBB_Unstick.WAIT_HELD)
+  {
    m_StallSince.Set(vehicle, now);
    return;
   }
+  if (waiting != BBB_Unstick.WAIT_NONE && !underFire)
+  {
+   if (!m_WaitSince.Contains(vehicle))
+   {
+    m_WaitSince.Set(vehicle, now);
+    PrintFormat("[BBB] DRIVE %1: stopped, %2: waiting, not stuck", BBB.s_Hooks.NameOf(group), why);
+   }
+   if (now - m_WaitSince.Get(vehicle) < WAIT_MAX_S * 1000)
+   {
+    m_StallSince.Set(vehicle, now);
+    return;
+   }
+  }
+  else m_WaitSince.Remove(vehicle);
 
   float stalled = (now - m_StallSince.Get(vehicle)) / 1000.0;
   bool fightingVehicle = HasTurret(vehicle);
@@ -1081,16 +1117,44 @@ class BBB_VehicleHelpers : Managed
   if (stalled < limit) return;
 
   int tries = m_Unsticks.Get(vehicle);
-  if (tries >= UNSTICK_TRIES) return;
+  // The last manoeuvre found it boxed in or bogged: another one does the same, hand off now.
+  int last = BBB_Unstick.LastOutcome(vehicle);
+  if (tries > 0 && BBB_Unstick.Hopeless(last)) tries = UNSTICK_TRIES;
+  if (tries >= UNSTICK_TRIES)
+  {
+   GiveUpStuck(group, vehicle, fightingVehicle || armed, BBB_Unstick.OutcomeName(last));
+   return;
+  }
   tries++;
   m_Unsticks.Set(vehicle, tries);
+  if (tries == 1) m_UnstickFrom.Set(vehicle, vehicle.GetOrigin());
   m_Unsticking.Insert(vehicle);
+  // A hint only: BBB_Unstick looks for the open side itself and swaps sides on a repeat.
   float steer = 0.8;
   if (tries % 2 == 0) steer = -0.8;
   if (!m_UnstickListener) m_UnstickListener = new BBB_VehicleHelpersUnstick(this);
   BBB_Unstick.Begin(vehicle, driver, steer, m_UnstickListener);
-  PrintFormat("[BBB] DRIVE %1: stuck, backing up (try %2)", BBB.s_Hooks.NameOf(group), tries);
-  BBB_Think.NoteGroup(group, "Vehicle", "stuck, backing up (try " + tries + ")");
+  PrintFormat("[BBB] DRIVE %1: stuck, getting free (try %2)", BBB.s_Hooks.NameOf(group), tries);
+  BBB_Think.NoteGroup(group, "Vehicle", "stuck, getting free (try " + tries + ")");
+ }
+
+ // Nothing more to try at this spot. An armed vehicle's crew stays with its gun and holds there; a
+ // soft vehicle's crew gets out and goes on on foot (it was sitting there for good before: the old
+ // watch simply stopped trying). A Game Master's order keeps everyone where he put them.
+ protected void GiveUpStuck(SCR_AIGroup group, IEntity vehicle, bool armed, string last)
+ {
+  if (m_GaveUp.Contains(vehicle)) return;
+  m_GaveUp.Insert(vehicle);
+  if (armed || BBB_OrderIntent.GameMasterOrder(group))
+  {
+   PrintFormat("[BBB] DRIVE %1: stuck for good (last try: %2), crew holds with the vehicle", BBB.s_Hooks.NameOf(group), last);
+   BBB_Think.NoteGroup(group, "Vehicle", "stuck for good: holds with the vehicle");
+   return;
+  }
+  int dropped = DismountGroupFromVehicle(group, vehicle);
+  PrintFormat("[BBB] DRIVE %1: stuck for good (last try: %2), %3 get out and go on on foot", BBB.s_Hooks.NameOf(group), last, dropped);
+  BBB_Think.NoteGroup(group, "Vehicle", "stuck for good: crew gets out, goes on on foot");
+  ClearStallState(vehicle);
  }
 }
 

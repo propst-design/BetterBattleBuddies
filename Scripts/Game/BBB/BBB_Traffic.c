@@ -21,7 +21,8 @@
 //    forward onto the verge (VergeSpot), brake, handbrake on, then the listener is told.
 //  - Enemy vehicles are never given way to. An unarmed AI vehicle whose crew sees an armed enemy vehicle
 //    within EVADE_M asks the host to take it away (BBB_Hooks.Evade), once per EVADE_EVERY_S; with the
-//    threat ahead within 200 m it first backs away for a few seconds (BBB_Unstick's reverse).
+//    threat ahead within 200 m it first backs away for a few seconds (BBB_Unstick.BackAway: never into
+//    anything behind it).
 // Each is an option, off by default until it has been played, except the handbrake (on: Reforger 1.9 drops an
 // empty vehicle into neutral, so a vehicle left on a slope rolls away). Vehicles and crews in the settings tab.
 // All server only; vehicles the host leaves alone (BBB_Hooks.LeaveAlone) are skipped.
@@ -352,7 +353,7 @@ class BBB_Traffic
   s_mEvadeAt.Set(vehicle, now);
   if (!BBB.s_Hooks.Evade(group, vehicle, threat)) return;
   s_iEvades++;
-  // The threat ahead and close: back away first (BBB_Unstick's reverse), not turn round towards it.
+  // The threat ahead and close: back away first (BBB_Unstick.BackAway), not turn round towards it.
   vector mat[4];
   vehicle.GetWorldTransform(mat);
   vector toThreat = threat - vehicle.GetOrigin();
@@ -365,7 +366,7 @@ class BBB_Traffic
   if (range < 200 && vector.Dot(forward, toThreat) > 0.5)
   {
    AIControlComponent ai = AIControlComponent.Cast(driver.FindComponent(AIControlComponent));
-   if (ai && ai.IsAIActivated() && !BBB_PullOver.Active(vehicle)) BBB_Unstick.Begin(vehicle, driver, 0, null);
+   if (ai && ai.IsAIActivated() && !BBB_PullOver.Active(vehicle)) BBB_Unstick.BackAway(vehicle, driver, null);
   }
   PrintFormat("[BBB] TRAFFIC %1 is unarmed and sees an armed enemy vehicle %2 m away: gets away", Name(vehicle), Math.Round(vector.DistanceXZ(vehicle.GetOrigin(), threat)));
  }

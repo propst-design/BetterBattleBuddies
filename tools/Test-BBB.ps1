@@ -1,7 +1,7 @@
 # Independent BBB acceptance runner. Loads BBB + base game, never ACA.
 [CmdletBinding()]
 param(
- [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','callouts','glarming','glarmingm79','gmwaypoint','fidelity','compile')][string]$Preset = 'vanilla',
+ [ValidateSet('vanilla','rearm','seatdiag','seatfire','seatidle','look','firemaneuverperf','morale','smoke','staticweapons','grenades','featureaudit','reactions','crewturnout','driveralign','driveraligncomplete','commanderseat','think','flares','doors','orderleash','crewstays','gatelane','contactrelay','claims','teams','squad','fallback','tactic','assault','coverfire','flank','search','heldguns','vanillanodes','indoorhold','roadexit','roadexitiso','roadexiton','roadexitnear','armourrounds','launcherinf','launcherinfrhs','settings','seatrevoke','firediscipline','crewcallout','dragcover','crewleader','squadleader','squadjobs','squadteams','moraleace','zombies','armour','gunner','rearmweapon','callouts','glarming','glarmingm79','gmwaypoint','fidelity','unstick','compile')][string]$Preset = 'vanilla',
  [string]$AddonRoot,
  [string]$ServerPath,
  [ValidateRange(0,1200)][int]$WaitForServerSeconds = 120,
@@ -157,6 +157,8 @@ $flags.doors = '-bbbDoorTest 1 -bbbPerf 1'
 $timeouts.doors = 300
 $flags.crewstays = '-bbbCrewStaysTest 1 -bbbPerf 1'
 $timeouts.crewstays = 120
+$flags.unstick = '-bbbUnstickTest 1'
+$timeouts.unstick = 150
 $flags.gatelane = '-bbbGateLaneTest 1'
 $timeouts.gatelane = 90
 $flags.contactrelay = '-bbbContactRelayTest 1 -bbbPerf 1'

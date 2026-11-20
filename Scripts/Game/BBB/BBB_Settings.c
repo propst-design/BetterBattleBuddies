@@ -414,7 +414,7 @@ class BBB_Settings
   On(g, "bbbDriverAlign", "Driver alignment", "An idle driver turns the vehicle slightly so the gunner can see his target.");
   On(g, "bbbTacticalDismount", "Dismount under fire", "Passengers of a vehicle slowing under fire get out to fight; turret crews stay.");
   On(g, "bbbDoors", "Gates and doors", "AI drivers open gates ahead without stopping; crews close doors and hatches once aboard.");
-  On(g, "bbbUnstick", "Unstick vehicles", "Stuck AI drivers reverse and steer away; soldiers left standing on a truck bed get down.");
+  On(g, "bbbUnstick", "Unstick vehicles", "Stuck AI drivers look before backing out and steer away; soldiers left standing on a truck bed get down.");
   Off(g, "bbbDriver", "BBB drives vehicles (experimental)", "On long moves BBB drives AI wheeled vehicles itself along the route the game plans: keeps the line through bends, slows for them, brakes for anything in the way, pulls away on hills and backs out when stuck. In contact, or when a player or Game Master takes the wheel, the game's driver takes over.");
   On(g, "bbbDriverGM", "BBB drives Game Master moves", "With BBB driving on, it also drives vehicles a Game Master sends on a long move.");
   Off(g, "bbbGiveWay", "Vehicles give way", "Friendly vehicles on a collision course agree who gives way: head-on, one pulls over to its right and waits; anywhere else it brakes. Never for an enemy.");
