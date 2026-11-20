@@ -495,6 +495,8 @@ class BBB_PullOver : Managed
  static string s_sWhere;               // where the last VergeSpot put it: "verge", "shoulder" or "road edge" (the host logs it)
  static int s_iParked;                // tests and the log
  static string s_sWhyNot;             // why the last Begin or VergeSpot refused (the host logs it)
+ static int s_iRollStops;             // pull-overs stopped at once on a roll or pitch (tests, the log)
+ static float s_fLastMaxRoll;         // the largest roll, degrees, of the last pull-over that ended (tests)
  protected static ref array<ref BBB_PullOver> s_aActive;
 
  IEntity m_Vehicle;
@@ -510,6 +512,11 @@ class BBB_PullOver : Managed
  protected BaseVehicleControllerComponent m_PilotHeld; // driver seat unhooked while we drive (BBB_PilotHold)
  protected ref BBB_PullOverListener m_Listener;
  protected float m_fLogAt;
+ protected ref BBB_PullOverLimits m_Limits; // per vehicle: a truck or an APC pulls off slower, with less wheel, onto flatter ground
+ protected float m_fSteer;     // the wheel, eased toward where it should be (m_Limits.m_fSteerRate)
+ protected float m_fLastAt;
+ protected float m_fMaxRoll;
+ protected bool m_bRollStop;
 
  static bool Active(IEntity vehicle)
  {
@@ -532,7 +539,19 @@ class BBB_PullOver : Managed
   pull.m_Other = other;
   pull.m_Listener = listener;
   pull.m_fStart = GetGame().GetWorld().GetWorldTime();
-  if (mode != MODE_HOLD) pull.m_bHasSpot = VergeSpot(vehicle, side, pull.m_vSpot, ahead);
+  pull.m_fLastAt = pull.m_fStart;
+  pull.m_Limits = BBB_PullOverLimits.For(vehicle);
+  // Far enough on to brake to the turn-in pace on the road first (40 km/h needs ~25 m in a truck).
+  float speed = BBB_Traffic.Velocity(vehicle).Length();
+  if (ahead <= 0) ahead = SPOT_AHEAD_M;
+  ahead = Math.Max(ahead, pull.m_Limits.AheadFor(speed));
+  if (mode != MODE_HOLD)
+  {
+   pull.m_bHasSpot = VergeSpot(vehicle, side, pull.m_vSpot, ahead, pull.m_Limits);
+   string spotLog = "none (" + s_sWhyNot + ")";
+   if (pull.m_bHasSpot) spotLog = s_sWhere;
+   PrintFormat("[BBB] TRAFFIC pull-over %1: %2 limits (roll %3 deg), %4 km/h, %5 m on, spot: %6", BBB_Traffic.Name(vehicle), pull.m_Limits.m_sKind, pull.m_Limits.m_fMaxRollDeg, Math.Round(speed * 3.6), Math.Round(ahead), spotLog);
+  }
   if (mode == MODE_PARK && !pull.m_bHasSpot) return false; // nowhere to pull over to: the host gets out where it is
   ai.DeactivateAI();
   pull.m_bParkedAI = true;
@@ -581,8 +600,9 @@ class BBB_PullOver : Managed
  // A spot to pull over to, 'ahead' m on along the road (SPOT_AHEAD_M when 0 or less): the verge, else the
  // shoulder, else the road's own right edge, whichever is first drivable from the road's middle (no ditch or
  // bank on the way, nothing solid there or on the way). False: not on a road, or even the road's edge is blocked.
- static bool VergeSpot(IEntity vehicle, int side, out vector spot, float ahead = 0)
+ static bool VergeSpot(IEntity vehicle, int side, out vector spot, float ahead = 0, BBB_PullOverLimits limits = null)
  {
+  if (!limits) limits = BBB_PullOverLimits.For(vehicle);
   vector at = vehicle.GetOrigin();
   vector point, dir;
   float width;
@@ -596,19 +616,25 @@ class BBB_PullOver : Managed
   vector right = Vector(dir[2], 0, -dir[0]);
   if (side < 0) right = -right;
   if (ahead <= 0) ahead = SPOT_AHEAD_M;
-  vector middle = point + dir * ahead;
+  // Where it is across the road now: the further it has to go sideways, the further on the spot (a gentle line).
+  float across = vector.Dot(at - point, right);
   string why;
+  string refused;
   for (int option = 0; option < 3; option++)
   {
    float offset = width * 0.5 + VERGE_M;
    string where = "verge";
    if (option == 1) { offset = width * 0.5 + SHOULDER_M; where = "shoulder"; }
    if (option == 2) { offset = Math.Max(0.5, width * 0.5 - EDGE_IN_M); where = "road edge"; }
-   if (!SpotClear(vehicle, at, middle, right, offset, option < 2, spot, why)) continue;
+   vector middle = point + dir * Math.Max(ahead, (offset - across) * limits.m_fAheadPerSide);
+   if (!SpotClear(vehicle, at, middle, right, offset, option < 2, spot, why)) { refused += " " + where + ": " + why + ";"; continue; }
+   vector edge = middle + right * (width * 0.5);
+   if (!BBB_PullOverSafety.SpotSafe(vehicle, at, spot, dir, edge, option < 2, limits, why)) { refused += " " + where + ": " + why + ";"; continue; }
    s_sWhere = where;
+   if (refused != "") s_sWhere = where + " (" + refused.Trim() + ")";
    return true;
   }
-  s_sWhyNot = why;
+  s_sWhyNot = refused.Trim();
   return false;
  }
 
@@ -721,6 +747,20 @@ class BBB_PullOver : Managed
   BBB_Unstick.ReleaseHorn(m_Driver);
   float speed = BBB_Traffic.Velocity(vehicle).Length();
   int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
+  float now = GetGame().GetWorld().GetWorldTime();
+  float dt = Math.Clamp((now - m_fLastAt) / 1000, 0, 0.25);
+  m_fLastAt = now;
+  // Rolling or pitching past the vehicle's abort angle on the way: wheel straight, full brake, stop here.
+  float roll = BBB_PullOverSafety.RollDeg(vehicle);
+  float pitch = BBB_PullOverSafety.PitchDeg(vehicle);
+  if (Math.AbsFloat(roll) > m_fMaxRoll) m_fMaxRoll = Math.AbsFloat(roll);
+  if (!m_bStopped && m_bHasSpot && m_iMode != MODE_HOLD && (Math.AbsFloat(roll) > m_Limits.m_fAbortRollDeg || Math.AbsFloat(pitch) > m_Limits.m_fAbortPitchDeg))
+  {
+   m_bStopped = true;
+   m_bRollStop = true;
+   s_iRollStops++;
+   PrintFormat("[BBB] TRAFFIC pull-over %1: rolled %2 deg, pitched %3 deg (%4 limits %5/%6), stopped at once", BBB_Traffic.Name(vehicle), Math.Round(roll), Math.Round(pitch), m_Limits.m_sKind, m_Limits.m_fAbortRollDeg, m_Limits.m_fAbortPitchDeg);
+  }
   if (!m_bStopped && m_bHasSpot && m_iMode != MODE_HOLD)
   {
    vector local = vehicle.CoordToLocal(m_vSpot);
@@ -732,15 +772,23 @@ class BBB_PullOver : Managed
     car.SetPersistentHandBrake(false);
     if (sim.GetGear() <= neutral) sim.SetGear(neutral + 1);
     sim.SetClutch(1);
-    float steer = Math.Clamp(Math.Atan2(local[0], local[2]) * 1.8, -STEER_MAX, STEER_MAX);
+    // The wheel toward the spot, capped by speed (little at road speed, m_fSteerMax at the turn-in pace)
+    // and eased (no snatch at the wheel: a tall truck tips on a sudden turn).
+    float cap = m_Limits.SteerCap(speed);
+    float want = Math.Clamp(Math.Atan2(local[0], local[2]) * 1.8, -cap, cap);
+    float ease = m_Limits.m_fSteerRate * dt;
+    m_fSteer = Math.Clamp(want, m_fSteer - ease, m_fSteer + ease);
+    float steer = m_fSteer;
     if (elapsed >= m_fLogAt)
     {
      m_fLogAt = elapsed + 1000;
-     PrintFormat("[BBB] TRAFFIC pull-over %1 t=%2 s: spot %3 m right, %4 m ahead; steer %5, %6 km/h, gear %7 (neutral %8)", BBB_Traffic.Name(vehicle), Math.Round(elapsed / 100) / 10, Math.Round(local[0] * 10) / 10, Math.Round(local[2] * 10) / 10, Math.Round(steer * 100) / 100, Math.Round(speed * 36) / 10, sim.GetGear(), neutral);
+     PrintFormat("[BBB] TRAFFIC pull-over %1 t=%2 s: spot %3 m right, %4 m ahead; steer %5, %6 km/h, gear %7, roll %8 deg, pitch %9 deg", BBB_Traffic.Name(vehicle), Math.Round(elapsed / 100) / 10, Math.Round(local[0] * 10) / 10, Math.Round(local[2] * 10) / 10, Math.Round(steer * 100) / 100, Math.Round(speed * 36) / 10, sim.GetGear(), Math.Round(roll), Math.Round(pitch));
     }
-    // A walking pace onto the verge, the wheel short of full lock (STEER_MAX).
-    if (speed > 4.5) BBB_Unstick.Drive(m_Driver, sim, 0, steer, 0.6);
-    else if (speed < 2.5) BBB_Unstick.Drive(m_Driver, sim, 0.7, steer, 0);
+    // Down to the turn-in pace (a truck slower than a car), then a walking pace onto the verge; slow again
+    // near the spot, so it stops on it, not past it.
+    bool nearSpot = distance < 4 + speed * 2;
+    if (speed > m_Limits.m_fBrakeAbove || (nearSpot && speed > m_Limits.m_fTurnSpeed)) BBB_Unstick.Drive(m_Driver, sim, 0, steer, 0.6);
+    else if (speed < m_Limits.m_fTurnSpeed - 1) BBB_Unstick.Drive(m_Driver, sim, 0.7, steer, 0);
     else BBB_Unstick.Drive(m_Driver, sim, 0.3, steer, 0);
     return true;
    }
@@ -749,8 +797,13 @@ class BBB_PullOver : Managed
   BBB_Unstick.Drive(m_Driver, sim, 0, 0, 1);
   if (m_iMode == MODE_PARK)
   {
-   if (speed > 0.4) return true;
+   // Out of gear (an engaged gear creeps a heavy truck on at walking pace under full brake: srv:pulloverbank,
+   // 20 Nov, an M923 crawled 25 m on off the road's edge and down the bank), handbrake on once slow, or at
+   // once if it is rolling.
+   if (sim.GetGear() != neutral) sim.SetGear(neutral);
+   if (speed > 1.5 && Math.AbsFloat(roll) <= m_Limits.m_fAbortRollDeg) return true;
    car.SetPersistentHandBrake(true);
+   if (speed > 0.4) return true;
    s_iParked++;
    End(car, true);
    return false;
@@ -774,7 +827,9 @@ class BBB_PullOver : Managed
    AIControlComponent ai = AIControlComponent.Cast(m_Driver.FindComponent(AIControlComponent));
    if (ai && !ai.IsAIActivated()) ai.ActivateAI();
   }
-  if (parked) PrintFormat("[BBB] TRAFFIC %1 pulled over onto the verge, handbrake on", BBB_Traffic.Name(m_Vehicle));
+  s_fLastMaxRoll = m_fMaxRoll;
+  if (parked && m_bRollStop) PrintFormat("[BBB] TRAFFIC %1 stopped short of the verge (rolling), handbrake on; max roll %2 deg", BBB_Traffic.Name(m_Vehicle), Math.Round(m_fMaxRoll));
+  else if (parked) PrintFormat("[BBB] TRAFFIC %1 pulled over onto the verge, handbrake on; max roll %2 deg", BBB_Traffic.Name(m_Vehicle), Math.Round(m_fMaxRoll));
   if (m_Listener) m_Listener.OnPullOverEnded(m_Vehicle, parked);
  }
 }
