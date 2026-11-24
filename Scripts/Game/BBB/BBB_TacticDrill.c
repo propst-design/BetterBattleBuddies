@@ -229,9 +229,10 @@ class BBB_TacticDrill
    else { near1 += to; count1++; }
   }
   // The firing half is the one farther from the point (an empty half can't move).
-  state.m_iFireHalf = 1;
-  if (count0 == 0) return;
-  if (count1 == 0 || near0 / count0 > near1 / count1) state.m_iFireHalf = 0;
+  if (count0 == 0) { state.m_iFireHalf = 0; return; }
+  if (count1 == 0) { state.m_iFireHalf = 1; return; }
+  if (near0 / count0 > near1 / count1) state.m_iFireHalf = 0;
+  else state.m_iFireHalf = 1;
  }
 
  // One flank step: the moving half runs to the point, the base of fire stays and covers it.

@@ -446,7 +446,7 @@ class BBB_Unstick : Managed
   IEntity vehicle = m_Vehicle;
   // A player who takes the driver over (a Game Master possessing him) or a driver who changed
   // seats ends it: inputs written every frame would steer the car under the player.
-  bool alive = vehicle != null && m_Driver != null && BBB.IsAlive(m_Driver) && BBB_Transport.VehicleOf(m_Driver) == vehicle && !BBB.PlayerOf(m_Driver) && BBB.DriverOf(vehicle) == m_Driver;
+  bool alive = vehicle != null && m_Driver != null && BBB.IsAlive(m_Driver) && BBB.IsConscious(m_Driver) && BBB_Transport.VehicleOf(m_Driver) == vehicle && !BBB.PlayerOf(m_Driver) && BBB.DriverOf(vehicle) == m_Driver;
   // The car even when it ends that way: End lets go of the throttle, wheel and reverse gear once,
   // or a player taking the wheel would find it still backing out.
   CarControllerComponent car;
@@ -681,7 +681,7 @@ class BBB_Unstick : Managed
   if (m_PilotHeld) BBB_PilotHold.Give(m_PilotHeld);
   m_PilotHeld = null;
   ReleaseHorn(m_Driver);
-  if (m_bParkedAI && m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver))
+  if (m_bParkedAI && m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver) && !(BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(m_Vehicle)))
   {
    AIControlComponent ai = AIControlComponent.Cast(m_Driver.FindComponent(AIControlComponent));
    if (ai && !ai.IsAIActivated()) ai.ActivateAI();

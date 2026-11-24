@@ -1154,7 +1154,7 @@ class BBB_VehicleHelpers : Managed
   int dropped = DismountGroupFromVehicle(group, vehicle);
   PrintFormat("[BBB] DRIVE %1: stuck for good (last try: %2), %3 get out and go on on foot", BBB.s_Hooks.NameOf(group), last, dropped);
   BBB_Think.NoteGroup(group, "Vehicle", "stuck for good: crew gets out, goes on on foot");
-  ClearStallState(vehicle);
+  if (dropped > 0) ClearStallState(vehicle);
  }
 }
 

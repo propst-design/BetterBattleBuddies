@@ -119,7 +119,7 @@ modded class SCR_AIAllocateActionsForDefendActivity
    BBB_DefendGuns.s_iKept++;
    return true;
   }
-  return super.OccupyTurret(who, slot, teleport);
+  return super.OccupyTurret(BBB_DefendGuns.StandIn(m_RelatedActivity, who), slot, teleport);
  }
 
  override protected bool OccupySA(AIAgent who, AISmartActionComponent smartAction, bool teleport)
@@ -192,8 +192,16 @@ class BBB_DefendGuns
 
  static AIAgent StandIn(SCR_AIDefendActivity activity, AIAgent agent)
  {
-  AIAgent standIn;
-  if (activity && activity.m_mBBBStandIn && activity.m_mBBBStandIn.Find(agent, standIn) && standIn) return standIn;
-  return agent;
+  if (!activity || !activity.m_mBBBStandIn || !agent) return agent;
+  int steps = activity.m_mBBBStandIn.Count();
+  AIAgent cur = agent;
+  for (int i = 0; i < steps; i++)
+  {
+   AIAgent next;
+   if (!activity.m_mBBBStandIn.Find(cur, next) || !next || next == cur) break;
+   cur = next;
+   if (cur == agent) break;
+  }
+  return cur;
  }
 }

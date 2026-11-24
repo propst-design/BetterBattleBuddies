@@ -619,7 +619,13 @@ class BBB_Tactic
   // Carry out the tactic in force (stage 4).
   if (state.m_iTactic == FLANK)
   {
-   if (BBB_TacticDrill.Flank(state, now)) { Set(state, ASSAULT, now, s_fAssaultS, "in position on the flank", threat); return; }
+   if (BBB_TacticDrill.Flank(state, now))
+   {
+    vector assaultAt = threat;
+    if (!contact) assaultAt = state.m_vLastThreat;
+    Set(state, ASSAULT, now, s_fAssaultS, "in position on the flank", assaultAt);
+    return;
+   }
   }
   else if (s_bFire && (state.m_iTactic == HOLD || state.m_iTactic == REORG))
   {

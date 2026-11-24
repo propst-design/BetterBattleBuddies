@@ -723,7 +723,7 @@ class BBB_PullOver : Managed
  {
   float elapsed = GetGame().GetWorld().GetWorldTime() - m_fStart;
   IEntity vehicle = m_Vehicle;
-  bool alive = vehicle != null && m_Driver != null && BBB.IsAlive(m_Driver) && BBB_Transport.VehicleOf(m_Driver) == vehicle && !BBB.PlayerOf(m_Driver) && BBB.DriverOf(vehicle) == m_Driver;
+  bool alive = vehicle != null && m_Driver != null && BBB.IsAlive(m_Driver) && BBB.IsConscious(m_Driver) && BBB_Transport.VehicleOf(m_Driver) == vehicle && !BBB.PlayerOf(m_Driver) && BBB.DriverOf(vehicle) == m_Driver;
   CarControllerComponent car;
   if (vehicle) car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
   if (!alive || !car || !car.GetSimulation() || elapsed > DRIVE_MAX_MS + WAIT_MAX_MS)
@@ -733,9 +733,9 @@ class BBB_PullOver : Managed
   }
   // Shot at while giving way: drive on (the fight comes first).
   if (m_iMode != MODE_PARK && BBB_Transport.VehicleHitRecently(vehicle, 3000)) m_bReleased = true;
-  // Parking, but released by the host or hit: stop here, no handbrake, and tell the host it didn't
-  // park (a newer order takes the driver at once; under fire the crew gets out where it is).
-  if (m_iMode == MODE_PARK && (m_bReleased || BBB_Transport.VehicleHitRecently(vehicle, 3000)))
+  // Released by the host (or a gunner took over), or hit while parking: stop here, no handbrake,
+  // and hand the driver back at once.
+  if (m_bReleased || (BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(vehicle)) || (m_iMode == MODE_PARK && BBB_Transport.VehicleHitRecently(vehicle, 3000)))
   {
    End(car, false);
    return false;
@@ -801,7 +801,7 @@ class BBB_PullOver : Managed
    // 20 Nov, an M923 crawled 25 m on off the road's edge and down the bank), handbrake on once slow, or at
    // once if it is rolling.
    if (sim.GetGear() != neutral) sim.SetGear(neutral);
-   if (speed > 1.5 && Math.AbsFloat(roll) <= m_Limits.m_fAbortRollDeg) return true;
+   if (speed > 1.5 && !m_bRollStop) return true;
    car.SetPersistentHandBrake(true);
    if (speed > 0.4) return true;
    s_iParked++;
@@ -815,14 +815,25 @@ class BBB_PullOver : Managed
 
  protected void End(CarControllerComponent car, bool parked)
  {
-  if (car && car.GetSimulation())
+  bool leaveAlone = BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(m_Vehicle);
+  if (car && !leaveAlone)
   {
-   BBB_Unstick.Drive(m_Driver, car.GetSimulation(), 0, 0, 0);
+   VehicleWheeledSimulation sim = car.GetSimulation();
+   if (sim) BBB_Unstick.Drive(m_Driver, sim, 0, 0, 0);
+   if (!parked)
+   {
+    car.SetPersistentHandBrake(false);
+    if (sim)
+    {
+     int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
+     if (sim.GetGear() == neutral) sim.SetGear(neutral + 1);
+    }
+   }
   }
   if (m_PilotHeld) BBB_PilotHold.Give(m_PilotHeld);
   m_PilotHeld = null;
   BBB_Unstick.ReleaseHorn(m_Driver);
-  if (m_bParkedAI && m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver))
+  if (m_bParkedAI && m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver) && !leaveAlone)
   {
    AIControlComponent ai = AIControlComponent.Cast(m_Driver.FindComponent(AIControlComponent));
    if (ai && !ai.IsAIActivated()) ai.ActivateAI();
