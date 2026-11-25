@@ -86,7 +86,9 @@ class BBB_Cover
   if (!utility.m_SectorThreatFilter) return false;
   int major, minor;
   utility.m_SectorThreatFilter.GetActiveSectors(major, minor);
-  if (major < 0 || !utility.m_SectorThreatFilter.IsSectorActive(major)) return false;
+  if (!BBB_Combat.ValidSector(major) || !utility.m_SectorThreatFilter.IsSectorActive(major)) return false;
+  int flags = utility.m_SectorThreatFilter.GetSectorFlags(major);
+  if ((flags & (SCR_EAIThreatSectorFlags.DIRECTED_AT_ME | SCR_EAIThreatSectorFlags.CAUSED_DAMAGE)) == 0) return false;
   threat = utility.m_SectorThreatFilter.GetSectorPos(major);
   return threat != vector.Zero;
  }
