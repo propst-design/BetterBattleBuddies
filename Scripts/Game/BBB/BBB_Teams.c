@@ -630,8 +630,10 @@ class BBB_Teams
   {
    if (pair.m_iJob != PICKUP)
    {
-    PrintFormat("[BBB] TEAMS %1: %2 goes for his fallen gunner's launcher", BBB.s_Hooks.NameOf(pair.m_Group), Tag(assistant));
-    BBB_Think.Note(assistant, "Teams", "going for his fallen gunner's launcher");
+    string wantLabel = "machine gun";
+    if (pair.m_bLauncher) wantLabel = "launcher";
+    PrintFormat("[BBB] TEAMS %1: %2 goes for his fallen gunner's %3", BBB.s_Hooks.NameOf(pair.m_Group), Tag(assistant), wantLabel);
+    BBB_Think.Note(assistant, "Teams", "going for his fallen gunner's " + wantLabel);
    }
    Order(pair, utility, PICKUP, body, 89, 1.5, now);
   }
