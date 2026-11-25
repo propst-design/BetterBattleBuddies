@@ -445,8 +445,9 @@ class BBB_Grenades
 			floorTrace.Start = Vector(landingPos[0], landingPos[1] + 0.5, landingPos[2]);
 			floorTrace.End = Vector(landingPos[0], groundY, landingPos[2]);
 			floorTrace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
-			float frac = GetGame().GetWorld().TraceMove(floorTrace, null);
-			landingPos[1] = floorTrace.Start[1] + (floorTrace.End[1] - floorTrace.Start[1]) * frac + 0.1;
+			float frac = GetGame().GetWorld().TraceMove(floorTrace, BBB_Cover.Geometry);
+			float hitY = floorTrace.Start[1] + (floorTrace.End[1] - floorTrace.Start[1]) * frac + 0.1;
+			landingPos[1] = Math.Min(hitY, targetPos[1] + 0.1);
 		}
 		else
 		{
