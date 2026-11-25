@@ -146,8 +146,8 @@ class BBB_CrewTurnout
  static bool Supported(BaseCompartmentSlot seat)
  {
   if (!seat || !seat.CanTurnOut() || seat.GetTurnOutDoorIndex() < 0) return false;
-  // An open cargo seat or an external gun position is not an armored hatch (commander seats are crew).
-  if (seat.GetType() != ECompartmentType.PILOT && seat.GetType() != ECompartmentType.TURRET && !BBB_Transport.CommanderSeat(seat)) return false;
+  // An open cargo seat or an external gun position is not an armored hatch (commander seats are crew when enabled).
+  if (seat.GetType() != ECompartmentType.PILOT && seat.GetType() != ECompartmentType.TURRET && !(BBB_Transport.s_bCommanderCrew && BBB_Transport.CommanderSeat(seat))) return false;
   BaseCompartmentManagerComponent manager = seat.GetManager();
   return manager && !manager.IsDoorFake(seat.GetTurnOutDoorIndex());
  }
