@@ -206,9 +206,9 @@ class BBB_Traffic
     foreach (int pid : playerIds)
     {
      IEntity pBody = pm.GetPlayerControlledEntity(pid);
-     if (!pBody) continue;
+     if (!pBody || !BBB.IsAlive(pBody)) continue;
      IEntity pVehicle = BBB_Transport.VehicleOf(pBody);
-     if (!pVehicle || vehicles.Contains(pVehicle) || !IsLand(pVehicle)) continue;
+     if (!pVehicle || vehicles.Contains(pVehicle) || !IsLand(pVehicle) || BBB.s_Hooks.LeaveAlone(pVehicle)) continue;
      if (BBB.DriverOf(pVehicle) == pBody) vehicles.Insert(pVehicle);
     }
    }
