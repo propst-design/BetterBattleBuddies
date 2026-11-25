@@ -328,7 +328,7 @@ class BBB_Teams
     taken.Insert(old.m_Gunner);
     continue;
    }
-   if (!BBB.IsAlive(old.m_Gunner) && old.m_bLauncher && old.m_Assistant && BBB.IsAlive(old.m_Assistant)) { taken.Insert(old.m_Assistant); continue; } // Run() starts the pick-up
+   if (!BBB.IsAlive(old.m_Gunner) && old.m_Assistant && BBB.IsAlive(old.m_Assistant)) { taken.Insert(old.m_Assistant); continue; } // Run() starts the pick-up
    Drop(i);
   }
   for (int gi = 0; gi < gunners.Count(); gi++)
@@ -537,8 +537,8 @@ class BBB_Teams
   }
  }
 
- // The launcher on a dead gunner whose rockets this assistant carries.
- protected static IEntity LauncherOn(IEntity body, string well)
+ // The launcher or machine gun on a dead gunner whose ammo this assistant carries.
+ protected static IEntity GunOn(IEntity body, string well, EWeaponType type)
  {
   InventoryStorageManagerComponent inv = InventoryStorageManagerComponent.Cast(body.FindComponent(InventoryStorageManagerComponent));
   if (!inv) return null;
@@ -548,7 +548,7 @@ class BBB_Teams
   {
    if (!item) continue;
    BaseWeaponComponent weapon = BaseWeaponComponent.Cast(item.FindComponent(BaseWeaponComponent));
-   if (!weapon || weapon.GetWeaponType() != EWeaponType.WT_ROCKETLAUNCHER) continue;
+   if (!weapon || weapon.GetWeaponType() != type) continue;
    array<BaseMuzzleComponent> muzzles = {};
    weapon.GetMuzzlesList(muzzles);
    foreach (BaseMuzzleComponent muzzle : muzzles)
@@ -557,35 +557,68 @@ class BBB_Teams
   return null;
  }
 
- // His gunner is dead: take the launcher. False: nothing to do (drop the pair).
+ protected static bool HasMG(ChimeraCharacter soldier)
+ {
+  BaseWeaponManagerComponent wm = BaseWeaponManagerComponent.Cast(soldier.FindComponent(BaseWeaponManagerComponent));
+  if (!wm) return false;
+  array<IEntity> carried = {};
+  wm.GetWeaponsList(carried);
+  foreach (IEntity item : carried)
+  {
+   if (!item) continue;
+   BaseWeaponComponent w = BaseWeaponComponent.Cast(item.FindComponent(BaseWeaponComponent));
+   if (w && w.GetWeaponType() == EWeaponType.WT_MACHINEGUN) return true;
+  }
+  return false;
+ }
+
+ // His gunner is dead: take the launcher or machine gun. False: nothing to do (drop the pair).
  protected static bool PickUp(BBB_Pair pair, SCR_AIUtilityComponent utility, float now)
  {
   ChimeraCharacter assistant = pair.m_Assistant;
   IEntity body = pair.m_Gunner;
-  if (!pair.m_bLauncher || !body) return false;
-  IEntity launcher = LauncherOn(body, pair.m_sWell);
-  if (!launcher || BBB_Armour.HasOperationalAT(assistant)) return false;
+  if (!body) return false;
+  EWeaponType wantType = EWeaponType.WT_MACHINEGUN;
+  if (pair.m_bLauncher) wantType = EWeaponType.WT_ROCKETLAUNCHER;
+  IEntity gun = GunOn(body, pair.m_sWell, wantType);
+  if (!gun) return false;
+  if (pair.m_bLauncher && BBB_Armour.HasOperationalAT(assistant)) return false;
+  if (!pair.m_bLauncher && HasMG(assistant)) return false;
   if (pair.m_iJob != PICKUP && !BBB_Claims.Can(assistant, BBB_Claims.REARM)) return true; // wait for the higher job
   if (pair.m_iJob == PICKUP && !BBB_Claims.Holds(assistant, BBB_Claims.REARM)) { EndJob(pair); return true; }
   if (BBB_Rearm.CanLoot(assistant, body))
   {
    EndJob(pair);
    SCR_InventoryStorageManagerComponent inv = SCR_InventoryStorageManagerComponent.Cast(assistant.FindComponent(SCR_InventoryStorageManagerComponent));
-   if (!inv || !BBB_Rearm.EquipLauncher(inv, launcher, body))
+   bool equipped;
+   if (inv)
    {
-    PrintFormat("[BBB] TEAMS %1: %2 couldn't take his gunner's launcher (no free slot)", BBB.s_Hooks.NameOf(pair.m_Group), Tag(assistant));
+    if (pair.m_bLauncher) equipped = BBB_Rearm.EquipLauncher(inv, gun, body);
+    else equipped = BBB_Rearm.EquipFreeSlot(inv, gun, body);
+   }
+   string gunLabel = "machine gun";
+   if (pair.m_bLauncher) gunLabel = "launcher";
+   if (!equipped)
+   {
+    PrintFormat("[BBB] TEAMS %1: %2 couldn't take his gunner's %3 (no free slot)", BBB.s_Hooks.NameOf(pair.m_Group), Tag(assistant), gunLabel);
     return false;
    }
-   array<IEntity> rockets = {};
-   Stock(body, pair.m_sWell, rockets);
+   if (!pair.m_bLauncher)
+   {
+    BaseWeaponComponent mgComp = BaseWeaponComponent.Cast(gun.FindComponent(BaseWeaponComponent));
+    CharacterControllerComponent ctl = assistant.GetCharacterController();
+    if (mgComp && ctl && !ctl.IsChangingItem()) ctl.SelectWeapon(mgComp);
+   }
+   array<IEntity> ammo = {};
+   Stock(body, pair.m_sWell, ammo);
    int moved;
-   foreach (IEntity rocket : rockets)
-    if (BBB_Rearm.TransferItem(inv, rocket, body)) moved++;
+   foreach (IEntity mag : ammo)
+    if (BBB_Rearm.TransferItem(inv, mag, body)) moved++;
    s_iPickups++;
    BBB_Perf.Count("teams.pickup");
    s_mNextPair.Set(pair.m_Group, 0);
-   PrintFormat("[BBB] TEAMS %1: %2 took his fallen gunner's launcher (+%3 rockets)", BBB.s_Hooks.NameOf(pair.m_Group), Tag(assistant), moved);
-   BBB_Think.Note(assistant, "Teams", "took his fallen gunner's launcher");
+   PrintFormat("[BBB] TEAMS %1: %2 took his fallen gunner's %3 (+%4 ammo)", BBB.s_Hooks.NameOf(pair.m_Group), Tag(assistant), gunLabel, moved);
+   BBB_Think.Note(assistant, "Teams", "took his fallen gunner's " + gunLabel);
    return false;
   }
   if (pair.m_iJob == PICKUP && now - pair.m_fJobSince > SUPPLY_TIMEOUT_MS)

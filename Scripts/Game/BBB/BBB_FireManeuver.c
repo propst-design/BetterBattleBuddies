@@ -9,6 +9,7 @@ class BBB_FireTeamJob : Managed
  ref array<SCR_AIUtilityComponent> m_Members = {};
  ref array<SCR_AIUtilityComponent> m_Reached = {};
  int m_iCoverTeam, m_iPhase, m_iArrived;
+ int m_iBoundSide = 1;
  float m_fStarted, m_fPhaseSince, m_fCoverFire, m_fLog, m_fFresh, m_fUnsupportedSince;
  bool m_bMoving;
 }
@@ -34,6 +35,47 @@ class BBB_FireManeuver
  static const float COVER_ORDER_PRIORITY = 90.5; // just above attacking a selected target (90)
  static int s_iCoverOrders;
  static bool s_bCoverOrders = true;
+ protected static int s_iSideCover;
+ protected static float s_fSideGround;
+
+ protected static bool CountSideCover(IEntity entity)
+ {
+  if (s_iSideCover >= 12) return false;
+  if (ChimeraCharacter.Cast(entity) || Vehicle.Cast(entity) || !entity.GetPhysics() || BBB_SolidCover.Flimsy(entity)) return true;
+  vector mins, maxs;
+  entity.GetWorldBounds(mins, maxs);
+  if (maxs[1] - s_fSideGround < 1.0 || maxs[0] - mins[0] > 60 || maxs[2] - mins[2] > 60) return true;
+  s_iSideCover++;
+  return true;
+ }
+
+ // Pick the lateral bound side (+1 or -1) with more dry solid cover ahead; tie-break deterministically.
+ protected static int PickBoundSide(vector center, vector threat)
+ {
+  vector forward = threat - center;
+  forward[1] = 0;
+  if (forward.LengthSq() < 1) return 1;
+  forward.Normalize();
+  vector right = Vector(-forward[2], 0, forward[0]);
+  vector posPlus = BBB.Ground(center + right * 18 + forward * 8);
+  vector posMinus = BBB.Ground(center - right * 18 + forward * 8);
+  bool wetPlus = BBB_Terrain.WaterDepthAt(posPlus) > 0;
+  bool wetMinus = BBB_Terrain.WaterDepthAt(posMinus) > 0;
+  if (wetPlus && !wetMinus) return -1;
+  if (wetMinus && !wetPlus) return 1;
+  s_iSideCover = 0;
+  s_fSideGround = posPlus[1];
+  GetGame().GetWorld().QueryEntitiesBySphere(posPlus, 12, CountSideCover, null, EQueryEntitiesFlags.ALL);
+  int scorePlus = s_iSideCover;
+  s_iSideCover = 0;
+  s_fSideGround = posMinus[1];
+  GetGame().GetWorld().QueryEntitiesBySphere(posMinus, 12, CountSideCover, null, EQueryEntitiesFlags.ALL);
+  int scoreMinus = s_iSideCover;
+  if (scoreMinus > scorePlus) return -1;
+  if (scorePlus > scoreMinus) return 1;
+  if (center[0] > threat[0]) return -1;
+  return 1;
+ }
  protected static ref map<SCR_AIGroup, ref BBB_FireTeamJob> s_Jobs;
  protected static ref map<SCR_AIGroup, float> s_Next;
  // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
@@ -317,6 +359,7 @@ class BBB_FireManeuver
   job.m_Lease = BBB_OrderLeash.Capture(group);
   if (job.m_Waypoint) job.m_WaypointPos = job.m_Waypoint.GetOrigin();
   job.m_Center = BBB.AnchorOf(group).GetOrigin();
+  job.m_iBoundSide = PickBoundSide(job.m_Center, seen);
   job.m_fStarted = now;
   job.m_fFresh = now;
   job.m_fPhaseSince = now;
@@ -455,6 +498,8 @@ class BBB_FireManeuver
     job.m_iPhase++;
     job.m_iArrived = 0;
     job.m_Reached.Clear();
+    IEntity anchorNow = BBB.AnchorOf(job.m_Group);
+    if (anchorNow) job.m_Center = anchorNow.GetOrigin();
     PrintFormat("[BBB] FIRE MANEUVER %1: verified support handoff, phase %2", BBB.s_Hooks.NameOf(job.m_Group), job.m_iPhase);
    }
    job.m_fCoverFire = now;
@@ -497,6 +542,8 @@ class BBB_FireManeuver
    job.m_bMoving = false;
    job.m_fCoverFire = 0;
    job.m_fPhaseSince = now;
+   IEntity swapAnchor = BBB.AnchorOf(job.m_Group);
+   if (swapAnchor) job.m_Center = swapAnchor.GetOrigin();
    s_iSwaps++;
    PrintFormat("[BBB] FIRE MANEUVER %1: roles switch, phase %2", BBB.s_Hooks.NameOf(job.m_Group), job.m_iPhase);
   }
@@ -641,8 +688,8 @@ class BBB_FireManeuver
   forward[1] = 0;
   forward.Normalize();
   vector side = Vector(-forward[2], 0, forward[0]);
-  // Stable flank side for the whole group, including after the role switch.
-  if (job.m_Center[0] > job.m_Threat[0]) side = -side;
+  // Terrain-chosen flank side for the group (stable across role switches).
+  if (job.m_iBoundSide < 0) side = -side;
   if (utility.m_iBBBFlankSide < 0) side = -side;
   request.m_vTargetPos = job.m_Threat + Vector(0, 1.4, 0);
   request.m_vMovePos = BBB.Ground(at + side * 18 + forward * 8);

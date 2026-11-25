@@ -246,7 +246,23 @@ class BBB_HotAI
 	// BBB.Stop: the one-second loop ends; Read() starts it again.
 	static void Stop()
 	{
-		if (GetGame()) GetGame().GetCallqueue().Remove(Loop);
+		if (GetGame())
+		{
+			GetGame().GetCallqueue().Remove(Loop);
+			GetGame().GetCallqueue().Remove(EndSlow);
+		}
+		if (s_mSlowUntil)
+		{
+			foreach (IEntity vehicle, float until : s_mSlowUntil)
+			{
+				if (!vehicle) continue;
+				AICarMovementComponent movement = AICarMovementComponent.Cast(vehicle.FindComponent(AICarMovementComponent));
+				if (movement) movement.ResetCruiseSpeed();
+			}
+			s_mSlowUntil.Clear();
+		}
+		if (s_mHitNext) s_mHitNext.Clear();
+		if (s_mLastHit) s_mLastHit.Clear();
 		s_bTraceLoop = false;
 		s_iRead = -1;
 	}
@@ -343,7 +359,7 @@ class BBB_HotAI
 		{
 			source = "an enemy who shot at him";
 		}
-		else if (vehicle && BBB_CrewCallout.On() && BBB_CrewCallout.Pick(vehicle, man, targets, aim, men, spread))
+		else if (vehicle && BBB_CrewCallout.On() && !BBB_CrewLeader.WithheldArmour(vehicle, man) && BBB_CrewCallout.Pick(vehicle, man, targets, aim, men, spread))
 		{
 			callout = true;
 		}
@@ -863,7 +879,7 @@ modded class SCR_AIGetFireTimes
 		// Get target pos
 		vector targetPos;
 		IEntity targetEntity;
-		if (GetVariableIn(TARGET_ENTITY_PORT, targetEntity))
+		if (GetVariableIn(TARGET_ENTITY_PORT, targetEntity) && targetEntity)
 			targetPos = targetEntity.GetOrigin();
 		else 
 			GetVariableIn(TARGET_POSITION_PORT, targetPos);

@@ -164,7 +164,7 @@ class BBB_TacticDrill
  protected static bool CollectCover(IEntity entity)
  {
   if (s_aFound.Count() >= 40) return false;
-  if (ChimeraCharacter.Cast(entity) || Vehicle.Cast(entity) || !entity.GetPhysics()) return true;
+  if (ChimeraCharacter.Cast(entity) || Vehicle.Cast(entity) || !entity.GetPhysics() || BBB_SolidCover.Flimsy(entity)) return true;
   vector mins, maxs;
   entity.GetWorldBounds(mins, maxs);
   if (maxs[1] - s_fGround < 1.2 || maxs[0] - mins[0] > 60 || maxs[2] - mins[2] > 60) return true;
@@ -192,7 +192,7 @@ class BBB_TacticDrill
     float radians = sign * angle * Math.DEG2RAD;
     vector dir = Vector(back[0] * Math.Cos(radians) + back[2] * Math.Sin(radians), 0, back[2] * Math.Cos(radians) - back[0] * Math.Sin(radians));
     vector candidate = BBB.Ground(threat + dir * range * FLANK_RANGE);
-    if (BBB_Terrain.IsWaterAt(candidate) || !BBB_OrderLeash.Allows(state.m_Group, candidate)) continue;
+    if (BBB_Terrain.WaterDepthAt(candidate) > 0 || !BBB_OrderLeash.Allows(state.m_Group, candidate)) continue;
     if (EnemyNear(picture, candidate, 40)) continue;
     s_aFound.Clear();
     s_fGround = candidate[1];

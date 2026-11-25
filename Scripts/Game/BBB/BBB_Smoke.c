@@ -29,6 +29,7 @@ class BBB_SmokeCloud : Managed
 	string m_sReason;
 	// Planned until the grenade leaves the thrower: m_fBloomMs/m_fExpireMs are set then.
 	bool m_bThrown;
+	SCR_AIGroup m_Group;
 	IEntity m_Thrower;
 	ref array<IEntity> m_aCarried; // the thrower's smoke grenades when the throw was ordered
 	IEntity m_Grenade;
@@ -355,8 +356,8 @@ class BBB_Smoke
 		if (threatDist < 2.0) return false;
 		toThreat = toThreat.Normalized();
 
-		// Throw distance: 10 to 22 meters ahead toward threat
-		float throwDist = Math.Clamp(threatDist * 0.35, 10.0, 22.0);
+		// Throw distance: scaled toward threat up to the configured distance (-bbbSmokeDist)
+		float throwDist = Math.Clamp(threatDist * 0.35, Math.Min(10.0, s_fThrowDistanceM), s_fThrowDistanceM);
 		vector smokePos = throwOrigin + toThreat * throwDist;
 		smokePos[1] = GetGame().GetWorld().GetSurfaceY(smokePos[0], smokePos[2]);
 
@@ -379,9 +380,10 @@ class BBB_Smoke
 		throwerUtil.AddAction(behavior);
 
 		// Planned cloud: it reserves the spot but hides nothing until the grenade is thrown
-		Plan(thrower, smokePos, reason, SMOKE_BLOOM_S, SMOKE_DURATION_S, SMOKE_RADIUS);
+		BBB_SmokeCloud planned = Plan(thrower, smokePos, reason, SMOKE_BLOOM_S, SMOKE_DURATION_S, SMOKE_RADIUS);
+		if (planned) planned.m_Group = group;
 
-		// Record cooldown (a throw that never happens still waits it out)
+		// Record cooldown while pending; Follow clears it if the grenade never leaves the thrower's hand
 		s_mGroupCooldown.Set(group, nowMs);
 
 		s_iSmokeThrown++;
@@ -477,6 +479,7 @@ class BBB_Smoke
 			{
 				if (nowMs < cloud.m_fGiveUpMs && StillThrowing(cloud.m_Thrower)) return true;
 				s_iSmokeFailed++;
+				if (cloud.m_Group) s_mGroupCooldown.Remove(cloud.m_Group);
 				PrintFormat("[BBB] SMOKE: throw to %1 never made (reason=%2): no smoke counted", cloud.m_vPosition, cloud.m_sReason);
 				return false;
 			}

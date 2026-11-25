@@ -525,6 +525,15 @@ class BBB_CrewLeader
   return order;
  }
 
+ // True when the crew leader picked armour that this gunner's turret cannot hurt (so CrewCallout
+ // must not fall through and fire MG rounds at it anyway).
+ static bool WithheldArmour(IEntity vehicle, IEntity man)
+ {
+  if (!On() || !vehicle || !man) return false;
+  BBB_CrewOrder order = Get(vehicle, man);
+  return order && order.m_bHas && order.m_bKeyArmour && !HurtsArmour(man);
+ }
+
  // He sees nothing of his own: where the leader wants his fire.
  static bool Aim(SCR_AIUtilityComponent utility, IEntity man, out vector aim, out int men, out float spread)
  {

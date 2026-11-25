@@ -733,7 +733,7 @@ class BBB_Rearm
  {
   if (!soldier) return null;
   s_aQueryCorpseHits.Clear();
-  GetGame().GetWorld().QueryEntitiesBySphere(soldier.GetOrigin(), s_fSearchRadius, QueryCorpseHit, null, EQueryEntitiesFlags.ALL);
+  GetGame().GetWorld().QueryEntitiesBySphere(soldier.GetOrigin(), s_fSearchRadius, QueryCorpseHit, null, EQueryEntitiesFlags.DYNAMIC);
   IEntity best = null;
   float bestDist = s_fSearchRadius * s_fSearchRadius;
   vector soldierPos = soldier.GetOrigin();
@@ -741,16 +741,9 @@ class BBB_Rearm
   {
    if (!ent || ent == soldier || BodyBlocked(soldier, ent)) continue;
    ChimeraCharacter ch = ChimeraCharacter.Cast(ent);
-   if (ch)
-   {
-    CharacterControllerComponent ctl = ch.GetCharacterController();
-    if (!ctl || !ctl.IsDead()) continue;
-   }
-   else
-   {
-    if (BBB.IsAlive(ent)) continue;
-    if (!ent.FindComponent(InventoryStorageManagerComponent)) continue;
-   }
+   if (!ch) continue;
+   CharacterControllerComponent ctl = ch.GetCharacterController();
+   if (!ctl || !ctl.IsDead()) continue;
    bool useful = false;
    if (needsAmmo && muzzle)
    {
@@ -846,7 +839,8 @@ class BBB_Rearm
     utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
    }
    CharacterControllerComponent controller = soldier.GetCharacterController();
-   if (!controller || controller.IsPlayerControlled() || !s_bOn || !BBB.IsAlive(soldier) || BBB.PlayerOf(soldier) || !group || !groups.Contains(group) || BBB.HasPlayer(group) || BBB_OrderIntent.Blocks(utility)) CancelRearmAction(soldier);
+   bool enabledForTrip = s_bOn || (s_bWeaponOn && s_mTargetWeapon.Contains(soldier));
+   if (!controller || controller.IsPlayerControlled() || !enabledForTrip || !BBB.IsAlive(soldier) || BBB.PlayerOf(soldier) || !group || !groups.Contains(group) || BBB.HasPlayer(group) || BBB_OrderIntent.Blocks(utility)) CancelRearmAction(soldier);
    // Still on his way: keep him (a higher job that took him is seen in CheckRearmFor).
    else if (BBB_Claims.Can(soldier, BBB_Claims.REARM)) BBB_Claims.Take(soldier, BBB_Claims.REARM);
   }
@@ -868,7 +862,7 @@ class BBB_Rearm
  {
   Read();
   if (!group) return;
-  bool groupBlocked = !s_bOn || BBB.HasPlayer(group);
+  bool groupBlocked = (!s_bOn && !s_bWeaponOn) || BBB.HasPlayer(group);
   float nowMs = GetGame().GetWorld().GetWorldTime();
   PruneFailures(nowMs);
   array<AIAgent> agents = {};
@@ -909,6 +903,11 @@ class BBB_Rearm
    if (s_bWeaponOn && LostPrimary(soldier) && !BBB_Morale.IsPrisoner(soldier))
    {
     CheckWeaponFor(soldier, utility, group, nowMs);
+    continue;
+   }
+   if (!s_bOn)
+   {
+    CancelRearmAction(soldier);
     continue;
    }
    // A bounding or withdrawing man isn't sent to loot a body mid-move, unless he is out of

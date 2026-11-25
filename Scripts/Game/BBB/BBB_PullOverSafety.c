@@ -178,7 +178,7 @@ class BBB_PullOverSafety
    if (r > limits.m_fMaxRollDeg) { why = string.Format("the way slopes %1 deg across %2 m on (%3 limit %4)", Math.Round(r), Math.Round(s), limits.m_sKind, limits.m_fMaxRollDeg); s_iRefused++; return false; }
    float g = SlopeDeg(world, p, line, limits.m_fHalfLength);
    if (g > limits.m_fMaxPitchDeg) { why = string.Format("the way slopes %1 deg along %2 m on (%3 limit %4)", Math.Round(g), Math.Round(s), limits.m_sKind, limits.m_fMaxPitchDeg); s_iRefused++; return false; }
-   if (BBB_Terrain.IsWaterAt(p) || BBB_Terrain.IsWaterAt(p + across * limits.m_fHalfWidth) || BBB_Terrain.IsWaterAt(p - across * limits.m_fHalfWidth)) { why = string.Format("water %1 m on the way", Math.Round(s)); s_iRefused++; return false; }
+   if (BBB_Terrain.WaterDepthAt(p) > 0 || BBB_Terrain.WaterDepthAt(p + across * limits.m_fHalfWidth) > 0 || BBB_Terrain.WaterDepthAt(p - across * limits.m_fHalfWidth) > 0) { why = string.Format("water %1 m on the way", Math.Round(s)); s_iRefused++; return false; }
   }
   return true;
  }

@@ -182,7 +182,7 @@ class BBB_SquadLeader
 
  protected static bool InContact(SCR_AIGroup group)
  {
-  if (!group || s_aVanilla.Contains(group) || BBB.HasPlayer(group)) return false;
+  if (!group || s_aVanilla.Contains(group) || BBB.HasPlayer(group) || BBB_Morale.IsWithdrawing(group)) return false;
   SCR_AIGroupUtilityComponent utility = group.GetGroupUtilityComponent();
   if (!utility || !utility.m_Perception || !utility.m_Perception.m_MostDangerousCluster) return false;
   if (utility.GetCombatModeActual() == EAIGroupCombatMode.HOLD_FIRE) return false;

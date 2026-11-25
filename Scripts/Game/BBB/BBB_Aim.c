@@ -154,7 +154,7 @@ modded class SCR_AIGetAimErrorOffset
   if (!BBB_Aim.On(BBBShooter())) return factor;
   if (weaponType == EWeaponType.WT_ROCKETLAUNCHER) factor = BBB_Aim.s_fLauncher;
   float threat = 0;
-  if (m_BBBUtility && m_BBBUtility.m_ThreatSystem) threat = m_BBBUtility.m_ThreatSystem.GetThreatMeasure();
+  if (m_BBBUtility && m_BBBUtility.m_ThreatSystem) threat = m_BBBUtility.m_ThreatSystem.GetSuppressionMeasure();
   return factor * BBB_Aim.s_fScale * BBB_Aim.ThreatFactor(threat);
  }
 }

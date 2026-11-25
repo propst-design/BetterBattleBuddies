@@ -72,13 +72,22 @@ class BBB_Cover
   return hits * 2 > rays;
  }
 
- // The soldier's own known threat: his current target's last seen position.
+ // The soldier's own known threat: his current target's last seen position, or when shot at
+ // by an unseen enemy, his major threat sector's estimated position.
  static bool ThreatOf(SCR_AIUtilityComponent utility, out vector threat)
  {
   if (!utility || !utility.m_CombatComponent) return false;
   BaseTarget target = utility.m_CombatComponent.GetCurrentTarget();
-  if (!target) return false;
-  threat = target.GetLastSeenPosition();
+  if (target)
+  {
+   threat = target.GetLastSeenPosition();
+   if (threat != vector.Zero) return true;
+  }
+  if (!utility.m_SectorThreatFilter) return false;
+  int major, minor;
+  utility.m_SectorThreatFilter.GetActiveSectors(major, minor);
+  if (major < 0 || !utility.m_SectorThreatFilter.IsSectorActive(major)) return false;
+  threat = utility.m_SectorThreatFilter.GetSectorPos(major);
   return threat != vector.Zero;
  }
 

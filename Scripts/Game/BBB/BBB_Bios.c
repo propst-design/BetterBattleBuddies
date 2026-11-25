@@ -200,6 +200,20 @@ class BBB_BioGroup : SCR_CharacterIdentityBioGroupConfig
    m_aWeights.Insert(w);
    total += w;
   }
+  if (total <= 0)
+  {
+   // All fitting bios were recently used: allow repeats rather than picking an unfit bio.
+   m_aWeights.Clear();
+   foreach (int r : m_aAvailableIdentityBioIndexList)
+   {
+    float rw = 0;
+    BBB_Bio retry = BBB_Bio.Cast(m_aIdentityList[r]);
+    if (!retry) rw = 1;
+    else if (retry.Fits(factionKey, player)) rw = retry.GetPick();
+    m_aWeights.Insert(rw);
+    total += rw;
+   }
+  }
   int count = m_aAvailableIdentityBioIndexList.Count();
   index = m_aAvailableIdentityBioIndexList[Math.RandomInt(0, count)];
   if (total > 0)

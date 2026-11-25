@@ -403,7 +403,7 @@ class BBB_Unstick : Managed
   {
    vector p = vehicle.CoordToParent(Vector(0, 0, z - d));
    float y = world.GetSurfaceY(p[0], p[2]);
-   if (y < 0.5 || Math.AbsFloat(y - last) > 1.0) return Math.Max(0, d - 1.5);
+   if (y < 0.5 || BBB_Terrain.WaterDepthAt(p) > 0 || Math.AbsFloat(y - last) > 1.0) return Math.Max(0, d - 1.5);
    last = y;
   }
   return range;
@@ -671,7 +671,8 @@ class BBB_Unstick : Managed
 
  protected void End(CarControllerComponent car)
  {
-  if (car && car.GetSimulation())
+  bool leaveAlone = (m_Driver && BBB.PlayerOf(m_Driver)) || (BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(m_Vehicle));
+  if (!leaveAlone && car && car.GetSimulation())
   {
    VehicleWheeledSimulation sim = car.GetSimulation();
    Drive(m_Driver, sim, 0, 0, 0);
@@ -681,7 +682,7 @@ class BBB_Unstick : Managed
   if (m_PilotHeld) BBB_PilotHold.Give(m_PilotHeld);
   m_PilotHeld = null;
   ReleaseHorn(m_Driver);
-  if (m_bParkedAI && m_Driver && BBB.IsAlive(m_Driver) && !BBB.PlayerOf(m_Driver) && !(BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(m_Vehicle)))
+  if (m_bParkedAI && !leaveAlone && m_Driver && BBB.IsAlive(m_Driver))
   {
    AIControlComponent ai = AIControlComponent.Cast(m_Driver.FindComponent(AIControlComponent));
    if (ai && !ai.IsAIActivated()) ai.ActivateAI();

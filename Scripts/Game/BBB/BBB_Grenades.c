@@ -435,9 +435,23 @@ class BBB_Grenades
 			return false;
 		}
 
-		// Clamp landing position to surface height
+		// Snap to the floor beneath targetPos (keeps 2nd/3rd-floor targets on their floor,
+		// while outdoor targets snap cleanly to terrain height)
 		vector landingPos = targetPos;
-		landingPos[1] = GetGame().GetWorld().GetSurfaceY(landingPos[0], landingPos[2]) + 0.1;
+		float groundY = GetGame().GetWorld().GetSurfaceY(landingPos[0], landingPos[2]) + 0.1;
+		if (landingPos[1] > groundY + 0.5)
+		{
+			TraceParam floorTrace = new TraceParam();
+			floorTrace.Start = Vector(landingPos[0], landingPos[1] + 0.5, landingPos[2]);
+			floorTrace.End = Vector(landingPos[0], groundY, landingPos[2]);
+			floorTrace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+			float frac = GetGame().GetWorld().TraceMove(floorTrace, null);
+			landingPos[1] = floorTrace.Start[1] + (floorTrace.End[1] - floorTrace.Start[1]) * frac + 0.1;
+		}
+		else
+		{
+			landingPos[1] = groundY;
+		}
 
 		// Issue throw action via native behavior
 		BBB_AIThrowFrag behavior = new BBB_AIThrowFrag(

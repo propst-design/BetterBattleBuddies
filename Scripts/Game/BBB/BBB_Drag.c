@@ -580,6 +580,11 @@ class BBB_Drag
  static string Check(BBB_DragJob job, float now)
  {
   if (!job.m_Healer || !BBB_Medic.Fit(job.m_Healer)) return "healer hit";
+  if (BBB.PlayerOf(job.m_Healer)) return "player took over";
+  AIControlComponent healerControl = AIControlComponent.Cast(job.m_Healer.FindComponent(AIControlComponent));
+  SCR_AIUtilityComponent healerUtility;
+  if (healerControl && healerControl.GetControlAIAgent()) healerUtility = SCR_AIUtilityComponent.Cast(healerControl.GetControlAIAgent().FindComponent(SCR_AIUtilityComponent));
+  if (healerUtility && BBB_OrderIntent.Blocks(healerUtility)) return "player/GM order";
   if (!job.m_Casualty || !BBB.IsAlive(job.m_Casualty)) return "casualty died";
   bool carrying = AceBool(job.m_Healer, "ACE_IsCarrier");
   // Every tick: the pickup may land after AceStart, and ACE re-arms the clamp on a carrier change.
@@ -631,7 +636,7 @@ class BBB_Drag
  static void Finish(BBB_DragJob job, string why)
  {
   BBB_Claims.Release(job.m_Healer, BBB_Claims.RESCUE);
-  if (job.m_Healer && AceLoaded() && AceBool(job.m_Healer, "ACE_IsCarrier")) AceRelease(job.m_Healer);
+  if (job.m_Healer && !BBB.PlayerOf(job.m_Healer) && AceLoaded() && AceBool(job.m_Healer, "ACE_IsCarrier")) AceRelease(job.m_Healer);
   if (job.m_Move && job.m_Move.GetActionState() != EAIActionState.COMPLETED && job.m_Move.GetActionState() != EAIActionState.FAILED) job.m_Move.Complete();
   if (job.m_Healer)
   {

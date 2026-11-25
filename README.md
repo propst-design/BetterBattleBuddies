@@ -7,7 +7,7 @@
 > testing and pull requests. No direct repository access is needed.
 
 [![Game: Arma Reforger](https://img.shields.io/badge/Arma-Reforger-556b2f?style=flat-square)](https://reforger.armaplatform.com/)
-[![Workshop release: 0.1.10](https://img.shields.io/badge/Workshop-0.1.10-blue?style=flat-square)](CHANGELOG.md)
+[![Workshop release: 0.3.0](https://img.shields.io/badge/Workshop-0.3.0-blue?style=flat-square)](CHANGELOG.md)
 [![Standalone addon](https://img.shields.io/badge/Addon-Standalone-teal?style=flat-square)](#install-and-play)
 [![License: APL-SA](https://img.shields.io/badge/License-APL--SA-orange?style=flat-square)](LICENSE.md)
 
@@ -32,7 +32,7 @@ AC: Actual and does not add a commander game mode.
    Without a host mod BBB starts by itself about 10 seconds into the mission.
 3. For multiplayer, load BBB on the server and on joining clients.
 
-The current Workshop release is **0.1.10**; `main` is heading for 0.2.0.
+The current Workshop release is **0.3.0**; `main` is heading for 0.3.1.
 See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
 ## What your buddies do
@@ -130,7 +130,7 @@ server owners reach for most, each turning its feature off with `0`:
 | `-bbbAimFixes 0` | All of BBB's aim changes (vanilla aim) |
 | `-bbbThreat 0` | All of BBB's suppression changes (vanilla suppression) |
 | `-bbbExplosionReflex 0` | Hitting the dirt as a blast wave arrives |
-| `-bbbRearm 0` | Rearming from fallen friendlies |
+| `-bbbRearm 0` | Rearming from fallen soldiers |
 | `-bbbRearmWeapon 0` | Soldiers who lost their weapon picking one up |
 | `-bbbSpecialistTeams 0` | Gunner and ammo-bearer teams |
 | `-bbbDrag 0` | Dragging casualties to cover |
@@ -150,7 +150,7 @@ server owners reach for most, each turning its feature off with `0`:
 | `-bbbGrenades 0` | Autonomous fragmentation-grenade use |
 | `-bbbStaticWeapons 0` | Autonomous static-weapon crewing |
 | `-bbbHoldGuns 0` | Gunners staying on static guns a host mod marks as held |
-| `-bbbMorale 0` | Morale-driven withdrawal and surrender |
+| `-bbbMorale 0` | Morale-driven withdrawal (surrender has its own switch below) |
 | `-bbbWithdrawOrder 0` | Covered fall-back when the host mod orders a squad back under fire (only on a host mod's request) |
 | `-bbbMoraleSurrender 0` | Cut-off, pinned soldiers surrendering |
 | `-bbbMoraleSurrenderFates 0` | Surrenders that go wrong: executions and fake surrenders |
@@ -167,8 +167,9 @@ server owners reach for most, each turning its feature off with `0`:
 | `-bbbCommanderCrew 0` | Treating turret-linked commander positions as crew |
 | `-bbbExposedFire 0` | Continued spotting and stronger return fire when suppressed without cover |
 | `-bbbFireDiscipline 0` | Fire discipline: soldiers shot at by an unseen enemy get into cover before firing back, only two or three per squad fire blind and only within rifle or machine-gun range, spare magazines are kept, suppressing a spotted group stops at long range, and past 100 m bursts get shorter and aiming pauses longer |
-| `-bbbTrueCover 0` | Cover only counts when it is between the soldier and the enemy he knows about |
+| `-bbbTrueCover 0` | Cover only counts when it is between the soldier and the enemy he knows about (glass, greenhouses and wire fences don't count) |
 | `-bbbShoreRoutes 0` | Foot routes round water keeping off low shore ground |
+| `-bbbFidelity 0\|1\|2` | Decision fidelity tier: `0` Standard (default), `1` High, `2` Uncapped (faster re-checks and multi-ray cover checks in smaller battles; auto-steps down as AI count grows unless `-bbbFidelityGovernor 0`) |
 
 Indoor movement uses native cover and navigation, abandons failed routes and does
 not guarantee every room is cleared. Grenades, smoke and flares use carried kit.

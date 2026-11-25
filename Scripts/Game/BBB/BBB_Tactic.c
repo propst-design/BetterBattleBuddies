@@ -283,6 +283,7 @@ class BBB_Tactic
   state.m_fUntil = now + commit;
   BBB_TacticDrill.Clear(state);
   state.m_iFireHalf = 0;
+  if (tactic == FLANK) BBB_TacticDrill.FlankHalves(state);
   state.m_fSwapAt = now + BBB_TacticDrill.SWAP_S;
   SetHold(state, Holds(tactic));
   s_iChanges++;
@@ -393,7 +394,7 @@ class BBB_Tactic
    vector from = state.m_vLastThreat;
    if (leader) from = leader.GetOrigin();
    if (picture && picture.m_bHasCentre) from = picture.m_vCentre;
-   BBB_Callouts.Flank(group, Runner(group), from, state.m_vLastThreat, state.m_vFlankPoint);
+   BBB_Callouts.Flank(group, Runner(state), from, state.m_vLastThreat, state.m_vFlankPoint);
    return;
   }
   bool said;
@@ -410,11 +411,21 @@ class BBB_Tactic
   if (BBB_Callouts.Say(group, BBB_Callouts.TACTIC, "search-over", type, "", null, threat, 0)) s_iCallouts++;
  }
 
- // A man to name in the flank call: an AI rifleman who isn't the leader (the drill's movers are
- // picked a moment later from its halves; any of them carries the call).
- protected static IEntity Runner(SCR_AIGroup group)
+ // A man to name in the flank call: an AI soldier from the actual moving half (not the leader or
+ // the base of fire). Falls back to any non-leader awake AI if the moving half has none.
+ protected static IEntity Runner(BBB_TacticState state)
  {
+  SCR_AIGroup group = state.m_Group;
   IEntity leader = group.GetLeaderEntity();
+  array<SCR_AIUtilityComponent> members = {};
+  BBB_TacticDrill.Members(state, members);
+  foreach (int i, SCR_AIUtilityComponent utility : members)
+  {
+   if (!utility || BBB_TacticDrill.Half(i, utility) == state.m_iFireHalf) continue;
+   IEntity man = utility.m_OwnerEntity;
+   if (!man || man == leader || !BBB.IsAlive(man) || BBB_Callouts.IsPlayer(man)) continue;
+   return man;
+  }
   array<AIAgent> agents = {};
   BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
@@ -695,7 +706,6 @@ class BBB_Tactic
   state.m_vFlankPoint = flankAt;
   state.m_iFlanks++;
   Set(state, FLANK, now, FLANK_S, string.Format("enemy dug in %1 m away: half the squad flanks to a point %2 m from us, the rest keep firing", Math.Round(range), Math.Round(vector.DistanceXZ(flankAt, picture.m_vCentre))), flankAt);
-  BBB_TacticDrill.FlankHalves(state); // after Set, which resets the halves
   BBB_TacticDrill.Flank(state, now);
   return true;
  }

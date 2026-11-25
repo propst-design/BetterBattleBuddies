@@ -280,6 +280,7 @@ class BBB_Settings
   Num(g, "bbbAimScale", 1, 0.25, 3, 0.05, "Aim error", "Overall AI aim error. 1 is vanilla; lower aims better, higher aims worse.");
   Num(g, "bbbSuppressedAim", 1.3, 1, 3, 0.05, "Aim when suppressed", "How much worse a fully suppressed soldier aims. 1 is vanilla (no effect).");
   On(g, "bbbLauncherInfantry", "Launchers on infantry", "AT gunners fire HE, thermobaric or dual-purpose rockets at groups and men in cover, and any rocket at men in buildings, unless enemy armour is about. Vanilla keeps every rocket for vehicles.");
+  On(g, "bbbLauncherDugIn", "Rockets on dug-in infantry", "With launchers on infantry on, AT gunners also fire rockets at enemies dug in behind solid cover or inside buildings.");
   On(g, "bbbLauncherSwap", "Right warhead for the target", "An AT gunner reloads with the round that suits the target when he carries it: anti-tank for armour, HE for infantry when there is time.");
   On(g, "bbbGLArming", "Grenades only past arming range", "A grenadier doesn't fire a grenade at a target too close for it to arm (10-15 m for a 40 mm): he uses his rifle or sidearm, or with only a grenade launcher holds fire and backs off. Smoke and flares are unaffected.");
   On(g, "bbbLauncherCombatLoad", "Load in contact", "A gunner who carries more than one kind of rocket walks with the tube empty until he meets the enemy, then loads for the first target.");

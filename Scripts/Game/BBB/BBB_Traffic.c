@@ -195,7 +195,25 @@ class BBB_Traffic
     }
    }
   }
-  if (s_bGiveWay) GiveWayTick(vehicles, now);
+  if (s_bGiveWay)
+  {
+   // Include player-driven vehicles so AI trucks yield to solo players on narrow roads.
+   PlayerManager pm = GetGame().GetPlayerManager();
+   if (pm)
+   {
+    array<int> playerIds = {};
+    pm.GetPlayers(playerIds);
+    foreach (int pid : playerIds)
+    {
+     IEntity pBody = pm.GetPlayerControlledEntity(pid);
+     if (!pBody) continue;
+     IEntity pVehicle = BBB_Transport.VehicleOf(pBody);
+     if (!pVehicle || vehicles.Contains(pVehicle) || !IsLand(pVehicle)) continue;
+     if (BBB.DriverOf(pVehicle) == pBody) vehicles.Insert(pVehicle);
+    }
+   }
+   GiveWayTick(vehicles, now);
+  }
   if (handbrakeDue) HandbrakeTick(now);
  }
 
@@ -645,7 +663,7 @@ class BBB_PullOver : Managed
   BaseWorld world = GetGame().GetWorld();
   spot = middle + right * offset;
   spot[1] = world.GetSurfaceY(spot[0], spot[2]);
-  if (BBB_Terrain.IsWaterAt(spot)) { why = "the verge is water"; return false; }
+  if (BBB_Terrain.WaterDepthAt(spot) > 0) { why = "the verge is water"; return false; }
   if (offRoad)
   {
    float last = world.GetSurfaceY(middle[0], middle[2]);

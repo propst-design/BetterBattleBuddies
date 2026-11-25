@@ -525,6 +525,20 @@ class BBB_Morale
 
 	// ---------------------------------------------------------------- retrograde destination
 
+	protected static int s_iRetroCover;
+	protected static float s_fRetroGround;
+
+	protected static bool CountRetroCover(IEntity entity)
+	{
+		if (s_iRetroCover >= 12) return false;
+		if (ChimeraCharacter.Cast(entity) || Vehicle.Cast(entity) || !entity.GetPhysics() || BBB_SolidCover.Flimsy(entity)) return true;
+		vector mins, maxs;
+		entity.GetWorldBounds(mins, maxs);
+		if (maxs[1] - s_fRetroGround < 1.0 || maxs[0] - mins[0] > 60 || maxs[2] - mins[2] > 60) return true;
+		s_iRetroCover++;
+		return true;
+	}
+
 	static vector CalculateRetrogradeDestination(vector squadCenter, vector threatCenter, float distance)
 	{
 		vector away = squadCenter - threatCenter;
@@ -538,23 +552,29 @@ class BBB_Morale
 			away.Normalize();
 		}
 
-		vector dest = squadCenter + away * distance;
-		dest = BBB.Ground(dest);
-
-		// If water blocks the direct retreat, check lateral 30 deg detours
-		if (BBB_Terrain.IsWaterAt(dest))
+		vector fallback = BBB.Ground(squadCenter + away * distance);
+		vector lateral = Vector(-away[2], 0, away[0]);
+		// 5-angle fan (0, +-25, +-45 deg): stay dry (including inland rivers/ponds) and prefer solid cover.
+		array<float> cosA = {1.0, 0.906, 0.906, 0.707, 0.707};
+		array<float> sinA = {0.0, 0.423, -0.423, 0.707, -0.707};
+		vector bestDest = fallback;
+		float bestScore = -1.0;
+		for (int i = 0; i < cosA.Count(); i++)
 		{
-			vector lateral = Vector(-away[2], 0, away[0]);
-			vector altDest = squadCenter + (away * 0.866 + lateral * 0.5) * distance;
-			altDest = BBB.Ground(altDest);
-			if (!BBB_Terrain.IsWaterAt(altDest)) return altDest;
-
-			altDest = squadCenter + (away * 0.866 - lateral * 0.5) * distance;
-			altDest = BBB.Ground(altDest);
-			if (!BBB_Terrain.IsWaterAt(altDest)) return altDest;
+			vector candidate = BBB.Ground(squadCenter + (away * cosA[i] + lateral * sinA[i]) * distance);
+			if (BBB_Terrain.WaterDepthAt(candidate) > 0) continue;
+			s_iRetroCover = 0;
+			s_fRetroGround = candidate[1];
+			GetGame().GetWorld().QueryEntitiesBySphere(candidate, 12.0, CountRetroCover, null, EQueryEntitiesFlags.ALL);
+			// Prefer solid cover, with a slight bias toward straight-back when cover is equal.
+			float score = s_iRetroCover * 2.0 + cosA[i];
+			if (score > bestScore)
+			{
+				bestScore = score;
+				bestDest = candidate;
+			}
 		}
-
-		return dest;
+		return bestDest;
 	}
 
 	// ---------------------------------------------------------------- withdrawal execution
@@ -748,8 +768,9 @@ class BBB_Morale
 			if (!ent || !BBB.IsAlive(ent)) continue;
 			ChimeraCharacter character = ChimeraCharacter.Cast(ent);
 			if (!character || character.GetCharacterController().IsUnconscious()) continue;
-			// Riders in a vehicle's cargo can't bound, and a man who surrendered stays put.
-			if (character.IsInVehicle() || IsPrisoner(character)) continue;
+			// Riders in a vehicle's cargo can't bound, a man who surrendered stays put, and a medic
+			// dragging/treating a casualty (priority 111-112) shouldn't be put in TeamMove to stall the bound.
+			if (character.IsInVehicle() || IsPrisoner(character) || BBB_Drag.Busy(character) || BBB_Claims.Role(character) == BBB_Claims.RESCUE) continue;
 
 			SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
 			if (!utility || !utility.m_CombatMoveState || BBB_OrderIntent.Blocks(utility)) continue;
@@ -1230,7 +1251,8 @@ class BBB_Morale
 			mark = NearestEnemy(soldier, ss.m_TrueFaction, s_fRuseRangeM, false, distance);
 			if (!mark || Math.RandomFloat01() >= s_fRuseNerve) return false;
 			if (frag && distance < RUSE_FRAG_MIN_M) return false; // too close to throw and live: wait
-			// On his feet first (out of ACE's pose, or up from sitting), then his AI comes back.
+			// Restore original faction (ACE made him CIV) and stand up first, then his AI comes back.
+			BBB_SurrenderPose.RestoreFaction(ss);
 			BBB_SurrenderPose.Release(ss);
 			ss.m_bRising = true;
 			ss.m_fRiseSince = now;

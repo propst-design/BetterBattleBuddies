@@ -360,7 +360,10 @@ class BBB_Medic
   ChimeraCharacter chHealer = ChimeraCharacter.Cast(healer);
   if (chHealer && Fit(healer) && !chHealer.IsInVehicle() && HasSmokeGrenade(healer))
   {
-   if (vector.DistanceXZ(healer.GetOrigin(), smokePos) <= SMOKE_THROW_MAX_M) thrower = healer;
+   AIControlComponent healerControl = AIControlComponent.Cast(healer.FindComponent(AIControlComponent));
+   SCR_AIUtilityComponent healerUtil;
+   if (healerControl && healerControl.GetControlAIAgent()) healerUtil = SCR_AIUtilityComponent.Cast(healerControl.GetControlAIAgent().FindComponent(SCR_AIUtilityComponent));
+   if (BBB_Smoke.IsFitThrower(healer, healerUtil) && vector.DistanceXZ(healer.GetOrigin(), smokePos) <= SMOKE_THROW_MAX_M) thrower = healer;
   }
 
   if (!thrower)
@@ -623,7 +626,7 @@ modded class SCR_AIMedicHealBehavior
    bool hot = false;
    if (fullOn) hot = BBB_Medic.Hot(casualty);
    bool smoking = false;
-   if (smokeOn && distance > BBB_Medic.ARRIVED_M)
+   if (smokeOn && !held && distance > BBB_Medic.ARRIVED_M)
    {
     // Only for a combat wound: a man caught on wire or hurt in a fall isn't screened (BBB_Wounds).
     if ((exposed || hot || threat >= 0.33) && BBB_Wounds.CombatWound(casualty))

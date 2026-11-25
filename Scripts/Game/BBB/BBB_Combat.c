@@ -424,15 +424,14 @@ modded class SCR_AIGroupUtilityComponent
 	}
 }
 
-// Optional short bound for recognized threats: keep vanilla's attack movement and cover
-// selection, but reduce the pinned soldier's dwell in selected cover. Disabled by default
-// until a clean firefight comparison confirms a survival and shooting tradeoff.
+// Brisk bounds when alerted under light threat; pinned soldiers in valid cover keep vanilla's
+// longer suppressed dwell so suppressing fire actually holds them down for a flanking team.
 modded class SCR_AICombatMoveLogic_Attack
 {
 	override protected float ResolveStoppedWaitTime(bool inCover, EAIThreatState threat, EWeaponType weaponType)
 	{
 		float wait = super.ResolveStoppedWaitTime(inCover, threat, weaponType);
-		if (!BBB_Combat.ManeuverOn() || !inCover || !m_Target || threat != EAIThreatState.THREATENED) return wait;
+		if (!BBB_Combat.ManeuverOn() || !inCover || !m_Target || threat != EAIThreatState.ALERTED) return wait;
 		return Math.Min(wait, BBB_Combat.BOUND_PAUSE_S);
 	}
 }

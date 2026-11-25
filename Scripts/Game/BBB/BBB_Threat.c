@@ -145,6 +145,7 @@ class BBB_Threat
 
 	static bool GroundOrRoofSource(vector shooterPos)
 	{
+		BBB_SuppressionSafety.Read();
 		if (!BBB_SuppressionSafety.s_bOn) return true;
 		BaseWorld world = GetGame().GetWorld();
 		if (!world) return true;
@@ -314,7 +315,15 @@ class BBB_Threat
 		foreach (BBB_ExplosionReflexJob existing : s_aReflexJobs)
 		{
 			if (existing.m_Soldier != soldier) continue;
-			if (desired == ECharacterStance.PRONE) existing.m_eTargetStance = ECharacterStance.PRONE;
+			if (desired == ECharacterStance.PRONE && existing.m_eTargetStance != ECharacterStance.PRONE)
+			{
+				existing.m_eTargetStance = ECharacterStance.PRONE;
+				if (existing.m_bApplied)
+				{
+					existing.m_bApplied = false;
+					existing.m_fFireAtMs = nowMs + delayMs;
+				}
+			}
 			if (!existing.m_bApplied && nowMs + delayMs < existing.m_fFireAtMs)
 				existing.m_fFireAtMs = nowMs + delayMs;
 			existing.m_fEndMs = Math.Max(existing.m_fEndMs, existing.m_fFireAtMs + holdMs);
@@ -397,6 +406,7 @@ class BBB_Threat
 		SCR_AICharacterSettingsComponent settings = job.m_Utility.m_SettingsComponent;
 		if (settings)
 		{
+			if (job.m_StanceSetting) settings.RemoveSetting(job.m_StanceSetting);
 			job.m_StanceSetting = SCR_AICharacterStanceSetting.Create(SCR_EAISettingOrigin.BEHAVIOR, SCR_EAIBehaviorCause.ALWAYS, target);
 			settings.AddCharacterSetting(job.m_StanceSetting, false);
 		}
