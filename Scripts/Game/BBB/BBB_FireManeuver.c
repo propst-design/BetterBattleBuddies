@@ -49,8 +49,8 @@ class BBB_FireManeuver
   return true;
  }
 
- // Pick the lateral bound side (+1 or -1) with more dry solid cover ahead; tie-break deterministically.
- protected static int PickBoundSide(vector center, vector threat)
+ // Pick the lateral bound side (+1 or -1) with more dry solid cover inside the order leash; tie-break deterministically.
+ protected static int PickBoundSide(SCR_AIGroup group, vector center, vector threat)
  {
   vector forward = threat - center;
   forward[1] = 0;
@@ -59,10 +59,10 @@ class BBB_FireManeuver
   vector right = Vector(-forward[2], 0, forward[0]);
   vector posPlus = BBB.Ground(center + right * 18 + forward * 8);
   vector posMinus = BBB.Ground(center - right * 18 + forward * 8);
-  bool wetPlus = BBB_Terrain.WaterDepthAt(posPlus) > 0;
-  bool wetMinus = BBB_Terrain.WaterDepthAt(posMinus) > 0;
-  if (wetPlus && !wetMinus) return -1;
-  if (wetMinus && !wetPlus) return 1;
+  bool badPlus = BBB_Terrain.WaterDepthAt(posPlus) > 0 || !BBB_OrderLeash.Allows(group, posPlus, null, true);
+  bool badMinus = BBB_Terrain.WaterDepthAt(posMinus) > 0 || !BBB_OrderLeash.Allows(group, posMinus, null, true);
+  if (badPlus && !badMinus) return -1;
+  if (badMinus && !badPlus) return 1;
   s_iSideCover = 0;
   s_fSideGround = posPlus[1];
   GetGame().GetWorld().QueryEntitiesBySphere(posPlus, 12, CountSideCover, null, EQueryEntitiesFlags.ALL);
@@ -359,7 +359,7 @@ class BBB_FireManeuver
   job.m_Lease = BBB_OrderLeash.Capture(group);
   if (job.m_Waypoint) job.m_WaypointPos = job.m_Waypoint.GetOrigin();
   job.m_Center = BBB.AnchorOf(group).GetOrigin();
-  job.m_iBoundSide = PickBoundSide(job.m_Center, seen);
+  job.m_iBoundSide = PickBoundSide(group, job.m_Center, seen);
   job.m_fStarted = now;
   job.m_fFresh = now;
   job.m_fPhaseSince = now;
