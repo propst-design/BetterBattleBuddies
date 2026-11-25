@@ -1,15 +1,17 @@
-0.2.1
+0.3.0
 
-Bug fixes for grenadiers, fall-backs, Game Master orders and static guns. Works with AC: Actual 0.6.1.
+Faster attacking squad tactics, new Fidelity setting for smaller battles, smarter vehicle unsticking, safer pull-overs, true bullet-stopping cover, and sticky static gunners. Works with AC: Actual 0.7.0.
 
-FIXED
+NEW
 
-- Grenadiers no longer waste 40 mm grenades on targets too close for them to arm: inside the arming range plus 5 m they use their rifle or sidearm, and a man with only a grenade launcher (such as an M79) backs off first. This also applies while a squad leader or a vehicle gunner holds the target. The arming distance is read from each grenade, so modded rounds are covered. Option: -bbbGLArming 0.
-- Game Master orders come first for morale: a squad on a Game Master waypoint no longer breaks, falls back or surrenders, and a break under way ends when the Game Master gives it an order.
-- Game Master and Conflict move and defend waypoints now get the same order leash and squad tactics as the base ones.
-- A squad falling back, after its morale breaks or because the host mod ordered it, no longer drops prone or crouches around enemy armour: the withdrawal goes on. A host mod's own fall-back order now takes over from a morale break already under way.
-- Soldiers sent prone by nearby enemy armour get up as soon as a player joins or takes over their squad.
-- Soldiers stuck in a doorway no longer swing the door open and shut every minute or so.
-- A soldier on his way to man a static gun turns back with his squad when it falls back, and a wounded gunner is no longer put back on the gun while his replacement climbs on.
-- With the optional hot-vehicle setting, player-led and host-controlled gunners and vehicles are left alone by its reload, re-attack and slow-down rules too.
-- A deleted Defend waypoint no longer logs an error, and a possible script error when the last man of a squad surrenders is fixed.
+- Fidelity setting (-bbbFidelity 0|1|2 for Standard, High, Uncapped): spends more server time on smaller battles for faster squad-leader target sharing, tactic re-planning, grenadier/AT checks, and multi-ray shoulder cover tests. Steps down automatically above 30 and 60 AI (-bbbFidelityGovernor 0 to disable).
+- Mod-maker hook MaxFidelity() lets a host mod cap the fidelity tier.
+
+FIXED AND IMPROVED
+
+- Attacking squad tactics no longer halt on first contact or freeze when the leader falls; against dug-in enemies at 70-250 m, half the squad flanks while the other half suppresses from the front.
+- AI vehicle unstick (-bbbUnstick): looks before reversing instead of backing blind into queued vehicles, soldiers, or ditches; armed crews stay aboard and hold when boxed in, while soft-vehicle crews dismount on foot.
+- Pulling over no longer tips trucks or APCs over: drivers brake on the road first, check verge slope and obstacles, ease onto the shoulder with stricter limits for tall/heavy vehicles, and stop immediately if the hull starts to roll or pitch.
+- True cover (-bbbTrueCover): greenhouses, glass, and wire fences no longer count as bullet-stopping cover or holdable buildings.
+- Defending squads keep the same gunner on static weapons instead of rotating him off every few minutes.
+- Night flares now log why a pending flare request was called off.
