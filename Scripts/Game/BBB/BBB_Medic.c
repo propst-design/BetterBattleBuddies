@@ -363,7 +363,7 @@ class BBB_Medic
    AIControlComponent healerControl = AIControlComponent.Cast(healer.FindComponent(AIControlComponent));
    SCR_AIUtilityComponent healerUtil;
    if (healerControl && healerControl.GetControlAIAgent()) healerUtil = SCR_AIUtilityComponent.Cast(healerControl.GetControlAIAgent().FindComponent(SCR_AIUtilityComponent));
-   if (BBB_Smoke.IsFitThrower(healer, healerUtil) && vector.DistanceXZ(healer.GetOrigin(), smokePos) <= SMOKE_THROW_MAX_M) thrower = healer;
+   if (BBB_Smoke.IsFitThrower(healer, healerUtil, true) && vector.DistanceXZ(healer.GetOrigin(), smokePos) <= SMOKE_THROW_MAX_M) thrower = healer;
   }
 
   if (!thrower)

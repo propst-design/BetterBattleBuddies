@@ -170,8 +170,8 @@ class BBB_Smoke
 		}
 	}
 
-	// Check if soldier is fit to execute a smoke throw
-	static bool IsFitThrower(IEntity soldier, SCR_AIUtilityComponent utility)
+	// Check if soldier is fit to execute a smoke throw (allowRescue: healer throwing his own medic smoke)
+	static bool IsFitThrower(IEntity soldier, SCR_AIUtilityComponent utility, bool allowRescue = false)
 	{
 		if (!soldier || !utility) return false;
 		if (!BBB.IsAlive(soldier)) return false;
@@ -187,7 +187,8 @@ class BBB_Smoke
 		if (utility.m_AIInfo && (utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || utility.m_AIInfo.HasUnitState(EUnitState.UNCONSCIOUS))) return false;
 
 		if (BBB_OrderIntent.Blocks(utility)) return false;
-		if (BBB_Drag.Busy(soldier) || BBB_Claims.Committed(soldier)) return false;
+		if (BBB_Drag.Busy(soldier)) return false;
+		if (BBB_Claims.Committed(soldier) && !(allowRescue && BBB_Claims.Role(soldier) == BBB_Claims.RESCUE)) return false;
 
 		return HasSmokeGrenade(soldier);
 	}
