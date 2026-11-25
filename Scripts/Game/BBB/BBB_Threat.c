@@ -348,7 +348,7 @@ class BBB_Threat
 	{
 		if (!soldier) return false;
 		foreach (BBB_ExplosionReflexJob job : s_aReflexJobs)
-			if (job && job.m_Soldier == soldier && job.m_bApplied) return true;
+			if (job && job.m_Soldier == soldier && (job.m_bApplied || job.m_StanceSetting != null)) return true;
 		return false;
 	}
 
@@ -403,6 +403,7 @@ class BBB_Threat
 		ECharacterStance current = controller.GetStance();
 		ECharacterStance target = job.m_eTargetStance;
 		if (current == ECharacterStance.PRONE) target = ECharacterStance.PRONE;
+		bool firstApply = job.m_StanceSetting == null;
 		SCR_AICharacterSettingsComponent settings = job.m_Utility.m_SettingsComponent;
 		if (settings)
 		{
@@ -411,8 +412,11 @@ class BBB_Threat
 			settings.AddCharacterSetting(job.m_StanceSetting, false);
 		}
 		SCR_AIStanceHandling.SetStance(controller, target);
-		s_iExplosionReflexApplied++;
-		BBB_Perf.Count("threat.explosionReflexApplied");
+		if (firstApply)
+		{
+			s_iExplosionReflexApplied++;
+			BBB_Perf.Count("threat.explosionReflexApplied");
+		}
 	}
 
 	protected static void ReleaseJob(BBB_ExplosionReflexJob job)
