@@ -554,9 +554,10 @@ class BBB_Morale
 
 		vector fallback = BBB.Ground(squadCenter + away * distance);
 		vector lateral = Vector(-away[2], 0, away[0]);
-		// 5-angle fan (0, +-25, +-45 deg): stay dry (including inland rivers/ponds) and prefer solid cover.
-		array<float> cosA = {1.0, 0.906, 0.906, 0.707, 0.707};
-		array<float> sinA = {0.0, 0.423, -0.423, 0.707, -0.707};
+		// Narrow cover-seeking fan (0, +-20 deg) so retreats stay on the Escape/order axis;
+		// wider +-45 deg angles are only used as dry-ground detours if all narrow rays hit water.
+		array<float> cosA = {1.0, 0.940, 0.940};
+		array<float> sinA = {0.0, 0.342, -0.342};
 		vector bestDest = fallback;
 		float bestScore = -1.0;
 		for (int i = 0; i < cosA.Count(); i++)
@@ -574,7 +575,15 @@ class BBB_Morale
 				bestDest = candidate;
 			}
 		}
-		return bestDest;
+		if (bestScore >= 0) return bestDest;
+		// Dry-ground fallback at +-45 deg when straight-back and +-20 deg are water.
+		array<float> wideSin = {0.707, -0.707};
+		foreach (float ws : wideSin)
+		{
+			vector alt = BBB.Ground(squadCenter + (away * 0.707 + lateral * ws) * distance);
+			if (BBB_Terrain.WaterDepthAt(alt) <= 0) return alt;
+		}
+		return fallback;
 	}
 
 	// ---------------------------------------------------------------- withdrawal execution
