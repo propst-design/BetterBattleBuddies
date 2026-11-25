@@ -55,6 +55,7 @@ class BBB_CrewCallout
   array<vector> spots = {};
   array<float> ages = {};
   array<bool> shooting = {};
+  bool hurtsArmour = BBB_CrewLeader.HurtsArmour(gunner);
   foreach (BaseCompartmentSlot slot : slots)
   {
    IEntity mate = slot.GetOccupant();
@@ -68,6 +69,7 @@ class BBB_CrewCallout
     if (!target || target.IsDisarmed()) continue;
     float age = target.GetTimeSinceSeen();
     if (age > SEEN_S) continue;
+    if (!hurtsArmour && BBB_CrewLeader.IsArmour(target.GetUnitType())) continue;
     IEntity enemy = target.GetTargetEntity();
     if (!enemy || BBB_SuppressionSafety.AircraftSource(enemy)) continue;
     bool shot = target.GetTimeSinceEndangered() < ENDANGER_S;

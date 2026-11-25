@@ -359,7 +359,7 @@ class BBB_HotAI
 		{
 			source = "an enemy who shot at him";
 		}
-		else if (vehicle && BBB_CrewCallout.On() && !BBB_CrewLeader.WithheldArmour(vehicle, man) && BBB_CrewCallout.Pick(vehicle, man, targets, aim, men, spread))
+		else if (vehicle && BBB_CrewCallout.On() && BBB_CrewCallout.Pick(vehicle, man, targets, aim, men, spread))
 		{
 			callout = true;
 		}
@@ -521,6 +521,7 @@ class BBB_HotAI
 		vector at = vehicle.GetOrigin();
 		float bestScore = float.MAX;
 		bool found;
+		bool hurtsArmour = BBB_CrewLeader.HurtsArmour(gunner);
 		foreach (BaseCompartmentSlot slot : slots)
 		{
 			IEntity mate = slot.GetOccupant();
@@ -532,6 +533,7 @@ class BBB_HotAI
 			foreach (BaseTarget target : targets)
 			{
 				if (!target || target.IsDisarmed() || target.GetTimeSinceSeen() > CREW_SEEN_S) continue;
+				if (!hurtsArmour && BBB_CrewLeader.IsArmour(target.GetUnitType())) continue;
 				if (BBB_SuppressionSafety.AircraftSource(target.GetTargetEntity())) continue;
 				vector spot = target.GetLastSeenPosition();
 				float score = vector.DistanceXZ(at, spot);

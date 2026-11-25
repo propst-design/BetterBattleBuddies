@@ -297,12 +297,17 @@ class BBB_CrewLeader
  }
 
  // An autocannon or launcher in the gunner's turret (his picker's own cache of the seat's weapons).
- protected static bool HurtsArmour(IEntity gunner)
+ static bool HurtsArmour(IEntity gunner)
  {
   SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(gunner);
   if (!utility || !utility.m_CombatComponent || !utility.m_CombatComponent.m_WeaponTargetSelector) return false;
   AIWeaponTargetSelector selector = utility.m_CombatComponent.m_WeaponTargetSelector;
   return selector.HasWeaponOfType(EWeaponType.WT_AUTOCANNON, true) || selector.HasWeaponOfType(EWeaponType.WT_ROCKETLAUNCHER, true);
+ }
+
+ static bool IsArmour(EAIUnitType type)
+ {
+  return type == EAIUnitType.UnitType_VehicleMedium || type == EAIUnitType.UnitType_VehicleHeavy;
  }
 
  protected static void Collect(BBB_CrewOrder order, IEntity eyesOf, bool crew)
@@ -523,15 +528,6 @@ class BBB_CrewLeader
   // Armour is the leader's target only for a gunner whose turret can hurt it.
   if (order.m_bKeyArmour && !HurtsArmour(man)) return null;
   return order;
- }
-
- // True when the crew leader picked armour that this gunner's turret cannot hurt (so CrewCallout
- // must not fall through and fire MG rounds at it anyway).
- static bool WithheldArmour(IEntity vehicle, IEntity man)
- {
-  if (!On() || !vehicle || !man) return false;
-  BBB_CrewOrder order = Get(vehicle, man);
-  return order && order.m_bHas && order.m_bKeyArmour && !HurtsArmour(man);
  }
 
  // He sees nothing of his own: where the leader wants his fire.
