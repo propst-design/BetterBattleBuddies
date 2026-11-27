@@ -256,6 +256,8 @@ class BBB_Drive : Managed
  protected float m_fBlockedSince = -1;
  protected bool m_bRecovering;
  protected bool m_bQueueLogged;
+ protected bool m_bBrakingToStop;  // host requested a controlled stop along the current path
+ protected float m_fBrakeStarted;
  protected ref BBB_DriveUnstick m_Listener;
  protected ref array<float> m_aRecoveries;
  protected float m_fGain;          // curvature per unit of steering, learnt while driving
@@ -280,6 +282,30 @@ class BBB_Drive : Managed
   if (!vehicle || !s_Active) return null;
   foreach (BBB_Drive d : s_Active) if (d.m_Vehicle == vehicle) return d;
   return null;
+ }
+
+ // Ask an active scripted driver to brake smoothly to a stop while staying on its current road path.
+ // Returns true if BBB_Drive is handling the stop (caller waits for Driving(vehicle) to clear).
+ static bool BrakeToStop(IEntity vehicle)
+ {
+  BBB_Drive d = Of(vehicle);
+  if (!d || !d.m_Path) return false;
+  if (!d.m_bBrakingToStop)
+  {
+   d.m_bBrakingToStop = true;
+   d.m_fBrakeStarted = GetGame().GetWorld().GetWorldTime();
+   if (d.m_bRecovering && d.m_Listener) { d.m_Listener.m_Drive = null; BBB_Unstick.Cancel(d.m_Listener); }
+   d.m_bRecovering = false;
+  }
+  return true;
+ }
+
+ // Cancel a controlled brake-to-stop (e.g. ride resumed or cancelled mid-stop).
+ static void CancelBrake(IEntity vehicle)
+ {
+  BBB_Drive d = Of(vehicle);
+  if (!d || !d.m_bBrakingToStop) return;
+  d.End("brake cancelled", GetGame().GetWorld().GetWorldTime());
  }
 
  // Once a second: start sessions for fresh long moves, end those that should go back.
@@ -484,6 +510,13 @@ class BBB_Drive : Managed
   if (!BBB.IsConscious(m_Driver)) return "driver down"; // IsAlive is true for the unconscious
   if (BBB_Transport.VehicleOf(m_Driver) != m_Vehicle) return "driver got out";
   if (!m_Group) return "group gone";
+  // While braking to a stop on host request, stay on the path until stopped (don't hand back to
+  // unlocked straight-wheel braking just because the waypoint was cleared or enemies are near).
+  if (m_bBrakingToStop)
+  {
+   if (now - m_fBrakeStarted > 6000) return "braked to stop";
+   return "";
+  }
   AIWaypoint wp = m_Group.GetCurrentWaypoint();
   if (wp != m_Waypoint)
   {
@@ -502,6 +535,8 @@ class BBB_Drive : Managed
  {
   if (!m_Path) return;
   bool arrived = why == "arrived";
+  bool cleanStop = arrived || why == "braked to stop";
+  m_bBrakingToStop = false;
   CarControllerComponent car;
   if (m_Vehicle) car = CarControllerComponent.Cast(m_Vehicle.FindComponent(CarControllerComponent));
   if (m_bRecovering && m_Listener) { m_Listener.m_Drive = null; BBB_Unstick.Cancel(m_Listener); }
@@ -512,7 +547,7 @@ class BBB_Drive : Managed
    sim.SetThrottle(0);
    sim.SetSteering(0);
    float brake = 0;
-   if (arrived) brake = 1;
+   if (cleanStop) brake = 1;
    sim.SetBreak(brake, false);
    sim.SetClutch(1);
   }
@@ -533,7 +568,8 @@ class BBB_Drive : Managed
   s_sLastEnd = why;
   PrintFormat("[BBB] DRIVER %1: %2 after %3 s, %4 of %5 m, line error mean %6 max %7 m, back-outs %8", BBB.s_Hooks.NameOf(m_Group), why, (int)((now - m_fStarted) / 1000), (int)driven, (int)m_Path.m_fLength, meanXte, m_fMaxXte, m_aRecoveries.Count());
   if (m_Group && why.Contains("contact")) s_Rest.Set(m_Group, now + CONTACT_REST_MS);
-  else if (m_Group && !arrived) s_Rest.Set(m_Group, now + 60000); // the game's driver (and the host) take this move from here
+  else if (m_Group && !cleanStop) s_Rest.Set(m_Group, now + 60000); // the game's driver (and the host) take this move from here
+  BBB_Claims.Unmark(m_Vehicle, BBB_Claims.JOB_DRIVE);
   m_Path = null;
  }
 
@@ -611,6 +647,21 @@ class BBB_Drive : Managed
   float steer = Math.Clamp(kappa / Math.Max(0.02, m_fGain), -1, 1);
   float slew = 2.5 * dt;
   m_fSteer += Math.Clamp(steer - m_fSteer, -slew, slew);
+
+  // Controlled stop along the path (host requested brake-to-stop): stay on the line, shift to
+  // neutral so heavy trucks don't creep under full brake, and release once stopped.
+  if (m_bBrakingToStop)
+  {
+   int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
+   if (sim.GetGear() != neutral) sim.SetGear(neutral);
+   m_fThrottle = 0;
+   sim.SetClutch(1);
+   sim.SetThrottle(0);
+   sim.SetBreak(1, false);
+   sim.SetSteering(m_fSteer);
+   if (absSpeed < 0.8 || now - m_fBrakeStarted > 6000) End("braked to stop", now);
+   return;
+  }
 
   // Speed: the line's profile here, the guard's cap, and the end.
   float target = m_Path.m_aV[m_iIdx];
@@ -785,7 +836,7 @@ class BBB_Drive : Managed
  protected bool Ray(vector a, vector b)
  {
   IEntity skip = m_Vehicle;
-  for (int tries = 0; tries < 3; tries++)
+  for (int tries = 0; tries < 5; tries++)
   {
    TraceParam trace = new TraceParam();
    trace.Start = a;
@@ -812,11 +863,25 @@ class BBB_Drive : Managed
   return false;
  }
 
- // Bushes, and gates the vehicle can go through.
+ // Bushes, plastic verge posts, tiny lightweight props (e.g. paint cans), and gates the vehicle can go through.
  protected bool Passable(IEntity hit, string prefab)
  {
   // Arland's bushes are under Vegetation/Bush/, Everon's under Vegetation/Bushes/ (11 Nov).
   if (prefab.Contains("/Vegetation/Bush") || prefab.Contains("/Vegetation/Clutter/")) return true;
+  if (prefab.Contains("VergePost") || prefab.Contains("PlasticPost")) return true;
+  // Tiny props (e.g. PaintCan_01.et on a prop pile): never skip soldiers, vehicles (or their parts),
+  // or mines/explosives; Ray() continues past the prop so any real crate/wall behind it still stops us.
+  IEntity root = hit.GetRootParent();
+  bool isLivingOrVeh = ChimeraCharacter.Cast(hit) || Vehicle.Cast(hit) || (root && (ChimeraCharacter.Cast(root) || Vehicle.Cast(root)));
+  if (!isLivingOrVeh && !prefab.Contains("Mine"))
+  {
+   vector mins, maxs;
+   hit.GetBounds(mins, maxs);
+   float dx = maxs[0] - mins[0];
+   float dy = maxs[1] - mins[1];
+   float dz = maxs[2] - mins[2];
+   if ((dx > 0 || dy > 0 || dz > 0) && dx < 0.65 && dy < 0.65 && dz < 0.65) return true;
+  }
   IEntity e = hit;
   for (int up = 0; up < 3 && e; up++)
   {

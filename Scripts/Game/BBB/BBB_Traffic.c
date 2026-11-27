@@ -535,6 +535,9 @@ class BBB_PullOver : Managed
  protected float m_fLastAt;
  protected float m_fMaxRoll;
  protected bool m_bRollStop;
+ protected float m_fHoldSnapAt;
+ protected vector m_vHoldSpot;
+ protected bool m_bHasHoldSpot;
 
  static bool Active(IEntity vehicle)
  {
@@ -811,8 +814,47 @@ class BBB_PullOver : Managed
     return true;
    }
   }
-  // Stopped (or holding): brake.
-  BBB_Unstick.Drive(m_Driver, sim, 0, 0, 1);
+  // Stopped (or holding): shift to neutral so heavy trucks don't creep under full brake, and
+  // while MODE_HOLD is still moving on a road, steer gently along the road instead of locking straight.
+  float holdSteer = 0;
+  if (m_iMode == MODE_HOLD)
+  {
+   if (sim.GetGear() != neutral) sim.SetGear(neutral);
+   if (speed > 1.5)
+   {
+    if (now >= m_fHoldSnapAt)
+    {
+     m_fHoldSnapAt = now + 150;
+     vector roadPt, roadDir;
+     float roadW;
+     m_bHasHoldSpot = Snap(vehicle.GetOrigin(), 8, roadPt, roadDir, roadW);
+     if (m_bHasHoldSpot)
+     {
+      vector mat[4];
+      vehicle.GetWorldTransform(mat);
+      vector forward = mat[2];
+      forward[1] = 0;
+      forward.Normalize();
+      if (vector.Dot(roadDir, forward) < 0) roadDir = -roadDir;
+      m_vHoldSpot = roadPt + roadDir * Math.Clamp(speed * 1.2, 6, 18);
+     }
+    }
+    if (m_bHasHoldSpot)
+    {
+     vector hLocal = vehicle.CoordToLocal(m_vHoldSpot);
+     if (hLocal[2] > 0.5)
+     {
+      float hCap = m_Limits.SteerCap(speed);
+      float hWant = Math.Clamp(Math.Atan2(hLocal[0], hLocal[2]) * 1.6, -hCap, hCap);
+      float hEase = m_Limits.m_fSteerRate * dt;
+      m_fSteer = Math.Clamp(hWant, m_fSteer - hEase, m_fSteer + hEase);
+      holdSteer = m_fSteer;
+     }
+    }
+   }
+   else m_fSteer = 0;
+  }
+  BBB_Unstick.Drive(m_Driver, sim, 0, holdSteer, 1);
   if (m_iMode == MODE_PARK)
   {
    // Out of gear (an engaged gear creeps a heavy truck on at walking pace under full brake: srv:pulloverbank,
