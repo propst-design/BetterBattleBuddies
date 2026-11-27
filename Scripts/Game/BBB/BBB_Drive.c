@@ -260,6 +260,9 @@ class BBB_Drive : Managed
  protected bool m_bQueueLogged;
  protected bool m_bBrakingToStop;  // host requested a controlled stop along the current path
  protected float m_fBrakeStarted;
+ protected float m_fTrafficCap = 99;
+ protected bool m_bTrafficYield;
+ protected bool m_bTrafficPullRight;
  protected ref BBB_DriveUnstick m_Listener;
  protected ref array<float> m_aRecoveries;
  protected float m_fGain;          // curvature per unit of steering, learnt while driving
@@ -308,6 +311,34 @@ class BBB_Drive : Managed
   BBB_Drive d = Of(vehicle);
   if (!d || !d.m_bBrakingToStop) return;
   d.End("brake cancelled", GetGame().GetWorld().GetWorldTime());
+ }
+
+ // Cooperative speed cap for BBB_Traffic (<= 0 clears).
+ static bool SetSpeedCap(IEntity vehicle, float speedMs)
+ {
+  BBB_Drive d = Of(vehicle);
+  if (!d || !d.m_Path) return false;
+  if (speedMs <= 0) d.m_fTrafficCap = 99;
+  else d.m_fTrafficCap = speedMs;
+  return true;
+ }
+
+ // Cooperative give-way stop for BBB_Traffic: stays on the planned path without ending the drive.
+ static bool YieldForTraffic(IEntity vehicle, bool pullRight)
+ {
+  BBB_Drive d = Of(vehicle);
+  if (!d || !d.m_Path || d.m_bBrakingToStop || d.m_bRecovering) return false;
+  d.m_bTrafficYield = true;
+  d.m_bTrafficPullRight = pullRight;
+  return true;
+ }
+
+ static void ReleaseTrafficYield(IEntity vehicle)
+ {
+  BBB_Drive d = Of(vehicle);
+  if (!d) return;
+  d.m_bTrafficYield = false;
+  d.m_bTrafficPullRight = false;
  }
 
  // Once a second: start sessions for fresh long moves, end those that should go back.
@@ -541,6 +572,9 @@ class BBB_Drive : Managed
   bool cleanStop = arrived || why == "braked to stop";
   bool noPenalty = cleanStop || why == "brake cancelled";
   m_bBrakingToStop = false;
+  m_fTrafficCap = 99;
+  m_bTrafficYield = false;
+  m_bTrafficPullRight = false;
   CarControllerComponent car;
   if (m_Vehicle) car = CarControllerComponent.Cast(m_Vehicle.FindComponent(CarControllerComponent));
   if (m_bRecovering && m_Listener) { m_Listener.m_Drive = null; BBB_Unstick.Cancel(m_Listener); }
@@ -641,8 +675,10 @@ class BBB_Drive : Managed
   float x = to[0] * right[0] + to[2] * right[2];
   float z = to[0] * fwd[0] + to[2] * fwd[2];
   float dist = Math.Max(1, Math.Sqrt(x * x + z * z));
+  float steerXte = xte;
+  if (m_bTrafficYield && m_bTrafficPullRight) steerXte -= 1.8;
   float kappa = 2 * x / (dist * dist);                 // pure pursuit curvature
-  kappa += Math.Atan2(-0.6 * xte, absSpeed + 2) / Math.Max(4, look); // back onto the line (xte > 0: right of it)
+  kappa += Math.Atan2(-0.6 * steerXte, absSpeed + 2) / Math.Max(4, look); // back onto the line (xte > 0: right of it)
   // Learn how hard the wheels turn for a given steering input (mod vehicles differ).
   if (absSpeed > 3 && Math.AbsFloat(m_fSteer) > 0.15)
   {
@@ -668,6 +704,21 @@ class BBB_Drive : Managed
    return;
   }
 
+  // Cooperative give-way stop requested by BBB_Traffic: hold brake in neutral until released.
+  if (m_bTrafficYield)
+  {
+   int neutral = sim.GearboxGearsCount() - sim.GearboxForwardGearsCount() - 1;
+   if (sim.GetGear() != neutral) sim.SetGear(neutral);
+   m_fThrottle = 0;
+   sim.SetClutch(1);
+   sim.SetThrottle(0);
+   sim.SetBreak(1, false);
+   sim.SetSteering(m_fSteer);
+   m_fStallSince = -1;
+   m_fBlockedSince = -1;
+   return;
+  }
+
   // Speed: the line's profile here, the guard's cap, and the end.
   float target = m_Path.m_aV[m_iIdx];
   int near = m_Path.Ahead(m_iIdx, 12);
@@ -679,6 +730,7 @@ class BBB_Drive : Managed
    m_fGuardCap = Guard(pos, fwd, right, absSpeed);
   }
   target = Math.Min(target, m_fGuardCap);
+  target = Math.Min(target, m_fTrafficCap);
   float throttle = 0;
   float brake = 0;
   float err = target - speed;

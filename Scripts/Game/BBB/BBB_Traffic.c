@@ -436,23 +436,40 @@ class BBB_GiveWay : Managed
  bool m_bHeadOn;
  float m_fStart;
  bool m_bSlowed;
+ bool m_bDriveYield;
+ bool m_bDriveSlowed;
  static const float MAX_MS = 20000;
  static const float CLEAR_M = 14;
 
  bool Begin(float now)
  {
-  int mode = BBB_PullOver.MODE_HOLD;
-  if (m_bHeadOn) mode = BBB_PullOver.MODE_YIELD;
-  if (!BBB_PullOver.Begin(m_Yield, m_YieldDriver, mode, 1, m_Keep, null)) return false;
+  if (BBB_Drive.Driving(m_Yield))
+  {
+   if (!BBB_Drive.YieldForTraffic(m_Yield, m_bHeadOn)) return false;
+   m_bDriveYield = true;
+  }
+  else
+  {
+   int mode = BBB_PullOver.MODE_HOLD;
+   if (m_bHeadOn) mode = BBB_PullOver.MODE_YIELD;
+   if (!BBB_PullOver.Begin(m_Yield, m_YieldDriver, mode, 1, m_Keep, null)) return false;
+  }
   // The one keeping the way passes slowly (an AI driver only).
   ChimeraCharacter keeper = BBB.DriverOf(m_Keep);
   if (BBB_Traffic.AIDriver(keeper))
   {
-   AICarMovementComponent movement = AICarMovementComponent.Cast(m_Keep.FindComponent(AICarMovementComponent));
-   if (movement)
+   if (BBB_Drive.Driving(m_Keep))
    {
-    movement.SetCruiseSpeed(BBB_Traffic.PASS_KMH);
-    m_bSlowed = true;
+    if (BBB_Drive.SetSpeedCap(m_Keep, BBB_Traffic.PASS_KMH / 3.6)) m_bDriveSlowed = true;
+   }
+   else
+   {
+    AICarMovementComponent movement = AICarMovementComponent.Cast(m_Keep.FindComponent(AICarMovementComponent));
+    if (movement)
+    {
+     movement.SetCruiseSpeed(BBB_Traffic.PASS_KMH);
+     m_bSlowed = true;
+    }
    }
   }
   return true;
@@ -471,7 +488,12 @@ class BBB_GiveWay : Managed
    over = parting && d.Length() > CLEAR_M;
   }
   if (!over) return true;
-  BBB_PullOver.Release(m_Yield);
+  if (m_bDriveYield)
+  {
+   BBB_Drive.ReleaseTrafficYield(m_Yield);
+   m_bDriveYield = false;
+  }
+  else BBB_PullOver.Release(m_Yield);
   Abort();
   return false;
  }
@@ -479,6 +501,10 @@ class BBB_GiveWay : Managed
  // The keeper's road speed back (end of the pair, or BBB.Stop).
  void Abort()
  {
+  if (m_bDriveYield && m_Yield) BBB_Drive.ReleaseTrafficYield(m_Yield);
+  m_bDriveYield = false;
+  if (m_bDriveSlowed && m_Keep) BBB_Drive.SetSpeedCap(m_Keep, 0);
+  m_bDriveSlowed = false;
   if (m_bSlowed && m_Keep)
   {
    AICarMovementComponent movement = AICarMovementComponent.Cast(m_Keep.FindComponent(AICarMovementComponent));
