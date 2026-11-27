@@ -335,6 +335,7 @@ class BBB_HotAI
 		if (BBB.PlayerOf(man)) return;
 		if (vehicle && BBB.s_Hooks.LeaveAlone(vehicle)) return;
 		if (BBB.HasPlayer(BBB_HeldGuns.GroupOf(man)) || BBB_OrderIntent.GunnerBlocks(utility)) return;
+		if (vehicle && BBB_DriverAlignment.WantsGunner(vehicle, man, utility)) return;
 
 		vector aim;
 		string source;
@@ -393,6 +394,18 @@ class BBB_HotAI
 		vector me = man.GetOrigin();
 		float distance = vector.DistanceXZ(me, aim);
 		if (distance < FIRE_MIN_M || distance > FIRE_MAX_M || !BBB_SuppressionSafety.GroundSector(aim)) return false;
+		// Do not hijack a limited-traverse turret with a blind-fire series toward a point its gun
+		// cannot mechanically reach (lets native suppression and BBB_DriverAlignment handle it).
+		ChimeraCharacter ch = ChimeraCharacter.Cast(man);
+		if (ch && ch.GetCompartmentAccessComponent())
+		{
+			TurretControllerComponent turretCtrl = BBB_VehicleHelpers.TurretControllerOf(ch.GetCompartmentAccessComponent().GetCompartment());
+			if (turretCtrl && turretCtrl.GetTurretComponent())
+			{
+				vector excess = turretCtrl.GetTurretComponent().GetAimingAngleExcess(aim + Vector(0, 1, 0));
+				if (Math.AbsFloat(excess[0]) >= BBB_DriverAlignment.DEADBAND_DEG) return false;
+			}
+		}
 		aim = BBB.Ground(aim);
 		float half = Math.Clamp(distance * 0.025, 2.5, 10);
 		// A called-out group: the box covers its men (aim is one of them).

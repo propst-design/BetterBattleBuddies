@@ -284,6 +284,35 @@ class BBB_DriverAlignment
   return created;
  }
 
+ // True while DriverAlignment is actively aligning or tracking a limited-traverse target
+ // for this gunner, so BBB_HotAI.FireControl does not preempt his suppression behavior.
+ static bool WantsGunner(IEntity vehicle, IEntity gunner, SCR_AIUtilityComponent utility)
+ {
+  Read();
+  if (!s_bOn || !vehicle || !gunner) return false;
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (s_States)
+  {
+   foreach (BBB_DriverAlignmentState state : s_States)
+   {
+    if (state.m_Vehicle != vehicle || state.m_Gunner != gunner) continue;
+    if (state.m_bActive) return true;
+    if (state.m_Target && state.m_fStableSince > 0 && now - state.m_fSeenAt <= 2500 && now >= state.m_fCooldownUntil) return true;
+   }
+  }
+  // Tick-0 guard: before Tick() creates a state, check if the gunner already has an own-seen
+  // target in the limited-traverse alignment band so FireControl does not preempt it first.
+  BaseTarget target = TargetOf(utility);
+  if (!target || !target.GetTargetEntity() || target.GetTimeSinceSeen() > 0.5) return false;
+  ChimeraCharacter ch = ChimeraCharacter.Cast(gunner);
+  if (!ch || !ch.GetCompartmentAccessComponent()) return false;
+  BaseCompartmentSlot seat = ch.GetCompartmentAccessComponent().GetCompartment();
+  TurretControllerComponent controller = BBB_VehicleHelpers.TurretControllerOf(seat);
+  if (!controller || !controller.GetTurretComponent()) return false;
+  vector outside = controller.GetTurretComponent().GetAimingAngleExcess(target.GetLastSeenPosition() + Vector(0, 1, 0));
+  return Math.AbsFloat(outside[0]) >= DEADBAND_DEG && Math.AbsFloat(outside[0]) <= MAX_TURN_DEG;
+ }
+
  static bool Stable(BBB_DriverAlignmentState state, BaseTarget target, float now)
  {
   if (state.m_Target != target)
@@ -468,7 +497,7 @@ class BBB_DriverAlignment
    if (physics.GetVelocity().Length() < 0.7)
    {
     simulation.SetBreak(0, false);
-    simulation.SetThrottle(0.15);
+    simulation.SetThrottle(0.25);
    }
    else
    {

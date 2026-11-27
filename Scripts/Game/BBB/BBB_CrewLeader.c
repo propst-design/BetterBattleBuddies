@@ -61,6 +61,7 @@ class BBB_CrewOrder : Managed
  ref array<IEntity> m_aMen = {};
  float m_fSince;        // world time s he gave this target
  float m_fSaidAt;       // world time s of his last call-out
+ ref BBB_CrewOrder m_SoftOrder; // fallback soft-target order for secondary MG turrets when m_bKeyArmour is true
 
  // The score of the group this enemy is in; one he doesn't know scores as a lone man at pos.
  float ScoreOf(IEntity enemy, vector pos)
@@ -195,6 +196,7 @@ class BBB_CrewLeader
   if (!order.m_Leader)
   {
    order.m_bHas = false;
+   order.m_SoftOrder = null;
    return;
   }
   if (before && before != order.m_Leader)
@@ -425,6 +427,7 @@ class BBB_CrewLeader
   {
    order.m_bHas = false;
    order.m_aMen.Clear();
+   order.m_SoftOrder = null;
    return;
   }
   int chosen = best;
@@ -442,6 +445,28 @@ class BBB_CrewLeader
    else fresh = !InGroup(order.m_aSeen[best], order.m_aSeen[keep]);
   }
   Fill(order, order.m_aSeen[chosen]);
+  if (order.m_bKeyArmour)
+  {
+   int softBest = -1;
+   float softScore = -float.MAX;
+   for (int s = 0; s < count; s++)
+   {
+    BBB_CrewSighting cand = order.m_aSeen[s];
+    if (Armour(cand.m_eType)) continue;
+    if (cand.m_fGroup > softScore) { softBest = s; softScore = cand.m_fGroup; }
+   }
+   if (softBest >= 0)
+   {
+    if (!order.m_SoftOrder) order.m_SoftOrder = new BBB_CrewOrder();
+    order.m_SoftOrder.m_Vehicle = order.m_Vehicle;
+    order.m_SoftOrder.m_Leader = order.m_Leader;
+    order.m_SoftOrder.m_aSeen.Clear();
+    foreach (BBB_CrewSighting cs : order.m_aSeen) order.m_SoftOrder.m_aSeen.Insert(cs);
+    Fill(order.m_SoftOrder, order.m_aSeen[softBest]);
+   }
+   else order.m_SoftOrder = null;
+  }
+  else order.m_SoftOrder = null;
   if (!fresh) return;
   order.m_fSince = now;
   s_iOrders++;
@@ -525,8 +550,13 @@ class BBB_CrewLeader
   if (BBB.HasPlayer(BBB_HeldGuns.GroupOf(man)) || BBB_OrderIntent.GunnerBlocks(utility)) return null;
   BBB_CrewOrder order = Get(vehicle, man);
   if (!order || !order.m_bHas) return null;
-  // Armour is the leader's target only for a gunner whose turret can hurt it.
-  if (order.m_bKeyArmour && !HurtsArmour(man)) return null;
+  // Armour is the leader's target only for a gunner whose turret can hurt it;
+  // secondary MG gunners get the highest-scoring non-armour group instead.
+  if (order.m_bKeyArmour && !HurtsArmour(man))
+  {
+   if (order.m_SoftOrder && order.m_SoftOrder.m_bHas) return order.m_SoftOrder;
+   return null;
+  }
   return order;
  }
 
