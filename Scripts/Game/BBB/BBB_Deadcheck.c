@@ -686,15 +686,17 @@ class BBB_Deadcheck
 
 	protected static void CaptureTarget(int index, BBB_ClearJob job, ChimeraCharacter target, Faction side)
 	{
-		bool ok = BBB_Morale.SecurePrisoner(target);
+		bool hostHandled = BBB.s_Hooks && BBB.s_Hooks.HandlePrisonerCapture(job.m_Group, target);
+		bool ok = hostHandled;
+		if (!hostHandled) ok = BBB_Morale.SecurePrisoner(target);
 		if (ok)
 		{
 			BBB_KillConfirm.MarkVerified(side, target);
 			if (job.m_Drop) job.m_Drop.m_bChecked = true;
 			s_iCaptured++;
 			BBB_Perf.Count("deadcheck.captured");
-			BBB.s_Hooks.OnPrisonerCaptured(job.m_Group, target);
-			PrintFormat("[BBB] DEADCHECK %1: %2 captured prisoner %3 (ace=%4)", BBB.s_Hooks.NameOf(job.m_Group), job.m_Checker, target, BBB_SurrenderPose.AceLoaded());
+			if (!hostHandled && BBB.s_Hooks) BBB.s_Hooks.OnPrisonerCaptured(job.m_Group, target);
+			PrintFormat("[BBB] DEADCHECK %1: %2 captured prisoner %3 (ace=%4, host=%5)", BBB.s_Hooks.NameOf(job.m_Group), job.m_Checker, target, BBB_SurrenderPose.AceLoaded(), hostHandled);
 			BBB_Think.Note(job.m_Checker, "Deadcheck", "captured enemy prisoner");
 		}
 		EndJob(index, "captured");

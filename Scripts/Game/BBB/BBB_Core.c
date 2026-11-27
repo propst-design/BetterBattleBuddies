@@ -49,6 +49,10 @@ class BBB_Hooks : Managed
  // How AI handle an unconscious enemy reached during a deadcheck: -1 = BBB setting,
  // 0 = capture, 1 = mixed, 2 = lethal.
  int PrisonerPolicy(SCR_AIGroup captor, IEntity target) { return -1; }
+ // Host handles securing this prisoner itself (e.g. insurgent hideout capture): return true
+ // if the host took ownership so BBB_Deadcheck skips BBB_Morale.SecurePrisoner (avoiding
+ // ACE CIV conversion or double-managing the captive). False (default): BBB secures him.
+ bool HandlePrisonerCapture(SCR_AIGroup captor, IEntity prisoner) { return false; }
  // Fired when an AI squad secures a surrendered or unconscious enemy as a prisoner.
  void OnPrisonerCaptured(SCR_AIGroup captor, IEntity prisoner) {}
  // Host tactical doctrines may veto autonomous tactical smoke.
