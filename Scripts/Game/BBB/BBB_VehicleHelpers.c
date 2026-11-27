@@ -583,6 +583,19 @@ class BBB_VehicleHelpers : Managed
   return null;
  }
 
+ static bool TurretHasWeapon(BaseCompartmentSlot slot)
+ {
+  if (!slot || slot.GetType() != ECompartmentType.TURRET) return false;
+  TurretControllerComponent controller = TurretControllerOf(slot);
+  if (!controller || !controller.GetWeaponManager()) return false;
+  array<BaseWeaponComponent> weapons = {};
+  controller.GetWeaponManager().GetWeapons(weapons);
+  foreach (BaseWeaponComponent w : weapons)
+   if (w && w.GetWeaponType() != EWeaponType.WT_NONE) return true;
+  BaseWeaponComponent cur = controller.GetWeaponManager().GetCurrentWeapon();
+  return cur && cur.GetWeaponType() != EWeaponType.WT_NONE;
+ }
+
  static bool TurretHasAmmo(BaseCompartmentSlot slot)
  {
   if (!slot || slot.GetType() != ECompartmentType.TURRET) return false;
@@ -852,6 +865,25 @@ class BBB_VehicleHelpers : Managed
    break;
   }
   if (!candidate) candidate = fallbackLeader;
+
+  // Priority 1.5: Commander / observer in an unarmed TURRET seat (e.g. BTR-70 / BMP cupola)
+  // takes over the main gun when no cargo passenger is aboard.
+  if (!candidate)
+  {
+   foreach (BaseCompartmentSlot tSlot : allSlots)
+   {
+    if (tSlot == targetTurret || tSlot.GetType() != ECompartmentType.TURRET || TurretHasWeapon(tSlot)) continue;
+    ChimeraCharacter ch = ChimeraCharacter.Cast(tSlot.GetOccupant());
+    if (!ch || !IsAble(ch) || BBB.PlayerOf(ch)) continue;
+    if (BBB_OrderIntent.Blocks(BBB_StaticWeapons.UtilityOf(ch))) continue;
+    CompartmentAccessComponent acc = ch.GetCompartmentAccessComponent();
+    if (!acc || acc.IsGettingIn() || acc.IsGettingOut()) continue;
+    AIControlComponent ai = AIControlComponent.Cast(ch.FindComponent(AIControlComponent));
+    if (!ai || !ai.GetControlAIAgent() || !ai.IsAIActivated()) continue;
+    candidate = ch;
+    break;
+   }
+  }
 
   // Priority 2: Nearby dismounted AI squadmate within 8 m when vehicle is crewed by this group and stationary.
   if (!candidate && group && speed < 2.0 && BBB_Transport.CrewedVehicle(group) == vehicle)
