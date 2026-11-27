@@ -420,12 +420,20 @@ class BBB_FireManeuver
    SampleFire(utility, now);
    // A reload may legitimately hide the gun in prone. Once ready again, a
    // verified physical firing aperture needs its crouched stance restored.
-   // Do not interrupt an executing native danger or FF request.
-   if (!utility.m_CombatMoveState.IsExecutingRequest() && ExposeGeometry(utility))
+   // Do not interrupt an executing native danger or FF request, an active blast/armour
+   // prone hold, or oscillate within the shared stance-rise cooldown.
+   float nowMs = GetGame().GetWorld().GetWorldTime();
+   if (!utility.m_CombatMoveState.IsExecutingRequest() && nowMs >= utility.m_fBBBStanceRiseNext
+    && !BBB_Threat.InExplosionReflex(utility.m_OwnerEntity)
+    && !BBB_Armour.InAntiArmorJob(utility.m_OwnerEntity)
+    && ExposeGeometry(utility))
    {
     ChimeraCharacter settledBody = ChimeraCharacter.Cast(utility.m_OwnerEntity);
-    if (settledBody.GetCharacterController().GetStance() == ECharacterStance.PRONE)
+    if (settledBody && settledBody.GetCharacterController() && settledBody.GetCharacterController().GetStance() == ECharacterStance.PRONE)
+    {
+     utility.m_fBBBStanceRiseNext = nowMs + 3500.0;
      utility.m_CombatMoveState.ApplyRequestChangeStanceOutsideCover(ECharacterStance.CROUCH);
+    }
    }
    vector known;
    vector report;

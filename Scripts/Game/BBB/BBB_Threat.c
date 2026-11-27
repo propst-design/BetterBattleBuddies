@@ -405,13 +405,13 @@ class BBB_Threat
 		if (current == ECharacterStance.PRONE) target = ECharacterStance.PRONE;
 		bool firstApply = job.m_StanceSetting == null;
 		SCR_AICharacterSettingsComponent settings = job.m_Utility.m_SettingsComponent;
-		if (settings)
+		if (settings && (firstApply || job.m_eTargetStance != target))
 		{
 			if (job.m_StanceSetting) settings.RemoveSetting(job.m_StanceSetting);
 			job.m_StanceSetting = SCR_AICharacterStanceSetting.Create(SCR_EAISettingOrigin.BEHAVIOR, SCR_EAIBehaviorCause.ALWAYS, target);
 			settings.AddCharacterSetting(job.m_StanceSetting, false);
 		}
-		SCR_AIStanceHandling.SetStance(controller, target);
+		job.m_eTargetStance = target;
 		if (firstApply)
 		{
 			s_iExplosionReflexApplied++;

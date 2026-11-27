@@ -568,6 +568,11 @@ class BBB_Buildings
  }
 }
 
+modded class SCR_AIUtilityComponent
+{
+ float m_fBBBStanceRiseNext; // world time (ms) before BBB may raise a prone soldier again
+}
+
 modded class SCR_AICombatMoveState
 {
  SCR_AIUtilityComponent m_BBBIndoorOwner;
@@ -576,7 +581,7 @@ modded class SCR_AICombatMoveState
  {
   // Only right after this combat-move node decided to hold him indoors.
   SCR_AIUtilityComponent owner;
-  if (GetGame().GetWorld().GetWorldTime() - m_fBBBIndoorAt < 1500) owner = m_BBBIndoorOwner;
+  if (GetGame().GetWorld().GetWorldTime() - m_fBBBIndoorAt < 4000) owner = m_BBBIndoorOwner;
   if (owner && owner.m_OwnerEntity && stance != ECharacterStance.STAND)
   {
    BaseTarget target;
@@ -605,11 +610,21 @@ modded class SCR_AICombatMoveLogic_Attack
   if (m_Target && BBB_Buildings.HoldsIndoors(m_Utility, m_Target.GetLastSeenPosition(), m_Target.GetTimeSinceSeen() >= 0 && m_Target.GetTimeSinceSeen() < BBB_Buildings.HOLD_SEEN_S))
   {
    // Vanilla only ever lowers stance in a fight, so a man who ducked prone below a
-   // window stays blind there. Back up to the lowest stance that sees out.
-   if (m_eStance == ECharacterStance.PRONE && !m_State.IsExecutingRequest() && !m_State.m_bInCover)
+   // window stays blind there. Back up to the lowest stance that sees out — but never
+   // fight an active blast reflex / anti-armour hold, and cool down so he doesn't loop.
+   float nowMs = GetGame().GetWorld().GetWorldTime();
+   if (m_eStance == ECharacterStance.PRONE && !m_State.IsExecutingRequest() && !m_State.m_bInCover
+    && nowMs >= m_Utility.m_fBBBStanceRiseNext
+    && !BBB_Threat.InExplosionReflex(m_Utility.m_OwnerEntity)
+    && !BBB_Armour.InAntiArmorJob(m_Utility.m_OwnerEntity))
    {
     ECharacterStance view = BBB_Buildings.IndoorStance(m_Utility, ECharacterStance.PRONE, m_Target.GetLastSeenPosition());
-    if (view != ECharacterStance.PRONE) { BBB_Buildings.s_iRises++; m_State.ApplyRequestChangeStanceOutsideCover(view); }
+    if (view != ECharacterStance.PRONE)
+    {
+     m_Utility.m_fBBBStanceRiseNext = nowMs + 3500.0;
+     BBB_Buildings.s_iRises++;
+     m_State.ApplyRequestChangeStanceOutsideCover(view);
+    }
    }
    return false;
   }

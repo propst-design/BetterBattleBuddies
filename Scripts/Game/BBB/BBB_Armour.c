@@ -609,22 +609,21 @@ class BBB_Armour
    }
    else
    {
-    // Non-AT infantry scattering: drop to PRONE (close) or CROUCH (medium)
+    // Non-AT infantry scattering: drop to PRONE (close) or CROUCH (medium).
+    // Drive the stance through SCR_AICharacterStanceSetting rather than a direct
+    // SetStance snap so the soldier transitions smoothly instead of teleport-proning,
+    // and avoid churning the setting when the target stance hasn't changed.
     ECharacterStance targetStance = ECharacterStance.CROUCH;
     if (dist <= AA_CLOSE_RANGE_M) targetStance = ECharacterStance.PRONE;
+    bool stanceChanged = job.m_StanceSetting == null || job.m_eTargetStance != targetStance;
     job.m_eTargetStance = targetStance;
 
-    SCR_CharacterControllerComponent controller = SCR_CharacterControllerComponent.Cast(soldier.GetCharacterController());
-    if (controller)
+    SCR_AICharacterSettingsComponent settings = utility.m_SettingsComponent;
+    if (settings && stanceChanged)
     {
-     SCR_AICharacterSettingsComponent settings = utility.m_SettingsComponent;
-     if (settings)
-     {
-      if (job.m_StanceSetting) settings.RemoveSetting(job.m_StanceSetting);
-      job.m_StanceSetting = SCR_AICharacterStanceSetting.Create(SCR_EAISettingOrigin.BEHAVIOR, SCR_EAIBehaviorCause.ALWAYS, targetStance);
-      settings.AddCharacterSetting(job.m_StanceSetting, false);
-     }
-     SCR_AIStanceHandling.SetStance(controller, targetStance);
+     if (job.m_StanceSetting) settings.RemoveSetting(job.m_StanceSetting);
+     job.m_StanceSetting = SCR_AICharacterStanceSetting.Create(SCR_EAISettingOrigin.BEHAVIOR, SCR_EAIBehaviorCause.ALWAYS, targetStance);
+     settings.AddCharacterSetting(job.m_StanceSetting, false);
     }
     s_iScattered++;
     BBB_Perf.Count("armour.scattered");
