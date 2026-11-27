@@ -256,7 +256,11 @@ class BBB_DriverAlignment
    foreach (BaseTarget unknown : detected) threats.Insert(unknown);
    foreach (BaseTarget known : threats)
    {
-    if (!known) continue;
+    if (!known || known.IsDisarmed()) continue;
+    IEntity enemy = known.GetTargetEntity();
+    if (enemy && !BBB.StillFighting(enemy)) continue;
+    float age = known.GetTimeSinceDetected();
+    if (age < 0 || age > 30) continue;
     vector knownPosition = known.GetLastDetectedPosition();
     if (known.GetTargetCategory() == ETargetCategory.ENEMY) knownPosition = known.GetLastSeenPosition();
     vector to = knownPosition - state.m_Vehicle.GetOrigin();
@@ -322,21 +326,48 @@ class BBB_DriverAlignment
    state.m_fSeenAt = now;
    array<BaseCompartmentSlot> seats = {};
    BBB_VehicleHelpers.GetVehicleCompartments(vehicle, seats, ECompartmentType.TURRET);
-   BaseTarget picked;
+   BaseTarget prevTarget = state.m_Target;
+   BaseTarget picked = null;
+   BaseCompartmentSlot pickedSeat = null;
+   ChimeraCharacter pickedGunner = null;
+   BaseTarget fallbackTarget = null;
+   BaseCompartmentSlot fallbackSeat = null;
+   ChimeraCharacter fallbackGunner = null;
+   vector aim;
+   float excess;
    foreach (BaseCompartmentSlot seat : seats)
    {
     SCR_AIUtilityComponent gunnerUtility = BBB_VehiclePosture.Utility(seat.GetOccupant());
     if (!gunnerUtility || !gunnerUtility.m_CombatComponent) continue;
     BaseTarget candidate = TargetOf(gunnerUtility);
     if (!candidate) continue;
+    ChimeraCharacter gunner = ChimeraCharacter.Cast(seat.GetOccupant());
+    if (!fallbackTarget)
+    {
+     fallbackTarget = candidate;
+     fallbackSeat = seat;
+     fallbackGunner = gunner;
+    }
     state.m_Seat = seat;
-    state.m_Gunner = ChimeraCharacter.Cast(seat.GetOccupant());
+    state.m_Gunner = gunner;
+    state.m_Target = candidate;
+    if (!Engagement(state, aim, excess)) continue;
+    if (Math.AbsFloat(excess) < DEADBAND_DEG || Math.AbsFloat(excess) > MAX_TURN_DEG) continue;
     picked = candidate;
+    pickedSeat = seat;
+    pickedGunner = gunner;
     break;
    }
+   if (!picked)
+   {
+    picked = fallbackTarget;
+    pickedSeat = fallbackSeat;
+    pickedGunner = fallbackGunner;
+   }
+   state.m_Seat = pickedSeat;
+   state.m_Gunner = pickedGunner;
+   state.m_Target = prevTarget;
    if (!Stable(state, picked, now)) continue;
-   vector aim;
-   float excess;
    if (!Engagement(state, aim, excess)) { state.m_fStableSince = now; continue; }
    if (Math.AbsFloat(excess) < DEADBAND_DEG || Math.AbsFloat(excess) > MAX_TURN_DEG || activeCount >= 4) continue;
    float heading = Bearing(vehicle.GetTransformAxis(2), aim - vehicle.GetOrigin());
@@ -367,8 +398,8 @@ class BBB_DriverAlignment
   if (!state || !state.m_bActive) return;
   state.m_fLastRunMs = GetGame().GetWorld().GetWorldTime() - state.m_fStarted;
   if (state.m_Vehicle) state.m_fLastTravel = vector.Distance(state.m_Vehicle.GetOrigin(), state.m_Start);
-  // Do not write any input once a player has taken the controls.
-  if (state.m_Vehicle && BBB_VehiclePosture.Controlled(state.m_Driver) && BBB_Transport.VehicleOf(state.m_Driver) == state.m_Vehicle)
+  // Do not write any input once a player has taken the controls or host claimed the vehicle.
+  if (state.m_Vehicle && !BBB_ArmorReaction.PlayerAboard(state.m_Vehicle) && !(BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(state.m_Vehicle)))
   {
    CarControllerComponent car = CarControllerComponent.Cast(state.m_Vehicle.FindComponent(CarControllerComponent));
    if (car && car.GetSimulation())

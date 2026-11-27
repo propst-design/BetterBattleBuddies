@@ -530,7 +530,7 @@ class BBB_Armour
   if (!threat)
   {
    array<AIAgent> groupAgents = {};
-   group.GetAgents(groupAgents);
+   BBB.Members(group, groupAgents);
    foreach (AIAgent member : groupAgents)
    {
     if (!member) continue;
@@ -541,6 +541,7 @@ class BBB_Armour
     foreach (BaseTarget target : targets)
     {
      if (!target || !target.GetTargetEntity() || target.GetTimeSinceSeen() > AA_SEEN_S) continue;
+     if (!BBB.StillFighting(target.GetTargetEntity())) continue;
      if (IsArmoredThreat(target.GetTargetEntity()))
      {
       threat = target.GetTargetEntity();
@@ -555,7 +556,7 @@ class BBB_Armour
 
   vector threatPos = threat.GetOrigin();
   array<AIAgent> agents = {};
-  group.GetAgents(agents);
+  BBB.Members(group, agents);
   float nowMs = GetGame().GetWorld().GetWorldTime();
 
   foreach (AIAgent agent : agents)
@@ -806,7 +807,7 @@ modded class SCR_AICombatComponent
   super.EvaluateWeaponAndTarget(outWeaponEvent, outSelectedTargetChanged, outPrevTarget, outCurrentTarget, outRetreatTargetChanged, outCompartmentChanged);
   if (stamp == m_fNextWeaponTargetEvaluation_ms) return;
   float now = GetGame().GetWorld().GetWorldTime();
-  if (m_bBBBLowered && now > m_fBBBLoweredUntil) BBBRestoreScore();
+  if (m_bBBBLowered && (now > m_fBBBLoweredUntil || (m_SelectedWeaponComp && m_SelectedWeaponComp.GetWeaponType() == EWeaponType.WT_ROCKETLAUNCHER) || BBB_Armour.HasOperationalAT(ChimeraCharacter.Cast(GetOwner())))) BBBRestoreScore();
   BaseTarget target = GetCurrentTarget();
   if (!target || !m_SelectedMagazineComp || m_bBBBLowered) return;
   if (!BBB_Armour.Useless(target, m_SelectedMagazineComp) || !BBB_Armour.On(GetOwner())) return;

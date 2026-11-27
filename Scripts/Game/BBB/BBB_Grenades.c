@@ -105,6 +105,12 @@ class BBB_Grenades
 		s_iGrenadesThrown = 0;
 		s_iSafetyVetoes = 0;
 		s_iCorridorVetoes = 0;
+		s_iArcVetoes = 0;
+	}
+
+	static void RefundCooldown(SCR_AIGroup group)
+	{
+		if (group && s_mGroupCooldown) s_mGroupCooldown.Remove(group);
 	}
 
 	// ---------------------------------------------------------------- inventory and readiness
@@ -583,6 +589,7 @@ class BBB_AIThrowFrag : SCR_AIThrowGrenadeToBehavior
 		bool holdFire = m_Utility.m_CombatComponent && m_Utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE;
 		if (holdFire || BBB_OrderIntent.Blocks(m_Utility))
 		{
+			BBB_Grenades.RefundCooldown(m_Group);
 			Fail();
 			return 0;
 		}
@@ -591,6 +598,7 @@ class BBB_AIThrowFrag : SCR_AIThrowGrenadeToBehavior
 		if (!BBB_Grenades.IsArcClear(thrower, landing))
 		{
 			BBB_Grenades.s_iArcVetoes++;
+			BBB_Grenades.RefundCooldown(m_Group);
 			Fail();
 			return 0;
 		}
@@ -605,6 +613,7 @@ class BBB_AIThrowFrag : SCR_AIThrowGrenadeToBehavior
 		if (clear) return priority;
 		PrintFormat("[BBB] GRENADE: %1 called off the frag at %2: a friendly moved into the blast area or the throw line", thrower, landing);
 		BBB_Think.NoteUtility(m_Utility, "Grenades", "frag called off: a friendly is in the way");
+		BBB_Grenades.RefundCooldown(m_Group);
 		Fail();
 		return 0;
 	}

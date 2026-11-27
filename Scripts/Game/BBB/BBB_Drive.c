@@ -507,7 +507,8 @@ class BBB_Drive : Managed
  string Why(float now)
  {
   if (!m_Path) return "";
-  if (!m_Vehicle || !m_Driver || !BBB.IsAlive(m_Driver)) return "vehicle or driver lost";
+  if (!m_Vehicle || BBB.Health(m_Vehicle) <= 0) return "vehicle destroyed";
+  if (!m_Driver || !BBB.IsAlive(m_Driver)) return "vehicle or driver lost";
   if (BBB.PlayerOf(m_Driver)) return "a player took the driver";
   if (!BBB.IsConscious(m_Driver)) return "driver down"; // IsAlive is true for the unconscious
   if (BBB_Transport.VehicleOf(m_Driver) != m_Vehicle) return "driver got out";
@@ -538,12 +539,14 @@ class BBB_Drive : Managed
   if (!m_Path) return;
   bool arrived = why == "arrived";
   bool cleanStop = arrived || why == "braked to stop";
+  bool noPenalty = cleanStop || why == "brake cancelled";
   m_bBrakingToStop = false;
   CarControllerComponent car;
   if (m_Vehicle) car = CarControllerComponent.Cast(m_Vehicle.FindComponent(CarControllerComponent));
   if (m_bRecovering && m_Listener) { m_Listener.m_Drive = null; BBB_Unstick.Cancel(m_Listener); }
   m_bRecovering = false;
-  if (car && car.GetSimulation())
+  bool handOff = (m_Driver && BBB.PlayerOf(m_Driver)) || (BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(m_Vehicle));
+  if (!handOff && car && car.GetSimulation())
   {
    VehicleWheeledSimulation sim = car.GetSimulation();
    sim.SetThrottle(0);
@@ -570,7 +573,7 @@ class BBB_Drive : Managed
   s_sLastEnd = why;
   PrintFormat("[BBB] DRIVER %1: %2 after %3 s, %4 of %5 m, line error mean %6 max %7 m, back-outs %8", BBB.s_Hooks.NameOf(m_Group), why, (int)((now - m_fStarted) / 1000), (int)driven, (int)m_Path.m_fLength, meanXte, m_fMaxXte, m_aRecoveries.Count());
   if (m_Group && why.Contains("contact")) s_Rest.Set(m_Group, now + CONTACT_REST_MS);
-  else if (m_Group && !cleanStop) s_Rest.Set(m_Group, now + 60000); // the game's driver (and the host) take this move from here
+  else if (m_Group && !noPenalty) s_Rest.Set(m_Group, now + 60000); // the game's driver (and the host) take this move from here
   BBB_Claims.Unmark(m_Vehicle, BBB_Claims.JOB_DRIVE);
   m_Path = null;
  }
@@ -578,7 +581,7 @@ class BBB_Drive : Managed
  // Every frame: steer, speed, gears, guard, stall watch.
  protected void Frame(float now)
  {
-  if (!m_Vehicle || !m_Driver) return;
+  if (!m_Vehicle || BBB.Health(m_Vehicle) <= 0 || !m_Driver) return;
   if (m_bRecovering) return; // BBB_Unstick has the controls
   if (BBB.PlayerOf(m_Driver)) return; // a player (or Game Master) took him: Why ends the session within 1 s
   CarControllerComponent car = CarControllerComponent.Cast(m_Vehicle.FindComponent(CarControllerComponent));
@@ -837,14 +840,15 @@ class BBB_Drive : Managed
  // opening or wide enough to open (it is opened now) isn't in the way. Looks past those (twice).
  protected bool Ray(vector a, vector b)
  {
-  IEntity skip = m_Vehicle;
+  array<IEntity> excluded = {};
+  if (m_Vehicle) excluded.Insert(m_Vehicle);
   for (int tries = 0; tries < 5; tries++)
   {
    TraceParam trace = new TraceParam();
    trace.Start = a;
    trace.End = b;
    trace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
-   trace.Exclude = skip;
+   trace.ExcludeArray = excluded;
    float f = GetGame().GetWorld().TraceMove(trace, null);
    if (f >= 1) return false;
    IEntity hit = trace.TraceEnt;
@@ -855,14 +859,18 @@ class BBB_Drive : Managed
    if (pd) prefab = pd.GetPrefabName();
    m_sHit = hit.ClassName() + " " + prefab;
    if (!Passable(hit, prefab)) return true;
-   // Carry on from just past it, ignoring it.
+   // Carry on from just past it, keeping m_Vehicle and prior passables excluded.
+   excluded.Insert(hit);
    vector dir = b - a;
    float len = dir.Length();
    if (len < 0.5) return false;
-   a = a + dir * Math.Min(1, f + 0.3 / len);
-   skip = hit;
+   vector mins, maxs;
+   hit.GetBounds(mins, maxs);
+   float span = Math.Max(maxs[0] - mins[0], maxs[2] - mins[2]) * hit.GetScale();
+   float advance = Math.Clamp(span * 0.5, 0.6, 2.0);
+   a = a + dir * Math.Min(1, f + advance / len);
   }
-  return false;
+  return true;
  }
 
  // Bushes, plastic verge posts, tiny lightweight props (e.g. paint cans), and gates the vehicle can go through.
@@ -879,9 +887,10 @@ class BBB_Drive : Managed
   {
    vector mins, maxs;
    hit.GetBounds(mins, maxs);
-   float dx = maxs[0] - mins[0];
-   float dy = maxs[1] - mins[1];
-   float dz = maxs[2] - mins[2];
+   float scale = hit.GetScale();
+   float dx = (maxs[0] - mins[0]) * scale;
+   float dy = (maxs[1] - mins[1]) * scale;
+   float dz = (maxs[2] - mins[2]) * scale;
    if ((dx > 0 || dy > 0 || dz > 0) && dx < 0.65 && dy < 0.65 && dz < 0.65) return true;
   }
   IEntity e = hit;

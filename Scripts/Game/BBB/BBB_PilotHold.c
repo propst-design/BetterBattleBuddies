@@ -41,7 +41,8 @@ class BBB_PilotHold
 
  static void Give(BaseVehicleControllerComponent controller)
  {
-  if (!s_Held || !controller) return;
+  if (!s_Held) return;
+  if (!controller) { Purge(); return; }
   BBB_PilotHoldEntry entry = s_Held.Get(controller);
   if (!entry) return;
   entry.m_iHolders--;

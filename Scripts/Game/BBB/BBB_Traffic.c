@@ -206,7 +206,7 @@ class BBB_Traffic
     foreach (int pid : playerIds)
     {
      IEntity pBody = pm.GetPlayerControlledEntity(pid);
-     if (!pBody || !BBB.IsAlive(pBody)) continue;
+     if (!pBody || !BBB.IsAlive(pBody) || !BBB.IsConscious(pBody)) continue;
      IEntity pVehicle = BBB_Transport.VehicleOf(pBody);
      if (!pVehicle || vehicles.Contains(pVehicle) || !IsLand(pVehicle) || BBB.s_Hooks.LeaveAlone(pVehicle)) continue;
      if (BBB.DriverOf(pVehicle) == pBody) vehicles.Insert(pVehicle);
@@ -224,9 +224,11 @@ class BBB_Traffic
   for (int i = 0; i < vehicles.Count(); i++)
   {
    IEntity a = vehicles[i];
+   if (BBB.Health(a) <= 0) continue;
    for (int j = i + 1; j < vehicles.Count(); j++)
    {
     IEntity b = vehicles[j];
+    if (BBB.Health(b) <= 0) continue;
     vector d = b.GetOrigin() - a.GetOrigin();
     d[1] = 0;
     if (d.Length() > RANGE_M) continue;
@@ -820,7 +822,13 @@ class BBB_PullOver : Managed
   if (m_iMode == MODE_HOLD)
   {
    if (sim.GetGear() != neutral) sim.SetGear(neutral);
-   if (speed > 1.5)
+   vector mat[4];
+   vehicle.GetWorldTransform(mat);
+   vector forward = mat[2];
+   forward[1] = 0;
+   if (forward.LengthSq() > 0.001) forward.Normalize();
+   float fwdSpeed = vector.Dot(BBB_Traffic.Velocity(vehicle), forward);
+   if (fwdSpeed > 1.5)
    {
     if (now >= m_fHoldSnapAt)
     {
@@ -830,13 +838,8 @@ class BBB_PullOver : Managed
      m_bHasHoldSpot = Snap(vehicle.GetOrigin(), 8, roadPt, roadDir, roadW);
      if (m_bHasHoldSpot)
      {
-      vector mat[4];
-      vehicle.GetWorldTransform(mat);
-      vector forward = mat[2];
-      forward[1] = 0;
-      forward.Normalize();
       if (vector.Dot(roadDir, forward) < 0) roadDir = -roadDir;
-      m_vHoldSpot = roadPt + roadDir * Math.Clamp(speed * 1.2, 6, 18);
+      m_vHoldSpot = roadPt + roadDir * Math.Clamp(fwdSpeed * 1.2, 6, 18);
      }
     }
     if (m_bHasHoldSpot)
@@ -844,13 +847,15 @@ class BBB_PullOver : Managed
      vector hLocal = vehicle.CoordToLocal(m_vHoldSpot);
      if (hLocal[2] > 0.5)
      {
-      float hCap = m_Limits.SteerCap(speed);
+      float hCap = m_Limits.SteerCap(fwdSpeed);
       float hWant = Math.Clamp(Math.Atan2(hLocal[0], hLocal[2]) * 1.6, -hCap, hCap);
       float hEase = m_Limits.m_fSteerRate * dt;
       m_fSteer = Math.Clamp(hWant, m_fSteer - hEase, m_fSteer + hEase);
       holdSteer = m_fSteer;
      }
+     else m_fSteer = 0;
     }
+    else m_fSteer = 0;
    }
    else m_fSteer = 0;
   }
@@ -875,7 +880,7 @@ class BBB_PullOver : Managed
 
  protected void End(CarControllerComponent car, bool parked)
  {
-  bool leaveAlone = BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(m_Vehicle);
+  bool leaveAlone = (m_Driver && BBB.PlayerOf(m_Driver)) || (BBB.s_Hooks && BBB.s_Hooks.LeaveAlone(m_Vehicle));
   if (car && !leaveAlone)
   {
    VehicleWheeledSimulation sim = car.GetSimulation();

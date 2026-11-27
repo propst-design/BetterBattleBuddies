@@ -270,6 +270,13 @@ class BBB_Smoke
 				float d = vector.DistanceXZ(ent.GetOrigin(), smokePos);
 				if (d <= bestDist)
 				{
+					vector toSmoke = smokePos - ent.GetOrigin();
+					toSmoke[1] = 0;
+					if (toSmoke.LengthSq() > 0.01)
+					{
+						toSmoke.Normalize();
+						if (!BBB_Grenades.IsImmediateTrajectoryClear(ent, toSmoke)) continue;
+					}
 					bestDist = d;
 					bestCandidate = ent;
 				}
@@ -292,6 +299,13 @@ class BBB_Smoke
 			float dMem = vector.DistanceXZ(member.GetOrigin(), smokePos);
 			if (dMem <= bestDist)
 			{
+				vector toSmokeMem = smokePos - member.GetOrigin();
+				toSmokeMem[1] = 0;
+				if (toSmokeMem.LengthSq() > 0.01)
+				{
+					toSmokeMem.Normalize();
+					if (!BBB_Grenades.IsImmediateTrajectoryClear(member, toSmokeMem)) continue;
+				}
 				bestDist = dMem;
 				bestCandidate = member;
 			}

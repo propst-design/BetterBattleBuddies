@@ -20,6 +20,16 @@ class BBB_Transport
  static bool s_bCommanderCrew = true;
  protected static int s_iCommanderRead;
 
+ static bool CommanderCrew()
+ {
+  if (BBB_Settings.Due(s_iCommanderRead))
+  {
+   string val;
+   s_bCommanderCrew = !(BBB_Settings.Get("bbbCommanderCrew", val) && val == "0");
+  }
+  return s_bCommanderCrew;
+ }
+
  // A crew seat the engine calls CARGO: linked to a turret (AutoConnectToTurret), like the
  // LAV-25 commander's, or inside the turret itself, like the commander and loader of mod tanks
  // (Chieftain, Leopard 1, T-55, FV510 Warrior). Riders sit on the hull, not in the turret.
@@ -38,12 +48,7 @@ class BBB_Transport
   if (!character || !character.GetCompartmentAccessComponent()) return ECompartmentType.CARGO;
   BaseCompartmentSlot slot = character.GetCompartmentAccessComponent().GetCompartment();
   if (!slot) return ECompartmentType.CARGO;
-  if (BBB_Settings.Due(s_iCommanderRead))
-  {
-   string val;
-   s_bCommanderCrew = !(BBB_Settings.Get("bbbCommanderCrew", val) && val == "0");
-  }
-  if (s_bCommanderCrew && CommanderSeat(slot)) return ECompartmentType.TURRET;
+  if (CommanderCrew() && CommanderSeat(slot)) return ECompartmentType.TURRET;
   return slot.GetType();
  }
 

@@ -116,6 +116,7 @@ class BBB_StaticWeapons
 
 	static void Stop()
 	{
+		if (GetGame()) GetGame().GetCallqueue().Remove(ForceOutIfStillSeated);
 		// Dismount all active gunners cleanly upon BBB stop
 		for (int i = s_aJobs.Count() - 1; i >= 0; i--)
 		{
@@ -714,6 +715,7 @@ class BBB_StaticWeapons
 				if (!returning)
 				{
 					s_iWeaponsReleased++;
+					if (job.m_StaticWeapon) s_mWeaponRetry.Set(job.m_StaticWeapon, nowMs + WEAPON_RETRY_MS);
 					PrintFormat("[BBB] STATIC: %1 left static weapon %2 on his own", job.m_Gunner, job.m_StaticWeapon);
 					BBB_Think.Note(job.m_Gunner, "Static", "left the static weapon on his own");
 					Forget(j);

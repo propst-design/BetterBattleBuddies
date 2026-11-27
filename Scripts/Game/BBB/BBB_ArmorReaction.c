@@ -292,13 +292,17 @@ class BBB_ArmorReaction
   BBB.Groups(roster);
   if (!roster.Contains(group)) return false;
   AIControlComponent control = AIControlComponent.Cast(driver.FindComponent(AIControlComponent));
-  if (!control || !control.IsAIActivated()) return false;
+  if (!control) return false;
+  bool parkedByDrive = BBB_Drive.Driving(vehicle) || BBB_PullOver.Active(vehicle);
+  bool canEscape = control.IsAIActivated() && !parkedByDrive;
+  if (!canEscape && !parkedByDrive) return false;
   s_Retry.Set(vehicle, now + 30000);
   s_iReactions++;
   DeploySmoke(vehicle);
+  if (!canEscape) return true;
   // Input ownership is deliberately limited to supported native wheeled physics.
   CarControllerComponent car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
-  if (!car || !car.GetSimulation() || !car.IsEngineOn() || !control || !control.IsAIActivated()) return true;
+  if (!car || !car.GetSimulation() || !car.IsEngineOn() || !control.IsAIActivated()) return true;
   Physics physics = vehicle.GetPhysics();
   if (!physics || physics.GetVelocity().Length() > 3 || !Clearance(vehicle)) return true;
   vector matrix[4];

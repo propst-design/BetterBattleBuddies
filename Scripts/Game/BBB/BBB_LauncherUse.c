@@ -166,7 +166,7 @@ class BBB_LauncherUse
   perception.GetTargetsList(enemies, ETargetCategory.ENEMY);
   foreach (BaseTarget enemy : enemies)
   {
-   if (!Armour(enemy.GetUnitType())) continue;
+   if (!enemy || !Armour(enemy.GetUnitType()) || !BBB.StillFighting(enemy.GetTargetEntity())) continue;
    float since = enemy.GetTimeSinceDetected();
    if (since >= 0 && since < ARMOUR_MEMORY_S) return true;
   }
@@ -258,7 +258,8 @@ class BBB_LauncherUse
   back.LayerMask = EPhysicsLayerPresets.Projectile;
   if (man) back.Exclude = man;
   float backAt = GetGame().GetWorld().TraceMove(back, null);
-  if (backAt >= 1) return false;
+  if (backAt >= 1 || !back.TraceEnt) return false;
+  if (back.TraceEnt != hit && back.TraceEnt.GetRootParent() != root) return false;
   vector rear = low + (face - low) * backAt;
   float thick = vector.Distance(face, rear);
   if (s_bTrace && thick >= DUG_IN_THICK_M) PrintFormat("[BBB] LAUNCHTRACE dug in: %1 (%2), %3 m in front, %4 m deep", hit.ClassName(), BBB_Launchers.WeaponName(root), vector.Distance(face, low), thick);

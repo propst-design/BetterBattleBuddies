@@ -71,7 +71,7 @@ class BBB_CrewCallout
     if (age > SEEN_S) continue;
     if (!hurtsArmour && BBB_CrewLeader.IsArmour(target.GetUnitType())) continue;
     IEntity enemy = target.GetTargetEntity();
-    if (!enemy || BBB_SuppressionSafety.AircraftSource(enemy)) continue;
+    if (!enemy || !BBB.StillFighting(enemy) || BBB_SuppressionSafety.AircraftSource(enemy)) continue;
     bool shot = target.GetTimeSinceEndangered() < ENDANGER_S;
     int known = enemies.Find(enemy);
     if (known >= 0)

@@ -141,7 +141,7 @@ class BBB_HeldGuns
     // Manned, or BBB's static crewing has a soldier on his way to it. A dead or unconscious
     // gunner stays in the seat: that's the gun this exists to man again, not a manned one.
     IEntity occupant = seat.GetOccupant();
-    if ((occupant && (BBB.PlayerOf(occupant) != 0 || BBB_VehicleHelpers.IsAble(occupant))) || BBB_StaticWeapons.IsClaimed(gun))
+    if ((occupant && (BBB.PlayerOf(occupant) != 0 || BBB_VehicleHelpers.IsAble(occupant))) || BBB_StaticWeapons.IsClaimed(gun) || seat.IsReserved())
     {
      s_mEmptySince.Remove(gun);
      continue;
@@ -156,12 +156,19 @@ class BBB_HeldGuns
     s_mEmptySince.Set(gun, now); // the next try, if this one doesn't take
     ChimeraCharacter man = NearestOnFoot(group, gun);
     if (!man || FreshClose(man)) continue;
+    CompartmentAccessComponent manAcc = man.GetCompartmentAccessComponent();
+    if (manAcc && (manAcc.IsGettingIn() || manAcc.IsGettingOut())) continue;
     SCR_AIUtilityComponent utility = BBB_StaticWeapons.UtilityOf(man);
     if (!utility || BBB_OrderIntent.Blocks(utility) || utility.FindActionOfType(SCR_AIGetInVehicle)) continue;
     // The fallen gunner is set down beside the gun so the seat is free (as static crewing does).
     ChimeraCharacter fallen = ChimeraCharacter.Cast(occupant);
     if (fallen && fallen.GetCompartmentAccessComponent())
-     fallen.GetCompartmentAccessComponent().GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+    {
+     CompartmentAccessComponent fallenAcc = fallen.GetCompartmentAccessComponent();
+     if (fallenAcc.IsGettingIn() || fallenAcc.IsGettingOut()) continue;
+     fallenAcc.GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+    }
+    seat.SetReserved(man);
     utility.AddAction(new SCR_AIGetInVehicle(utility, null, gun, seat, EAICompartmentType.Turret));
     s_iRemounted++;
     PrintFormat("[BBB] HELD GUN %1: gun empty %2 s, a soldier %3 m away mans it again", BBB.s_Hooks.NameOf(group), REMOUNT_S, Math.Round(vector.Distance(man.GetOrigin(), gun.GetOrigin())));

@@ -51,7 +51,11 @@ class BBB_VehiclePosture
  {
   if (!utility || !utility.m_PerceptionComponent || !utility.m_CombatComponent) return true;
   BaseTarget current = utility.m_CombatComponent.GetCurrentTarget();
-  if (current && vector.DistanceXZ(current.GetLastSeenPosition(), origin) < radius) return true;
+  if (current && !current.IsDisarmed())
+  {
+   IEntity curEnt = current.GetTargetEntity();
+   if ((!curEnt || BBB.StillFighting(curEnt)) && vector.DistanceXZ(current.GetLastSeenPosition(), origin) < radius) return true;
+  }
   array<BaseTarget> targets = {};
   utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
   array<BaseTarget> detected = {};
@@ -59,7 +63,11 @@ class BBB_VehiclePosture
   foreach (BaseTarget unknown : detected) targets.Insert(unknown);
   foreach (BaseTarget target : targets)
   {
-   if (!target) continue;
+   if (!target || target.IsDisarmed()) continue;
+   IEntity enemy = target.GetTargetEntity();
+   if (enemy && !BBB.StillFighting(enemy)) continue;
+   float age = target.GetTimeSinceDetected();
+   if (age < 0 || age > 30) continue;
    // Use remembered positions; never inspect the unseen enemy's live transform.
    vector knownPosition = target.GetLastDetectedPosition();
    if (target.GetTargetCategory() == ETargetCategory.ENEMY) knownPosition = target.GetLastSeenPosition();
@@ -147,7 +155,7 @@ class BBB_CrewTurnout
  {
   if (!seat || !seat.CanTurnOut() || seat.GetTurnOutDoorIndex() < 0) return false;
   // An open cargo seat or an external gun position is not an armored hatch (commander seats are crew when enabled).
-  if (seat.GetType() != ECompartmentType.PILOT && seat.GetType() != ECompartmentType.TURRET && !(BBB_Transport.s_bCommanderCrew && BBB_Transport.CommanderSeat(seat))) return false;
+  if (seat.GetType() != ECompartmentType.PILOT && seat.GetType() != ECompartmentType.TURRET && !(BBB_Transport.CommanderCrew() && BBB_Transport.CommanderSeat(seat))) return false;
   BaseCompartmentManagerComponent manager = seat.GetManager();
   return manager && !manager.IsDoorFake(seat.GetTurnOutDoorIndex());
  }

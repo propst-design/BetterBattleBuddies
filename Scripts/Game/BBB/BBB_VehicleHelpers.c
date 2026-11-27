@@ -266,6 +266,12 @@ class BBB_VehicleHelpers : Managed
  {
   if (!s_bUnstick) return; // the "Unstick vehicles" switch covers truck beds too
   float now = GetGame().GetWorld().GetWorldTime();
+  for (int l = m_LastAboard.Count() - 1; l >= 0; l--)
+  {
+   IEntity key = m_LastAboard.GetKey(l);
+   if (!key || !BBB.IsAlive(key) || now - m_LastAboard.GetElement(l) > BED_AFTER_MS)
+    m_LastAboard.RemoveElement(l);
+  }
   array<AIAgent> agents = {};
   BBB.Members(group, agents);
   foreach (AIAgent agent : agents)
@@ -284,7 +290,7 @@ class BBB_VehicleHelpers : Managed
    m_BedVehicle = null;
    m_BedSoldier = at;
    GetGame().GetWorld().QueryEntitiesBySphere(at, 6, CollectVehicleUnder);
-   if (!m_BedVehicle) { ForgetBed(soldier); continue; }
+   if (!m_BedVehicle || BBB.s_Hooks.LeaveAlone(m_BedVehicle)) { ForgetBed(soldier); continue; }
    // Climbing down takes him somewhere: only a man who stays put up there is stuck.
    vector last;
    if (m_OnBedAt.Find(soldier, last) && vector.DistanceXZ(last, at) > BED_MOVING_M) m_OnBed.Remove(soldier);
@@ -557,23 +563,17 @@ class BBB_VehicleHelpers : Managed
   if (turretEnt && BBB.Health(turretEnt) <= 0) return false;
   BaseWeaponManagerComponent wm = controller.GetWeaponManager();
   if (!wm) return false;
-  BaseWeaponComponent weapon = wm.GetCurrentWeapon();
-  if (!weapon)
+  InventoryStorageManagerComponent inv = null;
+  if (turretEnt) inv = InventoryStorageManagerComponent.Cast(turretEnt.FindComponent(InventoryStorageManagerComponent));
+  array<BaseWeaponComponent> weapons = {};
+  wm.GetWeapons(weapons);
+  BaseWeaponComponent current = wm.GetCurrentWeapon();
+  if (current && !weapons.Contains(current)) weapons.Insert(current);
+  foreach (BaseWeaponComponent weapon : weapons)
   {
-   array<IEntity> weapons = {};
-   wm.GetWeaponsList(weapons);
-   foreach (IEntity wEnt : weapons)
-   {
-    weapon = BaseWeaponComponent.Cast(wEnt.FindComponent(BaseWeaponComponent));
-    if (weapon) break;
-   }
-  }
-  if (!weapon) return false;
-  if (weapon.GetCurrentMagazine() && weapon.GetCurrentMagazine().GetAmmoCount() > 0) return true;
-  if (weapon.GetCurrentMuzzle() && weapon.GetCurrentMuzzle().GetAmmoCount() > 0) return true;
-  if (turretEnt)
-  {
-   InventoryStorageManagerComponent inv = InventoryStorageManagerComponent.Cast(turretEnt.FindComponent(InventoryStorageManagerComponent));
+   if (!weapon) continue;
+   if (weapon.GetCurrentMagazine() && weapon.GetCurrentMagazine().GetAmmoCount() > 0) return true;
+   if (weapon.GetCurrentMuzzle() && weapon.GetCurrentMuzzle().GetAmmoCount() > 0) return true;
    if (inv && inv.GetMagazineCountByWeapon(weapon) > 0) return true;
   }
   return false;
@@ -705,9 +705,9 @@ class BBB_VehicleHelpers : Managed
   }
   if (candidate.IsInVehicle() || acc.GetCompartment() != null || acc.IsGettingOut() || acc.IsGettingIn())
   {
-   if (retries < 10)
+   if (retries < 35)
    {
-    GetGame().GetCallqueue().CallLater(DoSeatInTurret, 40, false, vehicle, slot, candidate, group, squad, retries + 1);
+    GetGame().GetCallqueue().CallLater(DoSeatInTurret, 50, false, vehicle, slot, candidate, group, squad, retries + 1);
     return;
    }
    SeatTrace("abandon-transition", vehicle, slot, candidate, retries);
@@ -1011,6 +1011,7 @@ class BBB_VehicleHelpers : Managed
   if (!s_bUnstick || !group || BBB.HasPlayer(group)) return;
   IEntity vehicle = BBB_Transport.CrewedVehicle(group);
   if (!vehicle || watchedVehicles.Contains(vehicle) || BBB.s_Hooks.LeaveAlone(vehicle)) return;
+  if (BBB.Health(vehicle) <= 0) { ClearStallState(vehicle); return; }
   if (!CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent))) return;
   watchedVehicles.Insert(vehicle);
   if (m_Unsticking.Contains(vehicle)) return;
@@ -1023,10 +1024,10 @@ class BBB_VehicleHelpers : Managed
   bool hitRecently = BBB_Transport.VehicleHitRecently(vehicle, 6000);
   bool underFire = hitRecently || KnownEnemiesNear(group, vehicle.GetOrigin(), 300) > 0;
 
-  // No driver (killed, or a gun truck parked with only its gunner) is no reason to leave a
+  // No driver (killed/unconscious, or a gun truck parked with only its gunner) is no reason to leave a
   // working gun: an able gunner stays on it and only the riders get out to fight on foot. A
   // Game Master's order keeps everyone where he put them, as for the stall bail below.
-  if (underFire && (!driver || !BBB.IsAlive(driver)) && speed < 2.0 && !BBB_OrderIntent.GameMasterOrder(group) && !s_aReplacingVehicles.Contains(vehicle))
+  if (underFire && (!driver || !IsAble(driver)) && speed < 2.0 && !BBB_OrderIntent.GameMasterOrder(group) && !s_aReplacingVehicles.Contains(vehicle))
   {
    bool gunManned = HasGunner(vehicle);
    if (DismountGroupFromVehicle(group, vehicle, gunManned) > 0)
@@ -1046,7 +1047,7 @@ class BBB_VehicleHelpers : Managed
    return;
   }
 
-  bool eligible = driver != null && BBB.IsAlive(driver) && !BBB.PlayerOf(driver) && !BBB_Drive.Driving(vehicle); // BBB_Drive watches its own stalls
+  bool eligible = driver != null && IsAble(driver) && !BBB.PlayerOf(driver) && !BBB_Drive.Driving(vehicle); // BBB_Drive watches its own stalls
   bool wantsToMove = false;
   if (eligible)
   {

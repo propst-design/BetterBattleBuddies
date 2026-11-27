@@ -322,7 +322,7 @@ class BBB_CrewLeader
    float age = target.GetTimeSinceSeen();
    if (age > SEEN_S) continue;
    IEntity enemy = target.GetTargetEntity();
-   if (!enemy || target.GetUnitType() == EAIUnitType.UnitType_Aircraft || BBB_SuppressionSafety.AircraftSource(enemy)) continue;
+   if (!enemy || !BBB.StillFighting(enemy) || target.GetUnitType() == EAIUnitType.UnitType_Aircraft || BBB_SuppressionSafety.AircraftSource(enemy)) continue;
    bool shot = crew && target.GetTimeSinceEndangered() < ENDANGER_S;
    BBB_CrewSighting known;
    foreach (BBB_CrewSighting seen : order.m_aSeen)

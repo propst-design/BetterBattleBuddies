@@ -134,6 +134,7 @@ class BBB_Unstick : Managed
  protected static void Start(IEntity vehicle, ChimeraCharacter driver, float steer, BBB_UnstickListener listener, bool backAway)
  {
   if (!vehicle || !driver) return;
+  if (BBB_Claims.Busy(vehicle, BBB_Claims.JOB_UNSTICK) || BBB_PullOver.Active(vehicle)) return;
   BBB_Unstick unstick = new BBB_Unstick();
   unstick.m_Vehicle = vehicle;
   unstick.m_Driver = driver;
