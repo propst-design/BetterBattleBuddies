@@ -26,6 +26,7 @@ class BBB_StaticInit : Managed
   BBB_CrewLeader.BBB_InitStatics();
   BBB_SquadLeader.BBB_InitStatics();
   BBB_CrewTurnout.BBB_InitStatics();
+  BBB_Deadcheck.BBB_InitStatics();
   BBB_DoorUnstick.BBB_InitStatics();
   BBB_Drag.BBB_InitStatics();
   BBB_DriverAlignment.BBB_InitStatics();

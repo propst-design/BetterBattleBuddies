@@ -98,6 +98,8 @@ class BBB_SurrenderState : Managed
 	float m_fPoseSince;             // world time (s) ACE was asked to seat him
 	float m_fRiseSince;
 	bool m_bAIOff;                  // BBB deactivated his AI when he gave up (only then may a ruse wake it)
+	bool m_bCaptured;               // secured by enemy AI (BBB_Deadcheck): no ruse or execution
+	bool m_bPendingAceCuff;         // captured while unconscious: apply ACE cuffs once conscious
 }
 
 class BBB_Morale
@@ -1134,6 +1136,136 @@ class BBB_Morale
 			|| type == EWeaponType.WT_HANDGUN || type == EWeaponType.WT_ROCKETLAUNCHER || type == EWeaponType.WT_GRENADELAUNCHER;
 	}
 
+	// Find uncaptured surrendered prisoners hostile to 'side' within 'range' of 'origin' (for BBB_Deadcheck).
+	// Waits until the prisoner has settled out of the weapon-drop / ACE-seating window (10 s) so
+	// immediate close-range surrender animations and ruses aren't cut short on frame 1.
+	static void UnsecuredPrisonersNear(vector origin, float range, Faction side, notnull array<ChimeraCharacter> outList)
+	{
+		outList.Clear();
+		if (!side || !s_Surrendered) return;
+		float now = GetGame().GetWorld().GetWorldTime() / 1000.0;
+		foreach (BBB_SurrenderState ss : s_Surrendered)
+		{
+			if (!ss || ss.m_bCaptured || ss.m_bCondemned || ss.m_bRising) continue;
+			if (ss.m_iPose == BBB_SurrenderPose.POSE_ACE_PENDING || BBB_SurrenderPose.Seating(ss, now)) continue;
+			if (now - ss.m_fSurrenderSince < 10.0) continue;
+			if (!ss.m_Soldier || !BBB.IsAlive(ss.m_Soldier)) continue;
+			if (!ss.m_TrueFaction || !BBB_Combat.IsHostile(side, ss.m_TrueFaction)) continue;
+			if (vector.DistanceXZ(origin, ss.m_Soldier.GetOrigin()) <= range) outList.Insert(ss.m_Soldier);
+		}
+	}
+
+	// Drop every gun a soldier carries (used when securing a prisoner or disarming an unconscious enemy).
+	static int DropAllGuns(ChimeraCharacter soldier)
+	{
+		if (!soldier) return 0;
+		CharacterControllerComponent controller = soldier.GetCharacterController();
+		BaseWeaponManagerComponent wm = BaseWeaponManagerComponent.Cast(soldier.FindComponent(BaseWeaponManagerComponent));
+		if (!controller || !wm) return 0;
+		int dropped = 0;
+		array<WeaponSlotComponent> slots = {};
+		wm.GetWeaponsSlots(slots);
+		foreach (WeaponSlotComponent slot : slots)
+		{
+			if (!slot || !IsGun(slot.GetWeaponType())) continue;
+			IEntity weapon = slot.GetWeaponEntity();
+			if (!weapon) continue;
+			controller.DropWeapon(slot);
+			dropped++;
+			BBB.s_Hooks.OnLitter(weapon);
+		}
+		BBB_Rearm.ForgetPrimary(soldier);
+		return dropped;
+	}
+
+	// Secure a surrendered or unconscious enemy as a prisoner (BBB_Deadcheck).
+	// Players are cuffed via ACE Captives (if loaded) and never deactivated or despawned.
+	// AI are disarmed, removed from their squad, cuffed via ACE (when awake) or held in BBB_SurrenderPose.
+	static bool SecurePrisoner(ChimeraCharacter soldier)
+	{
+		if (!soldier || !BBB.IsAlive(soldier)) return false;
+		// Player target: cuff in ACE Captives if loaded; never deactivate AI or track for despawn.
+		if (BBB.PlayerOf(soldier) > 0)
+		{
+			if (BBB_SurrenderPose.UseAce())
+			{
+				BBB_SurrenderPose.AceSetCaptive(soldier, true);
+				return true;
+			}
+			return false;
+		}
+		// Already in BBB_Morale's surrender list: neutralize any ruse/execution and cuff via ACE if loaded.
+		for (int i = s_Surrendered.Count() - 1; i >= 0; i--)
+		{
+			BBB_SurrenderState existing = s_Surrendered[i];
+			if (!existing || existing.m_Soldier != soldier) continue;
+			existing.m_bCaptured = true;
+			existing.m_iFate = FATE_GENUINE;
+			existing.m_bCondemned = false;
+			DropAllGuns(soldier);
+			if (BBB_SurrenderPose.UseAce())
+			{
+				if (BBB.IsConscious(soldier) && BBB_SurrenderPose.AceSetCaptive(soldier, true))
+				{
+					PerceivableComponent p = PerceivableComponent.Cast(soldier.FindComponent(PerceivableComponent));
+					if (p) p.SetDisarmed(false);
+					DropPrisoner(i);
+					s_iHandedToAce++;
+					return true;
+				}
+				existing.m_bPendingAceCuff = true;
+			}
+			return true;
+		}
+		// Newly captured (e.g., unconscious enemy reached during a deadcheck):
+		if (s_Surrendered.Count() >= MAX_PRISONERS) return false;
+		AIControlComponent ai = AIControlComponent.Cast(soldier.FindComponent(AIControlComponent));
+		AIAgent agent;
+		if (ai) agent = ai.GetAIAgent();
+		SCR_AIGroup group;
+		if (agent) group = SCR_AIGroup.Cast(agent.GetParentGroup());
+		BBB_Rearm.CancelRearmAction(soldier);
+		BBB_Claims.Release(soldier, BBB_Claims.Role(soldier));
+		if (group)
+		{
+			group.RemoveAgentFromControlledEntity(soldier);
+			BBB.RosterChanged();
+		}
+		DropAllGuns(soldier);
+		PerceivableComponent perceivable = PerceivableComponent.Cast(soldier.FindComponent(PerceivableComponent));
+		if (perceivable) perceivable.SetDisarmed(true);
+		if (ai && ai.IsAIActivated()) ai.DeactivateAI();
+
+		BBB_SurrenderState state = new BBB_SurrenderState();
+		state.m_Soldier = soldier;
+		state.m_FormerGroup = group;
+		state.m_TrueFaction = SCR_AIFactionHandling.GetEntityPerceivedFaction(soldier);
+		state.m_fSurrenderSince = GetGame().GetWorld().GetWorldTime() / 1000.0;
+		state.m_iFate = FATE_GENUINE;
+		state.m_bCaptured = true;
+		state.m_bAIOff = true;
+
+		if (BBB_SurrenderPose.UseAce())
+		{
+			if (BBB.IsConscious(soldier) && BBB_SurrenderPose.AceSetCaptive(soldier, true))
+			{
+				if (perceivable) perceivable.SetDisarmed(false);
+				s_iHandedToAce++;
+				return true;
+			}
+			// Unconscious: wait until awake to apply ACE cuffs, then hand off.
+			state.m_bPendingAceCuff = true;
+		}
+		else if (BBB.IsConscious(soldier))
+		{
+			BBB_SurrenderPose.Start(state);
+		}
+		s_Surrendered.Insert(state);
+		BBB_Claims.Mark(soldier, BBB_Claims.JOB_PRISONER);
+		s_iSurrenders++;
+		return true;
+	}
+
 	// Decided once, when he gives up. A ruse needs something to hide: a frag, else a pistol.
 	protected static void RollFate(BBB_SurrenderState state)
 	{
@@ -1201,11 +1333,25 @@ class BBB_Morale
 				PrintFormat("[BBB] MORALE: prisoner %1 taken captive with ACE cuffs, handed to ACE", soldier);
 				continue;
 			}
+			// A prisoner captured while unconscious waits until awake for ACE cuffs.
+			if (fatePass && ss.m_bPendingAceCuff && BBB.IsConscious(soldier))
+			{
+				ss.m_bPendingAceCuff = false;
+				if (BBB_SurrenderPose.UseAce() && BBB_SurrenderPose.AceSetCaptive(soldier, true))
+				{
+					if (perceivable) perceivable.SetDisarmed(false);
+					DropPrisoner(i);
+					s_iHandedToAce++;
+					PrintFormat("[BBB] MORALE: prisoner %1 woke up and was cuffed via ACE", soldier);
+					continue;
+				}
+				if (ss.m_iPose == BBB_SurrenderPose.POSE_NONE) BBB_SurrenderPose.Start(ss);
+			}
 			// Waking from unconsciousness clears the flag (SCR_CharacterPerceivableComponent).
 			if (perceivable && !ss.m_bCondemned && !ss.m_bRising && !perceivable.IsDisarmed()) perceivable.SetDisarmed(true);
 			if (fatePass && BBB.IsConscious(soldier) && !ss.m_bRising) BBB_SurrenderPose.Update(ss, now);
-			// While ACE is still seating him, fates wait a pass.
-			if (fatePass && now >= ss.m_fFateAfter && BBB.IsConscious(soldier) && !BBB_SurrenderPose.Seating(ss, now))
+			// While ACE is still seating him, fates wait a pass. Secured prisoners never ruse/execute.
+			if (fatePass && !ss.m_bCaptured && now >= ss.m_fFateAfter && BBB.IsConscious(soldier) && !BBB_SurrenderPose.Seating(ss, now))
 			{
 				if (ss.m_iFate == FATE_EXECUTED && !ss.m_bCondemned) TryExecute(ss, perceivable);
 				else if (ss.m_iFate == FATE_RUSE && TryRuse(ss, perceivable, now))

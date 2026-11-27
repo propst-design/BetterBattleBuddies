@@ -372,6 +372,8 @@ class BBB_Settings
   On(g, "bbbMoraleSurrender", "Surrender", "A soldier cut off from his squad, pinned, out of spare ammo or badly wounded, with an enemy close, may drop his weapons and give up. AI leave him alone.");
   On(g, "bbbMoraleSurrenderFates", "Surrenders can go wrong", "Now and then captors shoot a prisoner, or a prisoner who hid a grenade or pistol uses it on whoever comes close.");
   On(g, "bbbMoraleSurrenderAce", "Surrender through ACE Captives", "With ACE Captives loaded, a prisoner raises his hands the ACE way and players with zip cuffs can take him captive and escort him. Off, or without ACE: he kneels with a hand raised, then sits on the ground.");
+  On(g, "bbbDeadcheck", "Deadcheck and take prisoners", "After a firefight cools down, a soldier moves up to verify nearby downed enemies and secure surrendered or unconscious prisoners (zip-cuffing via ACE Captives when loaded).");
+  Def(g, "bbbDeadcheckPolicy", BBB_ESettingKind.CHOICE, "mixed", "Unconscious enemy policy", "How AI handle an unconscious enemy they reach during a deadcheck. Mixed mostly captures with occasional close-quarters lethal deadchecks; players are always captured when ACE Captives is loaded.").Choices("capture|mixed|lethal", "Capture|Mixed|Lethal");
   Num(g, "bbbMoraleCasualties", 0.5, 0.15, 0.9, 0.05, "Losses before breaking", "Share of the squad lost that counts fully toward a break.");
   Num(g, "bbbMoraleSuppression", 0.6, 0.15, 1, 0.05, "Suppression before breaking", "Suppression that counts fully toward a break.");
   Num(g, "bbbMoraleDistance", 25, 10, 50, 1, "Withdrawal bound (m)", "Length of each bound when a squad falls back.");

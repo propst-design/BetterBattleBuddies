@@ -29,6 +29,7 @@ class BBB_Claims
 {
  static const int NONE = 0;
  static const int BUILDINGS = 20;
+ static const int CLEAR = 25;
  static const int FIRE = 30;
  static const int REARM = 40;
  static const int STATIC = 50;
@@ -56,7 +57,8 @@ class BBB_Claims
  static const int JOB_UNSTICK = 6;     // a vehicle reversing out of a stall (BBB_Unstick)
  static const int JOB_PILOT_HOLD = 7;  // a vehicle whose driver seat BBB has unhooked (BBB_PilotHold)
  static const int JOB_DRIVE = 8;       // a vehicle BBB's scripted driver is driving (BBB_Drive)
- static const int JOB_COUNT = 9;
+ static const int JOB_CLEAR = 9;       // a soldier deadchecking or taking a prisoner (BBB_Deadcheck)
+ static const int JOB_COUNT = 10;
  protected static ref map<IEntity, ref array<int>> s_Jobs; // entity -> how many entries each job has for it
 
  static int s_iTaken;     // tests read these
@@ -132,6 +134,7 @@ class BBB_Claims
   if (role == STATIC) return "static gun";
   if (role == REARM) return "rearm";
   if (role == FIRE) return "fire and manoeuvre";
+  if (role == CLEAR) return "clear";
   if (role == BUILDINGS) return "building";
   return "none";
  }

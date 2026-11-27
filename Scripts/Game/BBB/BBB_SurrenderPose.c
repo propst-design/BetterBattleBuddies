@@ -180,8 +180,35 @@ class BBB_SurrenderPose
 	static bool CuffedByAce(BBB_SurrenderState state)
 	{
 		if (state.m_iPose != POSE_ACE || !state.m_Soldier) return false;
-		CharacterControllerComponent controller = state.m_Soldier.GetCharacterController();
+		return AceIsCaptive(state.m_Soldier);
+	}
+
+	// Verified ACE Captives methods on SCR_CharacterControllerComponent (zero hard dependency).
+	static bool AceHasSurrendered(IEntity soldier)
+	{
+		if (!soldier || !AceLoaded()) return false;
+		ChimeraCharacter ch = ChimeraCharacter.Cast(soldier);
+		if (!ch) return false;
+		CharacterControllerComponent controller = ch.GetCharacterController();
+		return controller && AceGet(controller, "ACE_Captives_HasSurrendered");
+	}
+
+	static bool AceIsCaptive(IEntity soldier)
+	{
+		if (!soldier || !AceLoaded()) return false;
+		ChimeraCharacter ch = ChimeraCharacter.Cast(soldier);
+		if (!ch) return false;
+		CharacterControllerComponent controller = ch.GetCharacterController();
 		return controller && AceGet(controller, "ACE_Captives_IsCaptive");
+	}
+
+	static bool AceSetCaptive(IEntity soldier, bool value)
+	{
+		if (!soldier || !AceLoaded()) return false;
+		ChimeraCharacter ch = ChimeraCharacter.Cast(soldier);
+		if (!ch) return false;
+		CharacterControllerComponent controller = ch.GetCharacterController();
+		return controller && AceSet(controller, "ACE_Captives_SetCaptive", value);
 	}
 
 	// ACE's helper compartment he sits in, if any.

@@ -44,6 +44,13 @@ class BBB_Hooks : Managed
  // A cornered, cut-off soldier of this group may surrender (BBB_Morale). Separate from
  // AllowMorale: a host that runs its own squad retreats can still let men give up.
  bool AllowSurrender(SCR_AIGroup group) { return true; }
+ // Post-contact deadchecking and AI prisoner capture (BBB_Deadcheck).
+ bool AllowDeadcheck(SCR_AIGroup group) { return true; }
+ // How AI handle an unconscious enemy reached during a deadcheck: -1 = BBB setting,
+ // 0 = capture, 1 = mixed, 2 = lethal.
+ int PrisonerPolicy(SCR_AIGroup captor, IEntity target) { return -1; }
+ // Fired when an AI squad secures a surrendered or unconscious enemy as a prisoner.
+ void OnPrisonerCaptured(SCR_AIGroup captor, IEntity prisoner) {}
  // Host tactical doctrines may veto autonomous tactical smoke.
  bool AllowSmoke(SCR_AIGroup group) { return true; }
  // Host tactical doctrines may veto static weapon crewing.
@@ -245,6 +252,7 @@ class BBB
   BBB_Zombies.Read();
   BBB_Callouts.Read();
   BBB_KillConfirm.Read();
+  BBB_Deadcheck.Read();
 		s_VehicleHelpers = new BBB_VehicleHelpers();
 		s_Launchers = new BBB_Launchers();
 		s_Combat = new BBB_Combat();
@@ -324,6 +332,7 @@ class BBB
   BBB_Zombies.Stop();
   BBB_Callouts.Stop();
   BBB_KillConfirm.Stop();
+  BBB_Deadcheck.Stop();
   BBB_Traffic.Stop(); // pull-overs hand their drivers back before PilotHold.GiveAll
   BBB_HotAI.Stop();
   BBB_Transport.ClearHits();
@@ -407,6 +416,8 @@ class BBB
   t = BBB_Perf.Lap("tick.callouts", t);
   BBB_KillConfirm.Tick();
   t = BBB_Perf.Lap("tick.killConfirm", t);
+  BBB_Deadcheck.Tick();
+  t = BBB_Perf.Lap("tick.deadcheck", t);
   BBB_Traffic.Read(); // starts its own quarter-second tick
   BBB_Think.Tick();
 		BBB_Perf.OnTick();
