@@ -1156,12 +1156,18 @@ class BBB_Morale
 	}
 
 	// Drop every gun a soldier carries (used when securing a prisoner or disarming an unconscious enemy).
-	static int DropAllGuns(ChimeraCharacter soldier)
+	// Unconscious targets or immediate ACE cuffs avoid animated DropWeapon when storage removal works;
+	// if animated fallback ran on a conscious target, animatedDrop is set so ACE seating can wait a beat.
+	static int DropAllGuns(ChimeraCharacter soldier, bool instant = false, out bool animatedDrop = false)
 	{
+		animatedDrop = false;
 		if (!soldier) return 0;
 		CharacterControllerComponent controller = soldier.GetCharacterController();
 		BaseWeaponManagerComponent wm = BaseWeaponManagerComponent.Cast(soldier.FindComponent(BaseWeaponManagerComponent));
 		if (!controller || !wm) return 0;
+		bool conscious = BBB.IsConscious(soldier);
+		SCR_InventoryStorageManagerComponent inv = null;
+		if (instant || !conscious) inv = SCR_InventoryStorageManagerComponent.Cast(soldier.FindComponent(SCR_InventoryStorageManagerComponent));
 		int dropped = 0;
 		array<WeaponSlotComponent> slots = {};
 		wm.GetWeaponsSlots(slots);
@@ -1170,7 +1176,23 @@ class BBB_Morale
 			if (!slot || !IsGun(slot.GetWeaponType())) continue;
 			IEntity weapon = slot.GetWeaponEntity();
 			if (!weapon) continue;
-			controller.DropWeapon(slot);
+			bool removed = false;
+			if (inv)
+			{
+				InventoryItemComponent itemComp = InventoryItemComponent.Cast(weapon.FindComponent(InventoryItemComponent));
+				BaseInventoryStorageComponent storage = null;
+				if (itemComp && itemComp.GetParentSlot()) storage = itemComp.GetParentSlot().GetStorage();
+				if (storage && inv.TryRemoveItemFromStorage(weapon, storage)) removed = true;
+				else if (inv.TryRemoveItemFromInventory(weapon)) removed = true;
+				if (removed && (!itemComp || !itemComp.GetParentSlot()))
+					weapon.SetOrigin(soldier.GetOrigin() + Vector(0, 0.2, 0));
+			}
+			if (!removed)
+			{
+				if (!conscious) continue;
+				controller.DropWeapon(slot);
+				animatedDrop = true;
+			}
 			dropped++;
 			BBB.s_Hooks.OnLitter(weapon);
 		}
@@ -1188,10 +1210,7 @@ class BBB_Morale
 		if (BBB.PlayerOf(soldier) > 0)
 		{
 			if (BBB_SurrenderPose.UseAce())
-			{
-				BBB_SurrenderPose.AceSetCaptive(soldier, true);
-				return true;
-			}
+				return BBB_SurrenderPose.AceSetCaptive(soldier, true);
 			return false;
 		}
 		// Already in BBB_Morale's surrender list: neutralize any ruse/execution and cuff via ACE if loaded.
@@ -1202,10 +1221,12 @@ class BBB_Morale
 			existing.m_bCaptured = true;
 			existing.m_iFate = FATE_GENUINE;
 			existing.m_bCondemned = false;
-			DropAllGuns(soldier);
-			if (BBB_SurrenderPose.UseAce())
+			bool useAce = BBB_SurrenderPose.UseAce();
+			bool animDrop;
+			DropAllGuns(soldier, useAce || !BBB.IsConscious(soldier), animDrop);
+			if (useAce)
 			{
-				if (BBB.IsConscious(soldier) && BBB_SurrenderPose.AceSetCaptive(soldier, true))
+				if (!animDrop && BBB.IsConscious(soldier) && BBB_SurrenderPose.AceSetCaptive(soldier, true))
 				{
 					PerceivableComponent p = PerceivableComponent.Cast(soldier.FindComponent(PerceivableComponent));
 					if (p) p.SetDisarmed(false);
@@ -1214,6 +1235,10 @@ class BBB_Morale
 					return true;
 				}
 				existing.m_bPendingAceCuff = true;
+			}
+			else if (BBB.IsConscious(soldier) && existing.m_iPose == BBB_SurrenderPose.POSE_NONE)
+			{
+				BBB_SurrenderPose.Start(existing);
 			}
 			return true;
 		}
@@ -1231,10 +1256,17 @@ class BBB_Morale
 			group.RemoveAgentFromControlledEntity(soldier);
 			BBB.RosterChanged();
 		}
-		DropAllGuns(soldier);
+		bool useAce = BBB_SurrenderPose.UseAce();
+		bool animDrop;
+		DropAllGuns(soldier, useAce || !BBB.IsConscious(soldier), animDrop);
 		PerceivableComponent perceivable = PerceivableComponent.Cast(soldier.FindComponent(PerceivableComponent));
 		if (perceivable) perceivable.SetDisarmed(true);
-		if (ai && ai.IsAIActivated()) ai.DeactivateAI();
+		bool aiOff = false;
+		if (ai && ai.IsAIActivated())
+		{
+			ai.DeactivateAI();
+			aiOff = true;
+		}
 
 		BBB_SurrenderState state = new BBB_SurrenderState();
 		state.m_Soldier = soldier;
@@ -1243,17 +1275,17 @@ class BBB_Morale
 		state.m_fSurrenderSince = GetGame().GetWorld().GetWorldTime() / 1000.0;
 		state.m_iFate = FATE_GENUINE;
 		state.m_bCaptured = true;
-		state.m_bAIOff = true;
+		state.m_bAIOff = aiOff;
 
-		if (BBB_SurrenderPose.UseAce())
+		if (useAce)
 		{
-			if (BBB.IsConscious(soldier) && BBB_SurrenderPose.AceSetCaptive(soldier, true))
+			if (!animDrop && BBB.IsConscious(soldier) && BBB_SurrenderPose.AceSetCaptive(soldier, true))
 			{
 				if (perceivable) perceivable.SetDisarmed(false);
 				s_iHandedToAce++;
 				return true;
 			}
-			// Unconscious: wait until awake to apply ACE cuffs, then hand off.
+			// Unconscious or animated drop still settling: wait until awake/settled to apply ACE cuffs, then hand off.
 			state.m_bPendingAceCuff = true;
 		}
 		else if (BBB.IsConscious(soldier))
@@ -1347,6 +1379,9 @@ class BBB_Morale
 				}
 				if (ss.m_iPose == BBB_SurrenderPose.POSE_NONE) BBB_SurrenderPose.Start(ss);
 			}
+			// Non-ACE prisoner captured while unconscious enters surrender pose once awake.
+			if (fatePass && ss.m_bCaptured && !ss.m_bPendingAceCuff && ss.m_iPose == BBB_SurrenderPose.POSE_NONE && BBB.IsConscious(soldier))
+				BBB_SurrenderPose.Start(ss);
 			// Waking from unconsciousness clears the flag (SCR_CharacterPerceivableComponent).
 			if (perceivable && !ss.m_bCondemned && !ss.m_bRising && !perceivable.IsDisarmed()) perceivable.SetDisarmed(true);
 			if (fatePass && BBB.IsConscious(soldier) && !ss.m_bRising) BBB_SurrenderPose.Update(ss, now);

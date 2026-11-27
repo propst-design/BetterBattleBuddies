@@ -20,6 +20,16 @@ class BBB_AIClearMove : SCR_AIMoveIndividuallyBehavior
 {
 	override float CustomEvaluate()
 	{
+		if (!BBB.IsStarted() || !BBB_Deadcheck.s_bOn || !m_Utility || !BBB.IsConscious(m_Utility.m_OwnerEntity) || BBB.PlayerOf(m_Utility.m_OwnerEntity) != 0)
+		{
+			Fail();
+			return 0;
+		}
+		if (BBB_OrderIntent.Held(m_Utility))
+		{
+			Fail();
+			return 0;
+		}
 		return BBB_Deadcheck.MOVE_PRIORITY;
 	}
 
@@ -181,7 +191,12 @@ class BBB_Deadcheck
 	// Main 1 Hz tick called from BBB.Tick().
 	static void Tick()
 	{
-		if (!On() || !BBB.IsStarted() || !Replication.IsServer()) return;
+		if (!BBB.IsStarted() || !Replication.IsServer()) return;
+		if (!On())
+		{
+			if (s_aJobs && !s_aJobs.IsEmpty()) Stop();
+			return;
+		}
 		float now = Now();
 
 		// 1. Update running jobs first.
@@ -255,10 +270,6 @@ class BBB_Deadcheck
 		Faction side = group.GetFaction();
 		if (!side) return;
 
-		vector leashCentre;
-		float leashRadius;
-		bool hasLeash = BBB.s_Hooks.HostLeash(group, leashCentre, leashRadius) && leashRadius > 0;
-
 		IEntity bestTarget = null;
 		BBB_DroppedContact bestDrop = null;
 		vector bestGoal = vector.Zero;
@@ -272,7 +283,7 @@ class BBB_Deadcheck
 		{
 			if (!p || p.IsInVehicle() || TargetClaimed(p) || BBB_SurrenderPose.AceIsCaptive(p)) continue;
 			vector pos = p.GetOrigin();
-			if (hasLeash && vector.DistanceXZ(leashCentre, pos) > leashRadius) continue;
+			if (!BBB_OrderLeash.Allows(group, pos)) continue;
 			float d = vector.DistanceXZ(centre, pos);
 			if (d < bestDist)
 			{
@@ -291,7 +302,7 @@ class BBB_Deadcheck
 			if (aceSurr && !TargetClaimed(aceSurr))
 			{
 				vector pos = aceSurr.GetOrigin();
-				if (!hasLeash || vector.DistanceXZ(leashCentre, pos) <= leashRadius)
+				if (BBB_OrderLeash.Allows(group, pos))
 				{
 					bestTarget = aceSurr;
 					bestGoal = pos;
@@ -315,7 +326,7 @@ class BBB_Deadcheck
 				if (!ch || ch.IsInVehicle()) continue;
 				// Wait at least 3 s after the drop before walking up.
 				if (now - drop.m_fDroppedAt < 3.0) continue;
-				if (hasLeash && vector.DistanceXZ(leashCentre, drop.m_vPos) > leashRadius) continue;
+				if (!BBB_OrderLeash.Allows(group, drop.m_vPos)) continue;
 				float d = vector.DistanceXZ(centre, drop.m_vPos);
 				if (d > REACH_M) continue;
 				if (d < bestDist)
@@ -338,12 +349,21 @@ class BBB_Deadcheck
 		SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(checker);
 		if (!utility) return;
 
+		vector goal = bestGoal;
+		BaseWorld world = GetGame().GetWorld();
+		if (world)
+		{
+			float floorY = world.GetSurfaceY(goal[0], goal[2]) + 0.15;
+			if (goal[1] < floorY) goal[1] = floorY;
+			else if (goal[1] <= floorY + 2.0 && !BBB_Buildings.RoofAt(goal)) goal[1] = floorY;
+		}
+
 		BBB_ClearJob job = new BBB_ClearJob();
 		job.m_Group = group;
 		job.m_Checker = checker;
 		job.m_Target = bestTarget;
 		job.m_Drop = bestDrop;
-		job.m_vGoal = BBB.Ground(bestGoal);
+		job.m_vGoal = goal;
 		job.m_bCaptureOnly = captureOnly;
 		job.m_iStage = STAGE_APPROACH;
 		job.m_fStartedAt = now;
@@ -406,25 +426,30 @@ class BBB_Deadcheck
 		return result;
 	}
 
+	protected static Faction OriginalFaction(ChimeraCharacter ch)
+	{
+		if (!ch) return null;
+		int pid = BBB.PlayerOf(ch);
+		if (pid > 0)
+		{
+			Faction pf = SCR_FactionManager.SGetPlayerFaction(pid);
+			if (pf) return pf;
+		}
+		FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(ch.FindComponent(FactionAffiliationComponent));
+		if (aff && aff.GetDefaultAffiliatedFaction()) return aff.GetDefaultAffiliatedFaction();
+		return SCR_AIFactionHandling.GetEntityPerceivedFaction(ch);
+	}
+
 	protected static bool ConsiderAceSurrendered(IEntity entity)
 	{
 		ChimeraCharacter ch = ChimeraCharacter.Cast(entity);
 		if (!ch || !BBB.IsConscious(ch) || ch.IsInVehicle()) return true;
 		if (!BBB_SurrenderPose.AceHasSurrendered(ch) || BBB_SurrenderPose.AceIsCaptive(ch)) return true;
-		// ACE switches surrendered units to CIV; check players directly or via BBB_Morale.
+		// ACE switches surrendered units to CIV; resolve original/player faction before checking hostility.
 		// Non-player AI already in BBB_Morale are handled by UnsecuredPrisonersNear.
 		if (BBB.PlayerOf(ch) == 0 && BBB_Morale.IsPrisoner(ch)) return true;
-		if (BBB.PlayerOf(ch) > 0)
-		{
-			// Players who surrender via ACE: only capture if their original/current faction is not our own.
-			Faction f = SCR_AIFactionHandling.GetEntityPerceivedFaction(ch);
-			if (f && f == s_AceQuerySide) return true;
-		}
-		else
-		{
-			Faction f = SCR_AIFactionHandling.GetEntityPerceivedFaction(ch);
-			if (!f || !BBB_Combat.IsHostile(s_AceQuerySide, f)) return true;
-		}
+		Faction f = OriginalFaction(ch);
+		if (!f || f == s_AceQuerySide || !BBB_Combat.IsHostile(s_AceQuerySide, f)) return true;
 		float d = vector.DistanceXZ(s_vAceQueryFrom, ch.GetOrigin());
 		if (d < s_fAceQueryBest)
 		{
@@ -448,9 +473,21 @@ class BBB_Deadcheck
 			EndJob(index, "claim lost or mounted");
 			return;
 		}
-		if (now > job.m_fDeadline || !job.m_Group || BBB_Morale.IsWithdrawing(job.m_Group))
+		if (now > job.m_fDeadline || !job.m_Group || BBB.HasPlayer(job.m_Group) || BBB_Morale.IsWithdrawing(job.m_Group))
 		{
-			EndJob(index, "timeout or withdrawing");
+			EndJob(index, "timeout, player joined, or withdrawing");
+			return;
+		}
+		if (!BBB.s_Hooks.AllowDeadcheck(job.m_Group) || BBB.s_Hooks.IsBinding(job.m_Group) || BBB_OrderIntent.GameMasterOrder(job.m_Group))
+		{
+			EndJob(index, "host or GM override");
+			return;
+		}
+		vector intentCentre;
+		float intentRadius;
+		if (!BBB_HostIntent.Fights(BBB_HostIntent.Of(job.m_Group, intentCentre, intentRadius)))
+		{
+			EndJob(index, "host intent changed");
 			return;
 		}
 		SCR_AIUtilityComponent utility = BBB_VehiclePosture.Utility(job.m_Checker);
@@ -474,8 +511,15 @@ class BBB_Deadcheck
 
 		if (job.m_iStage == STAGE_APPROACH)
 		{
-			float dist = vector.DistanceXZ(job.m_Checker.GetOrigin(), job.m_vGoal);
-			if (dist <= ARRIVE_M)
+			if (!job.m_Move || job.m_Move.GetActionState() == EAIActionState.FAILED)
+			{
+				EndJob(index, "move failed");
+				return;
+			}
+			vector here = job.m_Checker.GetOrigin();
+			float dist = vector.Distance(here, job.m_vGoal);
+			float dy = Math.AbsFloat(here[1] - job.m_vGoal[1]);
+			if (dist <= ARRIVE_M && dy <= 2.2)
 			{
 				if (job.m_Move) { job.m_Move.Complete(); job.m_Move = null; }
 				if (utility.m_LookAction)
@@ -483,6 +527,10 @@ class BBB_Deadcheck
 				job.m_iStage = STAGE_INSPECT;
 				job.m_fStageAt = now;
 				BBB_Think.Note(job.m_Checker, "Deadcheck", "inspecting contact");
+			}
+			else if (job.m_Move.GetActionState() == EAIActionState.COMPLETED)
+			{
+				EndJob(index, "move ended out of reach");
 			}
 			return;
 		}
@@ -500,10 +548,16 @@ class BBB_Deadcheck
 		{
 			if (now - job.m_fStageAt >= FINISH_FIRE_S)
 			{
-				if (job.m_Group && job.m_Target)
-					BBB_KillConfirm.MarkVerified(job.m_Group.GetFaction(), job.m_Target);
-				if (job.m_Drop) job.m_Drop.m_bChecked = true;
-				EndJob(index, "lethal deadcheck complete");
+				if (job.m_Target && !BBB.IsAlive(job.m_Target))
+				{
+					if (job.m_Group) BBB_KillConfirm.MarkVerified(job.m_Group.GetFaction(), job.m_Target);
+					if (job.m_Drop) job.m_Drop.m_bChecked = true;
+					EndJob(index, "lethal deadcheck complete");
+				}
+				else
+				{
+					EndJob(index, "lethal deadcheck incomplete");
+				}
 			}
 		}
 	}
@@ -514,7 +568,16 @@ class BBB_Deadcheck
 		if (job.m_Group) side = job.m_Group.GetFaction();
 
 		// Check if the body/target is actually still here (perception-honest: maybe dragged away or crawled off).
-		if (!job.m_Target || vector.DistanceXZ(job.m_Target.GetOrigin(), job.m_vGoal) > PRESENT_M)
+		if (!job.m_Target)
+		{
+			if (job.m_Drop) job.m_Drop.m_bChecked = true;
+			s_iEmptySpots++;
+			BBB_Think.Note(job.m_Checker, "Deadcheck", "contact gone from spot");
+			EndJob(index, "spot empty");
+			return;
+		}
+		vector targetPos = job.m_Target.GetOrigin();
+		if (vector.Distance(targetPos, job.m_vGoal) > PRESENT_M || Math.AbsFloat(targetPos[1] - job.m_vGoal[1]) > 2.2)
 		{
 			if (job.m_Drop) job.m_Drop.m_bChecked = true;
 			s_iEmptySpots++;
@@ -566,8 +629,20 @@ class BBB_Deadcheck
 			return;
 		}
 
-		// Lethal deadcheck ("double tap"): short, tight burst onto the downed body.
-		if (utility.m_CombatComponent && utility.m_CombatComponent.GetCombatMode() != EAIGroupCombatMode.HOLD_FIRE)
+		// Lethal deadcheck ("double tap"): short, tight burst onto the downed body (requires loaded firearm).
+		BaseWeaponComponent weapon = null;
+		if (utility.m_CombatComponent) weapon = utility.m_CombatComponent.GetCurrentWeapon();
+		bool hasLoadedGun = false;
+		if (weapon)
+		{
+			EWeaponType wType = weapon.GetWeaponType();
+			if (wType == EWeaponType.WT_RIFLE || wType == EWeaponType.WT_MACHINEGUN || wType == EWeaponType.WT_SNIPERRIFLE || wType == EWeaponType.WT_HANDGUN)
+			{
+				BaseMagazineComponent mag = weapon.GetCurrentMagazine();
+				if (mag && mag.GetAmmoCount() > 0) hasLoadedGun = true;
+			}
+		}
+		if (hasLoadedGun && utility.m_CombatComponent && utility.m_CombatComponent.GetCombatMode() != EAIGroupCombatMode.HOLD_FIRE)
 		{
 			vector bodyPos = targetChar.GetOrigin();
 			SCR_AISuppressionVolumeBox vol = new SCR_AISuppressionVolumeBox(
@@ -584,7 +659,7 @@ class BBB_Deadcheck
 			BBB_Think.Note(job.m_Checker, "Deadcheck", "lethal deadcheck on unconscious enemy");
 			return;
 		}
-		// Under HOLD_FIRE, fall back to capturing instead of shooting.
+		// Under HOLD_FIRE or out of ammo, fall back to capturing instead of shooting.
 		CaptureTarget(index, job, targetChar, side);
 	}
 
@@ -612,10 +687,10 @@ class BBB_Deadcheck
 	protected static void CaptureTarget(int index, BBB_ClearJob job, ChimeraCharacter target, Faction side)
 	{
 		bool ok = BBB_Morale.SecurePrisoner(target);
-		BBB_KillConfirm.MarkVerified(side, target);
-		if (job.m_Drop) job.m_Drop.m_bChecked = true;
 		if (ok)
 		{
+			BBB_KillConfirm.MarkVerified(side, target);
+			if (job.m_Drop) job.m_Drop.m_bChecked = true;
 			s_iCaptured++;
 			BBB_Perf.Count("deadcheck.captured");
 			BBB.s_Hooks.OnPrisonerCaptured(job.m_Group, target);
