@@ -176,7 +176,7 @@ modded class SCR_AILookAtThreatSystemLogic
   if (!m_bEvaluateEquipmentUsage || m_iSectorMajor == -1 || !m_ThreatFilter || !m_BBBUtility || !m_BBBUtility.m_ThreatSystem) return result;
   if (!BBB_Aim.On(m_MyEntity)) return result;
   SCR_EAIThreatSectorFlags flags = m_ThreatFilter.GetSectorFlags(m_iSectorMajor);
-  if (BBB_Aim.BinocularsAllowed(flags, m_BBBUtility.m_ThreatSystem.GetState())) return result;
+  if (BBB_Aim.BinocularsAllowed(flags, m_BBBUtility.m_ThreatSystem.GetState()) && !BBB_VehicleHelpers.RecentlyDismounted(m_MyEntity, 6000)) return result;
   SetVariableOut(PORT_USE_OPTICS, false);
   SetVariableOut(PORT_RAISE_WEAPON, true);
   return result;

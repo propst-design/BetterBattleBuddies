@@ -28,9 +28,10 @@ class BBB_VehicleHelpers : Managed
 
  protected ref array<IEntity> m_Found = {};
  protected ref map<IEntity, int> m_OnBed = new map<IEntity, int>();
- protected ref map<IEntity, vector> m_OnBedAt = new map<IEntity, vector>(); // where he was at the last sample
- static const float BED_MOVING_M = 0.6;  // m moved in a second: still getting down, not stuck
- static const float BED_AFTER_MS = 10000; // only men out of a vehicle this recently are checked (perf review P2)
+ protected ref map<IEntity, vector> m_OnBedAt = new map<IEntity, vector>(); // vehicle-local position at the last sample
+ static const float BED_MOVING_M = 0.6;  // m moved in a second (vehicle-local): still getting down, not stuck
+ static const float BED_MOVING_SPEED = 1.5; // m/s: vehicle already rolling — set down at once instead of waiting 4 s
+ static const float BED_AFTER_MS = 35000; // only men out of a vehicle this recently are checked (covers 20 s unload + departure)
  static const float DISMOUNT_SEEN_S = 10; // an armed enemy seen this recently makes riders get out (review #20)
  protected ref map<IEntity, float> m_LastAboard = new map<IEntity, float>(); // soldier -> world time (ms) last seen in a vehicle
  protected ref map<IEntity, vector> m_StallPos = new map<IEntity, vector>();
@@ -262,6 +263,40 @@ class BBB_VehicleHelpers : Managed
   m_OnBedAt.Remove(soldier);
  }
 
+ // True when an AI soldier left a vehicle within windowMs (or is still being watched on a bed).
+ static bool RecentlyDismounted(IEntity soldier, float windowMs)
+ {
+  if (!soldier || !BBB.s_VehicleHelpers || BBB_Transport.VehicleOf(soldier) || BBB.PlayerOf(soldier)) return false;
+  return BBB.s_VehicleHelpers.IsRecentlyDismounted(soldier, windowMs);
+ }
+
+ protected bool IsRecentlyDismounted(IEntity soldier, float windowMs)
+ {
+  if (m_OnBedAt.Contains(soldier)) return true;
+  float aboard;
+  if (!m_LastAboard.Find(soldier, aboard)) return false;
+  return GetGame().GetWorld().GetWorldTime() - aboard <= windowMs;
+ }
+
+ // Set an AI soldier standing/crouching on a vehicle down on the ground beside it (never a player).
+ static bool SetDownBeside(IEntity vehicle, ChimeraCharacter soldier, string groupName)
+ {
+  if (!vehicle || !soldier || !BBB.IsAlive(soldier) || BBB_Transport.VehicleOf(soldier) || BBB.PlayerOf(soldier)) return false;
+  vector at = soldier.GetOrigin();
+  vector side = vehicle.GetTransformAxis(0);
+  if (vector.Dot(at - vehicle.GetOrigin(), side) < 0) side = side * -1;
+  vector mins, maxs;
+  vehicle.GetBounds(mins, maxs);
+  vector ground = vehicle.GetOrigin() + side * (Math.Max(maxs[0], -mins[0]) + 1.2);
+  ground[1] = GetGame().GetWorld().GetSurfaceY(ground[0], ground[2]);
+  vector transform[4];
+  soldier.GetWorldTransform(transform);
+  transform[3] = ground;
+  soldier.Teleport(transform);
+  PrintFormat("[BBB] %1: soldier stuck on a vehicle set down beside it", groupName);
+  return true;
+ }
+
  protected void GetOffBeds(SCR_AIGroup group)
  {
   if (!s_bUnstick) return; // the "Unstick vehicles" switch covers truck beds too
@@ -291,26 +326,23 @@ class BBB_VehicleHelpers : Managed
    m_BedSoldier = at;
    GetGame().GetWorld().QueryEntitiesBySphere(at, 6, CollectVehicleUnder);
    if (!m_BedVehicle || BBB.s_Hooks.LeaveAlone(m_BedVehicle)) { ForgetBed(soldier); continue; }
-   // Climbing down takes him somewhere: only a man who stays put up there is stuck.
-   vector last;
-   if (m_OnBedAt.Find(soldier, last) && vector.DistanceXZ(last, at) > BED_MOVING_M) m_OnBed.Remove(soldier);
-   m_OnBedAt.Set(soldier, at);
-   int seen = m_OnBed.Get(soldier) + 1;
-   m_OnBed.Set(soldier, seen);
-   if (seen < 4) continue; // getting out takes a moment: only those still up there after 4 s
+   // If the vehicle is already moving, set him down at once before it knocks him over and injures him.
+   float vehSpeed = 0;
+   Physics phys = m_BedVehicle.GetPhysics();
+   if (phys) vehSpeed = phys.GetVelocity().Length();
+   if (vehSpeed <= BED_MOVING_SPEED)
+   {
+    // Climbing down takes him somewhere in the vehicle's own frame: only a man who stays put up there is stuck.
+    vector local = m_BedVehicle.CoordToLocal(at);
+    vector last;
+    if (m_OnBedAt.Find(soldier, last) && vector.DistanceXZ(last, local) > BED_MOVING_M) m_OnBed.Remove(soldier);
+    m_OnBedAt.Set(soldier, local);
+    int seen = m_OnBed.Get(soldier) + 1;
+    m_OnBed.Set(soldier, seen);
+    if (seen < 4) continue; // getting out takes a moment: only those still up there after 4 s
+   }
    ForgetBed(soldier);
-   // Down beside the vehicle, on the side he is nearer to.
-   vector side = m_BedVehicle.GetTransformAxis(0);
-   if (vector.Dot(at - m_BedVehicle.GetOrigin(), side) < 0) side = side * -1;
-   vector mins, maxs;
-   m_BedVehicle.GetBounds(mins, maxs);
-   vector ground = m_BedVehicle.GetOrigin() + side * (Math.Max(maxs[0], -mins[0]) + 1.2);
-   ground[1] = GetGame().GetWorld().GetSurfaceY(ground[0], ground[2]);
-   vector transform[4];
-   soldier.GetWorldTransform(transform);
-   transform[3] = ground;
-   soldier.Teleport(transform);
-   PrintFormat("[BBB] %1: soldier stuck on a vehicle set down beside it", BBB.s_Hooks.NameOf(group));
+   SetDownBeside(m_BedVehicle, soldier, BBB.s_Hooks.NameOf(group));
   }
  }
 
