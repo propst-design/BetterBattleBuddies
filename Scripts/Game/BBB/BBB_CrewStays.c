@@ -132,16 +132,45 @@ class BBB_CrewStays
   return false;
  }
 
- // Vanilla's vehicle combat activity tells this crewman to get out: true = he keeps his seat.
+ static bool VehicleHasWorkingGun(IEntity vehicle)
+ {
+  array<BaseCompartmentSlot> turrets = {};
+  BBB_VehicleHelpers.GetVehicleCompartments(vehicle, turrets, ECompartmentType.TURRET);
+  foreach (BaseCompartmentSlot slot : turrets)
+   if (BBB_VehicleHelpers.TurretHasAmmo(slot)) return true;
+  return false;
+ }
+
+ static bool VehicleBurning(IEntity vehicle)
+ {
+  if (!vehicle) return false;
+  DamageManagerComponent dm = DamageManagerComponent.Cast(vehicle.FindComponent(DamageManagerComponent));
+  if (!dm) return false;
+  return dm.IsDestroyed() || dm.IsDamagedOverTime(EDamageType.FIRE);
+ }
+
+ // True when a fighting vehicle has taken hull/component damage (e.g. mobility kill) without being destroyed.
+ static bool VehicleMobilityDisabled(IEntity vehicle)
+ {
+  if (!vehicle) return false;
+  DamageManagerComponent dm = DamageManagerComponent.Cast(vehicle.FindComponent(DamageManagerComponent));
+  if (!dm || dm.IsDestroyed()) return false;
+  return dm.GetHealthScaled() < 0.95;
+ }
+
+ // Vanilla's vehicle combat activity (or standalone damage/mobility-kill bail) tells this crewman
+ // to get out: true = he keeps his seat.
  static bool KeepInFight(SCR_AIGetOutVehicle getOut, SCR_AIUtilityComponent utility, IEntity target)
  {
   if (!On() || !getOut || !utility) return false;
-  if (!SCR_AIVehicleCombatActivity.Cast(getOut.GetRelatedGroupActivity())) return false;
   if (getOut.EvaluatePriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
+  bool combatActivity = SCR_AIVehicleCombatActivity.Cast(getOut.GetRelatedGroupActivity()) != null;
+  bool standaloneBail = getOut.GetRelatedGroupActivity() == null;
+  if (!combatActivity && !standaloneBail) return false;
   IEntity soldier = utility.m_OwnerEntity;
   // A fight against zombies alone (BBB_Zombies): the crew keep their seats, riders stay aboard while it moves.
   IEntity riding = BBB_Transport.VehicleOf(soldier);
-  if (riding && (!target || target == riding) && BBB_Zombies.StayAboard(utility, riding))
+  if (combatActivity && riding && (!target || target == riding) && BBB_Zombies.StayAboard(utility, riding))
   {
    s_iFightsKept++;
    BBB_Perf.Count("crewStays.zombies");
@@ -151,6 +180,18 @@ class BBB_CrewStays
   }
   IEntity vehicle = CrewedBy(soldier);
   if (!vehicle || (target && target != vehicle) || !BBB_VehicleHelpers.HasTurret(vehicle)) return false;
+  if (standaloneBail)
+  {
+   // Disabled AFV with a working, loaded gun (and not burning): stay in the fight as a pillbox
+   // instead of bailing out into enemy fire; never block ordinary dismounts from healthy vehicles.
+   if (!VehicleMobilityDisabled(vehicle) || VehicleBurning(vehicle) || !VehicleHasWorkingGun(vehicle)) return false;
+   s_iFightsKept++;
+   BBB_Perf.Count("crewStays.disabledGun");
+   string seatName = typename.EnumToString(ECompartmentType, BBB_Transport.SeatOf(soldier));
+   Log(soldier, string.Format("%1 %2 stays aboard disabled %3: gun still works", BBB.s_Hooks.NameOf(BBB_Medic.GroupOf(soldier)), seatName, BBB_Armour.Short(BBB_Armour.PrefabKey(vehicle))));
+   BBB_Think.Note(soldier, "Vehicle", "stays on the working gun of a disabled vehicle");
+   return true;
+  }
   s_iFightsKept++;
   BBB_Perf.Count("crewStays.fight");
   string seat = typename.EnumToString(ECompartmentType, BBB_Transport.SeatOf(soldier));
