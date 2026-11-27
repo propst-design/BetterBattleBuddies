@@ -244,6 +244,7 @@ class BBB
   BBB_CoverFire.Read();
   BBB_Zombies.Read();
   BBB_Callouts.Read();
+  BBB_KillConfirm.Read();
 		s_VehicleHelpers = new BBB_VehicleHelpers();
 		s_Launchers = new BBB_Launchers();
 		s_Combat = new BBB_Combat();
@@ -322,6 +323,7 @@ class BBB
   BBB_SquadLeader.Stop();
   BBB_Zombies.Stop();
   BBB_Callouts.Stop();
+  BBB_KillConfirm.Stop();
   BBB_Traffic.Stop(); // pull-overs hand their drivers back before PilotHold.GiveAll
   BBB_HotAI.Stop();
   BBB_Transport.ClearHits();
@@ -403,6 +405,8 @@ class BBB
   t = BBB_Perf.Lap("tick.zombies", t);
   BBB_Callouts.Tick();
   t = BBB_Perf.Lap("tick.callouts", t);
+  BBB_KillConfirm.Tick();
+  t = BBB_Perf.Lap("tick.killConfirm", t);
   BBB_Traffic.Read(); // starts its own quarter-second tick
   BBB_Think.Tick();
 		BBB_Perf.OnTick();

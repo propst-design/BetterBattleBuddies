@@ -38,6 +38,7 @@ class BBB_StaticInit : Managed
   BBB_Gunner.BBB_InitStatics();
   BBB_HeldGuns.BBB_InitStatics();
   BBB_HorizonScan.BBB_InitStatics();
+  BBB_KillConfirm.BBB_InitStatics();
   BBB_LauncherUse.BBB_InitStatics();
   BBB_Medic.BBB_InitStatics();
   BBB_Morale.BBB_InitStatics();

@@ -276,6 +276,7 @@ class BBB_Settings
   On(g, "bbbWeaponReady", "Weapon back in hand", "An armed soldier walking empty-handed takes his weapon out again without waiting to be shot at.");
   On(g, "bbbCombatEngagement", "Shoot before repositioning", "A freshly visible enemy gets a chance to be shot at before the soldier moves to a new position.");
   On(g, "bbbCombatTargetPriority", "Visible targets first", "Soldiers prefer an enemy they can see over one they only know about.");
+  On(g, "bbbKillConfirm", "Confirm dropped contacts", "When an enemy drops at range or in concealment, soldiers don't instantly assume he is dead: they watch the spot or put a short follow-up burst on it, and the squad holds the contact briefly as unconfirmed.");
   On(g, "bbbAimFixes", "Aim fixes", "All of BBB's aim changes below. Off: vanilla aim.");
   Num(g, "bbbAimScale", 1, 0.25, 3, 0.05, "Aim error", "Overall AI aim error. 1 is vanilla; lower aims better, higher aims worse.");
   Num(g, "bbbSuppressedAim", 1.3, 1, 3, 0.05, "Aim when suppressed", "How much worse a fully suppressed soldier aims. 1 is vanilla (no effect).");

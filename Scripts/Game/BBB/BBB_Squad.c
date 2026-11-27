@@ -24,6 +24,8 @@ class BBB_SquadContact : Managed
  EAIUnitType m_eType; // as the members' perception classes it
  bool m_bShooting;    // shot at a member within SHOOTING_S (BBB_SquadLeader scores it)
  bool m_bZombie;      // a zombie or melee creature, with the zombie rules on (BBB_Zombies)
+ bool m_bUnconfirmed; // recently dropped (dead or unconscious); held briefly before expiring
+ float m_fDropHoldUntil; // world time (s) when an unconfirmed drop expires from the squad picture
 }
 
 class BBB_SquadPicture : Managed
@@ -174,10 +176,32 @@ class BBB_Squad
     if (shooting) contact.m_bShooting = true;
    }
   }
+  Faction squadFaction = picture.m_Group.GetFaction();
   foreach (BBB_SquadContact kept : before)
   {
-   // A man remembered from before he went down or gave up is no longer a contact.
-   if (!kept.m_Enemy || byEnemy.Contains(kept.m_Enemy) || !BBB.StillFighting(kept.m_Enemy) || BBB.Disarmed(kept.m_Enemy)) continue;
+   if (!kept.m_Enemy || byEnemy.Contains(kept.m_Enemy)) continue;
+   bool down = !BBB.StillFighting(kept.m_Enemy) || BBB.Disarmed(kept.m_Enemy);
+   if (down)
+   {
+    // With kill confirmation on, a soldier who just dropped (dead or unconscious, not a known
+    // prisoner or verified corpse) stays in the squad picture briefly as unconfirmed so the
+    // squad maintains security instead of relaxing on the frame he fell.
+    if (!BBB_KillConfirm.On() || !ChimeraCharacter.Cast(kept.m_Enemy) || BBB_Morale.IsPrisoner(kept.m_Enemy) || BBB_KillConfirm.IsVerified(squadFaction, kept.m_Enemy)) continue;
+    if (!kept.m_bUnconfirmed)
+    {
+     float dropDist = 60.0;
+     if (picture.m_bHasCentre) dropDist = vector.DistanceXZ(picture.m_vCentre, kept.m_vPos);
+     else if (livingCount > 0) dropDist = vector.DistanceXZ(living * (1.0 / livingCount), kept.m_vPos);
+     kept.m_bUnconfirmed = true;
+     kept.m_fDropHoldUntil = now + BBB_KillConfirm.HoldWindow(dropDist);
+     BBB_KillConfirm.RecordDrop(picture.m_Group, kept.m_Enemy, kept.m_vPos, dropDist, dropDist >= BBB_KillConfirm.OBSCURED_M);
+    }
+    if (now >= kept.m_fDropHoldUntil) continue;
+   }
+   else
+   {
+    kept.m_bUnconfirmed = false;
+   }
    kept.m_fAge = kept.m_fAge + since;
    kept.m_bShooting = false; // nobody perceives him now
    if (kept.m_fAge > MEMORY_S) continue;
@@ -203,6 +227,7 @@ class BBB_Squad
    item.m_fBearing = Math.Atan2(offset[0], offset[2]) * Math.RAD2DEG;
    // A fresh, close enemy matters most; a 20 s old one far off still counts a little.
    item.m_fWeight = (1.0 / (1.0 + item.m_fAge / 4.0)) * Math.Clamp(100.0 / Math.Max(range, 1), 0.5, 2.0);
+   if (item.m_bUnconfirmed) item.m_fWeight = item.m_fWeight * 0.65;
   }
  }
 
