@@ -30,7 +30,7 @@ class BBB_HeldGunsTest : BBB_AimTest
  static const ResourceName MG = "{887DB60486A18575}Prefabs/Weapons/Tripods/Tripod_M122_MG_M60.et";
  static const ResourceName ARMED_M2HB = "{3EA6F47D95867114}Prefabs/Vehicles/Wheeled/M998/M1025_armed_M2HB.et";
  static const ResourceName MORTAR = "{8094D99689ABE241}Prefabs/Weapons/Mortars/M252/Mortar_M252.et";
- static const int EXPECTED = 17;
+ static const int EXPECTED = 18;
  protected ref BBB_HeldGunsTestHooks m_Hooks;
  protected ref BBB_Hooks m_SavedHooks;
  protected int m_iChecks;
@@ -42,9 +42,11 @@ class BBB_HeldGunsTest : BBB_AimTest
  protected SCR_AIGroup m_Enemy;
  protected IEntity m_GunA;
  protected IEntity m_GunB;
+ protected IEntity m_GunC;
  protected IEntity m_Truck;
  protected ChimeraCharacter m_ManA;
  protected ChimeraCharacter m_ManB;
+ protected ChimeraCharacter m_AbortMan;
  protected bool m_bALeft;
  protected int m_iReleasedBefore;
  protected int m_iRemountedBefore;
@@ -251,6 +253,55 @@ class BBB_HeldGunsTest : BBB_AimTest
    bool manned = gunner && SeatedIn(gunner, m_GunA);
    if (!manned && m_iWait < 30) return;
    Check("refilled-remanned", manned && BBB_HeldGuns.s_iRemounted > m_iRemountedBefore, string.Format("manned %1 after %2 s, re-man orders %3", manned, m_iWait, BBB_HeldGuns.s_iRemounted));
+   m_GunC = Spawn(MG, m_vBase + Vector(-22, 0, 0), "0 0 1");
+   if (m_GunC) m_Hooks.m_Held.Insert(m_GunC);
+   NextPhase();
+   return;
+  }
+
+  if (m_iPhase == 7)
+  {
+   BaseCompartmentSlot seatC = BBB_HeldGuns.GunSeat(m_GunC);
+   if (seatC && seatC.IsReserved())
+   {
+    array<AIAgent> agents = {};
+    m_Team.GetAgents(agents);
+    foreach (AIAgent agent : agents)
+    {
+     if (!agent) continue;
+     ChimeraCharacter ch = ChimeraCharacter.Cast(agent.GetControlledEntity());
+     if (ch && seatC.IsReservedBy(ch))
+     {
+      m_AbortMan = ch;
+      break;
+     }
+    }
+    if (m_AbortMan)
+    {
+     SCR_DamageManagerComponent dmg = SCR_DamageManagerComponent.GetDamageManager(m_AbortMan);
+     if (dmg)
+     {
+      dmg.EnableDamageHandling(true);
+      dmg.Kill(Instigator.CreateInstigator(null));
+     }
+    }
+    NextPhase();
+    return;
+   }
+   if (m_iWait < 20) return;
+   Check("remount-abort-releases-seat", false, "gun C never reserved within 20 s");
+   Finish();
+   return;
+  }
+
+  if (m_iPhase == 8)
+  {
+   if (m_iWait < 2) return;
+   BaseCompartmentSlot seatC = BBB_HeldGuns.GunSeat(m_GunC);
+   bool released = m_AbortMan != null && seatC && !seatC.IsReserved() && Occupant(m_GunC) == null;
+   Check("remount-abort-releases-seat", released, string.Format("aborted man %1, reserved %2, occupant %3", m_AbortMan != null, seatC && seatC.IsReserved(), Occupant(m_GunC) != null));
+   m_Hooks.m_Held.Clear();
+   m_Hooks.m_Held.Insert(m_GunA);
    // An enemy team 35 m in front of A, holding its fire.
    vector front = m_GunA.GetOrigin() + m_GunA.GetTransformAxis(2) * 35;
    m_Enemy = SCR_AIGroup.Cast(Spawn(TEAM_USSR, front, "0 0 -1"));
@@ -264,7 +315,7 @@ class BBB_HeldGunsTest : BBB_AimTest
    return;
   }
 
-  if (m_iPhase == 7)
+  if (m_iPhase == 9)
   {
    ChimeraCharacter gunner = Occupant(m_GunA);
    bool fresh = gunner && BBB_HeldGuns.FreshClose(gunner);

@@ -10,11 +10,22 @@
 //  4. waiting is not stuck: a stopped truck ahead is a queue; a pull-over in hand is held.
 // Not covered: the stall watches' timing in a real match (srv:regress covers ACA's), tracked vehicles,
 // slopes and ditches (the ground check is read, not driven here).
+class BBB_UnstickTestListener : BBB_UnstickListener
+{
+ bool m_bEnded;
+ IEntity m_Vehicle;
+ override void OnUnstickEnded(IEntity vehicle)
+ {
+  m_bEnded = true;
+  m_Vehicle = vehicle;
+ }
+}
+
 class BBB_UnstickTest : BBB_AimTest
 {
  static ref BBB_UnstickTest s_UnstickTest;
  static const ResourceName URAL = "{16C1F16C9B053801}Prefabs/Vehicles/Wheeled/Ural4320/Ural4320_transport.et";
- static const int EXPECTED = 15;
+ static const int EXPECTED = 16;
  protected int m_iChecks;
  protected int m_iFailures;
  protected vector m_vSite;
@@ -274,6 +285,12 @@ class BBB_UnstickTest : BBB_AimTest
   BBB_Claims.Unmark(m_Truck, BBB_Claims.JOB_PULL_OVER);
   Check("pull-over-is-held", wait == BBB_Unstick.WAIT_HELD, why);
   Check("hopeless-outcomes", BBB_Unstick.Hopeless(BBB_Unstick.OUTCOME_BOXED) && BBB_Unstick.Hopeless(BBB_Unstick.OUTCOME_WHEELS) && !BBB_Unstick.Hopeless(BBB_Unstick.OUTCOME_ROOM), "");
+  BBB_UnstickTestListener busyListener = new BBB_UnstickTestListener();
+  int startedBefore = BBB_Unstick.s_iStarted;
+  BBB_Claims.Mark(m_Truck, BBB_Claims.JOB_UNSTICK);
+  BBB_Unstick.Begin(m_Truck, m_Driver, 0.8, busyListener);
+  BBB_Claims.Unmark(m_Truck, BBB_Claims.JOB_UNSTICK);
+  Check("busy-declines-notifies-listener", busyListener.m_bEnded && busyListener.m_Vehicle == m_Truck && BBB_Unstick.s_iStarted == startedBefore, string.Format("ended %1, started %2 -> %3", busyListener.m_bEnded, startedBefore, BBB_Unstick.s_iStarted));
   Finish();
  }
 

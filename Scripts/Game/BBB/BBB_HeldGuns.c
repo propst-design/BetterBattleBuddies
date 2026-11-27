@@ -15,12 +15,23 @@
 // with vanilla's get-out and fights on foot. Left alone: players, mortars, LeaveAlone guns, BBB's own
 // static crewing (it releases its gunner on "out of ammo" itself), player/GM-priority orders and a
 // group on a boarding waypoint (a GM's "get in" would only put him back on).
+class BBB_HeldGunRemount : Managed
+{
+ SCR_AIGroup m_Group;
+ ChimeraCharacter m_Man;
+ IEntity m_Gun;
+ BaseCompartmentSlot m_Seat;
+ SCR_AIGetInVehicle m_GetIn;
+ float m_fStartedMs;
+}
+
 class BBB_HeldGuns
 {
  static const float FRESH_S = 10;
  static const float CLOSE_M = 60;
  static const float REMOUNT_S = 8;
  static const float REMOUNT_REACH = 40;
+ static const float REMOUNT_TIMEOUT_MS = 30000;
  static const float WINCHESTER_S = 3;
  static const int WINCHESTER_EVERY = 2; // groups looked at for dry gunners every 2nd tick (staggered)
  static bool s_bOn = true;
@@ -33,12 +44,14 @@ class BBB_HeldGuns
  protected static ref map<IEntity, float> s_mEmptySince;
  protected static ref map<IEntity, float> s_mLogged;
  protected static ref map<IEntity, float> s_mDrySince; // gunner -> first seen on a dry gun
+ protected static ref map<IEntity, ref BBB_HeldGunRemount> s_mRemounts;
  // Called by BBB_StaticInit at game start (static initializer budget: tools/check_static_init.py).
  static void BBB_InitStatics()
  {
   s_mEmptySince = new map<IEntity, float>();
   s_mLogged = new map<IEntity, float>();
   s_mDrySince = new map<IEntity, float>();
+  s_mRemounts = new map<IEntity, ref BBB_HeldGunRemount>();
  }
 
  static void Read()
@@ -52,12 +65,106 @@ class BBB_HeldGuns
 
  static void Stop()
  {
+  if (s_mRemounts)
+  {
+   for (int i = s_mRemounts.Count() - 1; i >= 0; i--)
+   {
+    BBB_HeldGunRemount remount = s_mRemounts.GetElement(i);
+    bool seated = remount && remount.m_Seat && remount.m_Man && remount.m_Seat.GetOccupant() == remount.m_Man;
+    ReleaseRemount(remount, !seated);
+   }
+   s_mRemounts.Clear();
+  }
   s_mEmptySince.Clear();
   s_mLogged.Clear();
   s_mDrySince.Clear();
   s_iKept = 0;
   s_iRemounted = 0;
   s_iWinchester = 0;
+ }
+
+ protected static void ReleaseRemount(BBB_HeldGunRemount remount, bool failAction)
+ {
+  if (!remount) return;
+  if (failAction && remount.m_GetIn)
+  {
+   EAIActionState state = remount.m_GetIn.GetActionState();
+   if (state != EAIActionState.COMPLETED && state != EAIActionState.FAILED) remount.m_GetIn.Fail();
+  }
+  if (remount.m_Seat && remount.m_Man && remount.m_Seat.IsReservedBy(remount.m_Man))
+   remount.m_Seat.SetReserved(null);
+ }
+
+ protected static void MaintainRemounts(float now)
+ {
+  if (!s_mRemounts || s_mRemounts.IsEmpty()) return;
+  for (int i = s_mRemounts.Count() - 1; i >= 0; i--)
+  {
+   IEntity gun = s_mRemounts.GetKey(i);
+   BBB_HeldGunRemount remount = s_mRemounts.GetElement(i);
+   if (!remount || !gun || BBB.Health(gun) <= 0 || !remount.m_Seat)
+   {
+    ReleaseRemount(remount, true);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+   IEntity occupant = remount.m_Seat.GetOccupant();
+   if (occupant)
+   {
+    ReleaseRemount(remount, occupant != remount.m_Man);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+   if (!s_bOn || BBB.s_Hooks.LeaveAlone(gun) || BBB_StaticWeapons.IsClaimed(gun))
+   {
+    ReleaseRemount(remount, true);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+   ChimeraCharacter man = remount.m_Man;
+   if (!man || !BBB.IsAlive(man) || !BBB_VehicleHelpers.IsAble(man) || BBB.PlayerOf(man) != 0)
+   {
+    ReleaseRemount(remount, true);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+   if (!remount.m_Group || BBB.HasPlayer(remount.m_Group) || GroupOf(man) != remount.m_Group)
+   {
+    ReleaseRemount(remount, true);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+   if (remount.m_Seat.IsReserved() && !remount.m_Seat.IsReservedBy(man))
+   {
+    ReleaseRemount(remount, true);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+   SCR_AIUtilityComponent utility = BBB_StaticWeapons.UtilityOf(man);
+   AIControlComponent ai = AIControlComponent.Cast(man.FindComponent(AIControlComponent));
+   if (!utility || !ai || !ai.IsAIActivated() || BBB_OrderIntent.Blocks(utility))
+   {
+    ReleaseRemount(remount, true);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+   CompartmentAccessComponent manAcc = man.GetCompartmentAccessComponent();
+   bool transition = manAcc && (manAcc.IsGettingIn() || manAcc.IsGettingOut());
+   bool hasAction = utility.FindActionOfType(SCR_AIGetInVehicle) != null;
+   bool actionOver = !remount.m_GetIn || remount.m_GetIn.GetActionState() == EAIActionState.COMPLETED || remount.m_GetIn.GetActionState() == EAIActionState.FAILED;
+   if ((!hasAction || actionOver) && !transition)
+   {
+    ReleaseRemount(remount, true);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+   if (now - remount.m_fStartedMs > REMOUNT_TIMEOUT_MS)
+   {
+    ReleaseRemount(remount, true);
+    s_mRemounts.RemoveElement(i);
+    continue;
+   }
+  }
  }
 
  static SCR_AIGroup GroupOf(IEntity soldier)
@@ -121,8 +228,9 @@ class BBB_HeldGuns
  static void Tick()
  {
   Read();
-  if (!s_bOn && !s_bWinchester) return;
   float now = GetGame().GetWorld().GetWorldTime();
+  MaintainRemounts(now);
+  if (!s_bOn && !s_bWinchester) return;
   s_iTicks++;
   if (s_iTicks % 60 == 0) PruneDry();
   array<SCR_AIGroup> groups = {};
@@ -169,7 +277,17 @@ class BBB_HeldGuns
      fallenAcc.GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
     }
     seat.SetReserved(man);
-    utility.AddAction(new SCR_AIGetInVehicle(utility, null, gun, seat, EAICompartmentType.Turret));
+    SCR_AIGetInVehicle getIn = new SCR_AIGetInVehicle(utility, null, gun, seat, EAICompartmentType.Turret);
+    utility.AddAction(getIn);
+    BBB_HeldGunRemount remount = new BBB_HeldGunRemount();
+    remount.m_Group = group;
+    remount.m_Man = man;
+    remount.m_Gun = gun;
+    remount.m_Seat = seat;
+    remount.m_GetIn = getIn;
+    remount.m_fStartedMs = now;
+    if (!s_mRemounts) s_mRemounts = new map<IEntity, ref BBB_HeldGunRemount>();
+    s_mRemounts.Set(gun, remount);
     s_iRemounted++;
     PrintFormat("[BBB] HELD GUN %1: gun empty %2 s, a soldier %3 m away mans it again", BBB.s_Hooks.NameOf(group), REMOUNT_S, Math.Round(vector.Distance(man.GetOrigin(), gun.GetOrigin())));
     BBB_Think.Note(man, "Static", "mans the held gun again");
