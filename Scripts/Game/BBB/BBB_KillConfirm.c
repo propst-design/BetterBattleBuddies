@@ -180,8 +180,8 @@ class BBB_KillConfirm
 
 		IEntity enemy = prevTarget.GetTargetEntity();
 		if (!enemy || !ChimeraCharacter.Cast(enemy)) return;
-		// Only react when the target actually went dead or unconscious (not a surrendered prisoner or live target who ran behind a wall).
-		if (BBB.IsConscious(enemy) || BBB_Morale.IsPrisoner(enemy)) return;
+		// Only react when the target actually went dead or unconscious (not a zombie, surrendered prisoner, or live target who ran behind a wall).
+		if (BBB_Zombies.Is(enemy) || BBB.IsConscious(enemy) || BBB_Morale.IsPrisoner(enemy)) return;
 
 		vector lastSeen = prevTarget.GetLastSeenPosition();
 		if (lastSeen == vector.Zero) return;
@@ -206,7 +206,7 @@ class BBB_KillConfirm
 		}
 
 		// Follow-up confirmation burst: short, disciplined, capped by weapon range and squad blind-fire limit.
-		if (now < utility.m_fBBBKillConfirmNext) return;
+		if (now < utility.m_fBBBKillConfirmNext || now < utility.m_fBBBKillConfirmUntil || now < utility.m_fBBBBlindUntil) return;
 		BaseWeaponComponent weapon = combat.GetCurrentWeapon();
 		if (!weapon) return;
 		EWeaponType wType = weapon.GetWeaponType();
@@ -237,8 +237,15 @@ class BBB_KillConfirm
 			return;
 		}
 
-		vector aim = BBB.Ground(lastSeen);
-		if (!BBB_SuppressionSafety.GroundSector(aim)) return;
+		if (!BBB_SuppressionSafety.GroundSector(lastSeen)) return;
+		vector aim = lastSeen;
+		BaseWorld world = GetGame().GetWorld();
+		if (world)
+		{
+			float floorY = world.GetSurfaceY(aim[0], aim[2]) + 0.15;
+			if (aim[1] < floorY) aim[1] = floorY;
+			else if (aim[1] <= floorY + 2.0 && !BBB_Buildings.RoofAt(aim)) aim[1] = floorY;
+		}
 		float half = Math.Clamp(distance * 0.015, 1.0, 3.5);
 		float burstS = Math.Lerp(BURST_MIN_S, BURST_MAX_S, roll.RandFloat01());
 		SCR_AISuppressionVolumeBox volume = new SCR_AISuppressionVolumeBox(
@@ -248,7 +255,7 @@ class BBB_KillConfirm
 		BBB_AIKillConfirmFireBehavior fire = new BBB_AIKillConfirmFireBehavior(utility, null, volume, burstS, FIRE_RATE);
 		utility.AddAction(fire);
 		utility.m_fBBBKillConfirmNext = now + burstS + COOLDOWN_S;
-		utility.m_fBBBBlindUntil = now + burstS;
+		utility.m_fBBBKillConfirmUntil = now + burstS;
 		s_iFollowUps++;
 		BBB_Perf.Count("killConfirm.followUp");
 		BBB_Think.NoteUtility(utility, "KillConfirm", "follow-up burst on dropped contact (" + Math.Round(distance) + " m, " + burstS.ToString(3, 1) + " s)");
@@ -257,23 +264,25 @@ class BBB_KillConfirm
 	// Prune expired drops and stale verified entries.
 	static void Tick()
 	{
-		if (!s_mDrops || s_mDrops.IsEmpty()) return;
 		float now = Now();
-		for (int i = s_mDrops.Count() - 1; i >= 0; i--)
+		if (s_mDrops && !s_mDrops.IsEmpty())
 		{
-			SCR_AIGroup group = s_mDrops.GetKey(i);
-			array<ref BBB_DroppedContact> list = s_mDrops.GetElement(i);
-			if (!group || !list)
+			for (int i = s_mDrops.Count() - 1; i >= 0; i--)
 			{
-				s_mDrops.RemoveElement(i);
-				continue;
+				SCR_AIGroup group = s_mDrops.GetKey(i);
+				array<ref BBB_DroppedContact> list = s_mDrops.GetElement(i);
+				if (!group || !list)
+				{
+					s_mDrops.RemoveElement(i);
+					continue;
+				}
+				for (int j = list.Count() - 1; j >= 0; j--)
+				{
+					BBB_DroppedContact drop = list[j];
+					if (!drop || now - drop.m_fDroppedAt > DROP_TTL_S) list.RemoveOrdered(j);
+				}
+				if (list.IsEmpty()) s_mDrops.RemoveElement(i);
 			}
-			for (int j = list.Count() - 1; j >= 0; j--)
-			{
-				BBB_DroppedContact drop = list[j];
-				if (!drop || now - drop.m_fDroppedAt > DROP_TTL_S) list.RemoveOrdered(j);
-			}
-			if (list.IsEmpty()) s_mDrops.RemoveElement(i);
 		}
 		if (s_mVerified)
 		{
@@ -283,6 +292,7 @@ class BBB_KillConfirm
 				if (!known) { s_mVerified.RemoveElement(v); continue; }
 				for (int e = known.Count() - 1; e >= 0; e--)
 					if (!known[e]) known.Remove(e);
+				if (known.IsEmpty()) s_mVerified.RemoveElement(v);
 			}
 		}
 	}
@@ -302,7 +312,7 @@ class BBB_AIKillConfirmFireBehavior : SCR_AISuppressBehavior
 
 	protected void Done()
 	{
-		if (m_Utility) m_Utility.m_fBBBBlindUntil = 0;
+		if (m_Utility) m_Utility.m_fBBBKillConfirmUntil = 0;
 		Complete();
 	}
 
@@ -310,7 +320,7 @@ class BBB_AIKillConfirmFireBehavior : SCR_AISuppressBehavior
 	{
 		if (GetGame().GetWorld().GetWorldTime() > m_fEndMs) { Done(); return 0; }
 		if (!m_Utility || !m_Utility.m_CombatComponent || !m_Utility.m_AIInfo) { Done(); return 0; }
-		if (!BBB_KillConfirm.s_bOn || !BBB.IsConscious(m_Utility.m_OwnerEntity) || BBB.PlayerOf(m_Utility.m_OwnerEntity) != 0) { Done(); return 0; }
+		if (!BBB.IsStarted() || !BBB_KillConfirm.s_bOn || !BBB.IsConscious(m_Utility.m_OwnerEntity) || BBB.PlayerOf(m_Utility.m_OwnerEntity) != 0) { Done(); return 0; }
 		if (m_Utility.m_CombatComponent.GetCurrentTarget()) { Done(); return 0; }
 		if (m_Utility.m_CombatComponent.GetCombatMode() == EAIGroupCombatMode.HOLD_FIRE) { Done(); return 0; }
 		if (m_Utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || m_Utility.m_AIInfo.HasUnitState(EUnitState.IN_TURRET) || m_Utility.m_AIInfo.HasUnitState(EUnitState.UNCONSCIOUS)) { Done(); return 0; }
@@ -322,6 +332,7 @@ class BBB_AIKillConfirmFireBehavior : SCR_AISuppressBehavior
 modded class SCR_AIUtilityComponent
 {
 	float m_fBBBKillConfirmNext; // world time (s) next follow-up burst is allowed
+	float m_fBBBKillConfirmUntil; // world time (s) his kill-confirm burst ends at the latest (0: none)
 }
 
 modded class SCR_AICombatComponent

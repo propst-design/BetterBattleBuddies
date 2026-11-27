@@ -148,7 +148,7 @@ class BBB_FireDiscipline
   {
    if (!agent) continue;
    SCR_AIUtilityComponent member = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
-   if (member && member.m_fBBBBlindUntil > now) count++;
+   if (member && (member.m_fBBBBlindUntil > now || member.m_fBBBKillConfirmUntil > now)) count++;
   }
   return count;
  }
@@ -174,7 +174,7 @@ class BBB_FireDiscipline
  {
   if (!utility || !weapon) return false;
   float now = GetGame().GetWorld().GetWorldTime() / 1000;
-  if (now < utility.m_fBBBContactFireReady) return false;
+  if (now < utility.m_fBBBContactFireReady || now < utility.m_fBBBKillConfirmUntil) return false;
   string why = Refuse(utility, weapon, distance);
   if (why != "")
   {

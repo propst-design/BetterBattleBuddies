@@ -176,6 +176,18 @@ class BBB_Squad
     if (shooting) contact.m_bShooting = true;
    }
   }
+  if (picture.m_iConscious > 0)
+  {
+   picture.m_bHasCentre = true;
+   picture.m_vCentre = conscious * (1.0 / picture.m_iConscious);
+   picture.m_fAvgThreat = threat / picture.m_iConscious;
+   picture.m_fAvgSuppression = suppression / picture.m_iConscious;
+  }
+  else if (livingCount > 0)
+  {
+   picture.m_bHasCentre = true;
+   picture.m_vCentre = living * (1.0 / livingCount);
+  }
   Faction squadFaction = picture.m_Group.GetFaction();
   foreach (BBB_SquadContact kept : before)
   {
@@ -183,15 +195,14 @@ class BBB_Squad
    bool down = !BBB.StillFighting(kept.m_Enemy) || BBB.Disarmed(kept.m_Enemy);
    if (down)
    {
-    // With kill confirmation on, a soldier who just dropped (dead or unconscious, not a known
-    // prisoner or verified corpse) stays in the squad picture briefly as unconfirmed so the
+    // With kill confirmation on, a soldier who just dropped (dead or unconscious, not a zombie,
+    // known prisoner or verified corpse) stays in the squad picture briefly as unconfirmed so the
     // squad maintains security instead of relaxing on the frame he fell.
-    if (!BBB_KillConfirm.On() || !ChimeraCharacter.Cast(kept.m_Enemy) || BBB_Morale.IsPrisoner(kept.m_Enemy) || BBB_KillConfirm.IsVerified(squadFaction, kept.m_Enemy)) continue;
+    if (!BBB_KillConfirm.On() || !ChimeraCharacter.Cast(kept.m_Enemy) || kept.m_bZombie || BBB_Zombies.Is(kept.m_Enemy) || BBB_Morale.IsPrisoner(kept.m_Enemy) || BBB_KillConfirm.IsVerified(squadFaction, kept.m_Enemy)) continue;
     if (!kept.m_bUnconfirmed)
     {
      float dropDist = 60.0;
      if (picture.m_bHasCentre) dropDist = vector.DistanceXZ(picture.m_vCentre, kept.m_vPos);
-     else if (livingCount > 0) dropDist = vector.DistanceXZ(living * (1.0 / livingCount), kept.m_vPos);
      kept.m_bUnconfirmed = true;
      kept.m_fDropHoldUntil = now + BBB_KillConfirm.HoldWindow(dropDist);
      BBB_KillConfirm.RecordDrop(picture.m_Group, kept.m_Enemy, kept.m_vPos, dropDist, dropDist >= BBB_KillConfirm.OBSCURED_M);
@@ -207,18 +218,6 @@ class BBB_Squad
    if (kept.m_fAge > MEMORY_S) continue;
    picture.m_Contacts.Insert(kept);
    byEnemy.Set(kept.m_Enemy, kept);
-  }
-  if (picture.m_iConscious > 0)
-  {
-   picture.m_bHasCentre = true;
-   picture.m_vCentre = conscious * (1.0 / picture.m_iConscious);
-   picture.m_fAvgThreat = threat / picture.m_iConscious;
-   picture.m_fAvgSuppression = suppression / picture.m_iConscious;
-  }
-  else if (livingCount > 0)
-  {
-   picture.m_bHasCentre = true;
-   picture.m_vCentre = living * (1.0 / livingCount);
   }
   foreach (BBB_SquadContact item : picture.m_Contacts)
   {
