@@ -423,7 +423,7 @@ class BBB_FireManeuver
    // Do not interrupt an executing native danger or FF request, an active blast/armour
    // prone hold, or oscillate within the shared stance-rise cooldown.
    float nowMs = GetGame().GetWorld().GetWorldTime();
-   if (!utility.m_CombatMoveState.IsExecutingRequest() && nowMs >= utility.m_fBBBStanceRiseNext
+   if (utility.m_CombatMoveState && !utility.m_CombatMoveState.IsExecutingRequest() && nowMs >= utility.m_fBBBStanceRiseNext
     && !BBB_Threat.InExplosionReflex(utility.m_OwnerEntity)
     && !BBB_Armour.InAntiArmorJob(utility.m_OwnerEntity)
     && ExposeGeometry(utility))
@@ -1037,7 +1037,10 @@ modded class SCR_AICombatMoveState
  {
   int started;
   if (BBB_Perf.s_bOn) started = System.GetTickCount();
-  if (stance == ECharacterStance.PRONE && BBB_FireManeuver.ExposeGeometry(m_BBBFireOwner)) stance = ECharacterStance.CROUCH;
+  if (stance == ECharacterStance.PRONE && m_BBBFireOwner
+   && !BBB_Threat.InExplosionReflex(m_BBBFireOwner.m_OwnerEntity)
+   && !BBB_Armour.InAntiArmorJob(m_BBBFireOwner.m_OwnerEntity)
+   && BBB_FireManeuver.ExposeGeometry(m_BBBFireOwner)) stance = ECharacterStance.CROUCH;
   if (BBB_Perf.s_bOn)
   {
    int elapsed = System.GetTickCount() - started;

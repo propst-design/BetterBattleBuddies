@@ -44,7 +44,8 @@ class BBB_RoadExit
   if (now < utility.m_fBBBRoadExitNext || state.IsExecutingRequest() || state.m_bInCover || state.m_fTimerStopped_s < STOPPED_S) return false;
   if (targetDistance < SCR_AICombatMoveUtils.CLOSE_RANGE_COMBAT_DIST) return false;
   if (utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || utility.m_AIInfo.HasUnitState(EUnitState.UNCONSCIOUS)) return false;
-  if (utility.m_BBBFireJob || BBB_Claims.Committed(utility.m_OwnerEntity) || BBB_OrderIntent.Blocks(utility)) return false;
+  if (utility.m_BBBFireJob || utility.m_bBBBHoldGround || utility.BBBTacticHolds() || BBB_Claims.Committed(utility.m_OwnerEntity) || BBB_OrderIntent.Blocks(utility)) return false;
+  if (BBB_Buildings.BuildingAt(utility) != null || BBB_Threat.InExplosionReflex(utility.m_OwnerEntity) || BBB_Armour.InAntiArmorJob(utility.m_OwnerEntity)) return false;
   if (BBB.PlayerOf(utility.m_OwnerEntity) != 0) return false;
   int started;
   if (BBB_Perf.s_bOn) started = System.GetTickCount();

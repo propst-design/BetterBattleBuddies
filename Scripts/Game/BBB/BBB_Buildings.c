@@ -125,7 +125,11 @@ class BBB_Buildings
  static bool HoldsIndoors(SCR_AIUtilityComponent utility, vector target, bool seen, bool stayBlind = false)
  {
   Read();
-  if (!s_bHold || !BBB.IsStarted() || !utility || !utility.m_OwnerEntity || utility.m_BBBFireJob) return false;
+  if (!s_bHold || !BBB.IsStarted() || !utility || !utility.m_OwnerEntity || utility.m_BBBFireJob)
+  {
+   if (utility && utility.m_CombatMoveState) utility.m_CombatMoveState.m_BBBIndoorOwner = null;
+   return false;
+  }
   int started;
   if (BBB_Perf.s_bOn) started = System.GetTickCount();
   bool hold = DecideHold(utility, target, seen, stayBlind);
@@ -528,7 +532,7 @@ class BBB_Buildings
      }
     }
     if (job.m_Arrived > 0) valid = now - job.m_Arrived < 12000 && vector.Distance(here, job.m_Position) < 4;
-    else valid = (job.m_Action.GetActionState() != EAIActionState.RUNNING || now - job.m_Progress < 8000) && now - job.m_Started < 30000 && job.m_Action.GetActionState() != EAIActionState.FAILED;
+    else valid = job.m_Action && job.m_Action.GetActionState() != EAIActionState.FAILED && job.m_Action.GetActionState() != EAIActionState.COMPLETED && (job.m_Action.GetActionState() != EAIActionState.RUNNING || now - job.m_Progress < 8000) && now - job.m_Started < 30000;
    }
    if (!valid)
    {
@@ -582,7 +586,10 @@ modded class SCR_AICombatMoveState
   // Only right after this combat-move node decided to hold him indoors.
   SCR_AIUtilityComponent owner;
   if (GetGame().GetWorld().GetWorldTime() - m_fBBBIndoorAt < 4000) owner = m_BBBIndoorOwner;
-  if (owner && owner.m_OwnerEntity && stance != ECharacterStance.STAND)
+  if (owner && owner.m_OwnerEntity && stance != ECharacterStance.STAND
+   && !BBB_Threat.InExplosionReflex(owner.m_OwnerEntity)
+   && !BBB_Armour.InAntiArmorJob(owner.m_OwnerEntity)
+   && BBB_Buildings.BuildingAt(owner) != null)
   {
    BaseTarget target;
    SCR_AICombatComponent combat = owner.m_CombatComponent;

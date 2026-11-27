@@ -42,6 +42,7 @@ class BBB_ExplosionReflexJob : Managed
 	SCR_AIUtilityComponent m_Utility;
 	ref SCR_AICharacterStanceSetting m_StanceSetting;
 	ECharacterStance m_eTargetStance;
+	ECharacterStance m_eAppliedStance;
 	float m_fFireAtMs;
 	float m_fEndMs;
 	float m_fDistance;
@@ -405,11 +406,12 @@ class BBB_Threat
 		if (current == ECharacterStance.PRONE) target = ECharacterStance.PRONE;
 		bool firstApply = job.m_StanceSetting == null;
 		SCR_AICharacterSettingsComponent settings = job.m_Utility.m_SettingsComponent;
-		if (settings && (firstApply || job.m_eTargetStance != target))
+		if (settings && (firstApply || job.m_eAppliedStance != target))
 		{
 			if (job.m_StanceSetting) settings.RemoveSetting(job.m_StanceSetting);
 			job.m_StanceSetting = SCR_AICharacterStanceSetting.Create(SCR_EAISettingOrigin.BEHAVIOR, SCR_EAIBehaviorCause.ALWAYS, target);
 			settings.AddCharacterSetting(job.m_StanceSetting, false);
+			job.m_eAppliedStance = target;
 		}
 		job.m_eTargetStance = target;
 		if (firstApply)
