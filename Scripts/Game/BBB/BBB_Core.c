@@ -243,6 +243,7 @@ class BBB
   BBB_DoorUnstick.Read();
   BBB_Drive.Read();
   BBB_HotAI.InitStatics();
+  BBB_HotAI.Read();
   BBB_ContactRelay.Read();
   BBB_Claims.Read();
   BBB_Teams.Read();

@@ -190,10 +190,10 @@ class BBB_Teams
   return false;
  }
 
- // On foot, awake, AI-driven.
+ // On foot, awake, AI-driven, not a surrendered prisoner.
  static bool Usable(ChimeraCharacter soldier)
  {
-  if (!BBB.IsConscious(soldier) || soldier.IsInVehicle() || BBB.PlayerOf(soldier)) return false;
+  if (!BBB.IsConscious(soldier) || soldier.IsInVehicle() || BBB.PlayerOf(soldier) || BBB_Morale.IsPrisoner(soldier)) return false;
   CharacterControllerComponent controller = soldier.GetCharacterController();
   if (!controller || controller.IsPlayerControlled()) return false;
   CompartmentAccessComponent access = soldier.GetCompartmentAccessComponent();
@@ -201,12 +201,14 @@ class BBB_Teams
   return !s_aVanilla.Contains(soldier);
  }
 
- // The assistant is his own to send: on foot and AI-driven, no player/GM order, his squad not
- // withdrawing, not dragging, treating or rearming.
+ // The assistant is his own to send: on foot and AI-driven, still in the pair's group,
+ // no player/GM order, his squad not withdrawing, not dragging, treating or rearming.
  static bool Free(BBB_Pair pair, SCR_AIUtilityComponent utility)
  {
   ChimeraCharacter assistant = pair.m_Assistant;
   if (!assistant || !utility || !Usable(assistant) || BBB_OrderIntent.Blocks(utility) || BBB_Morale.IsWithdrawing(pair.m_Group)) return false;
+  AIAgent agent = utility.GetAIAgent();
+  if (!agent || SCR_AIGroup.Cast(agent.GetParentGroup()) != pair.m_Group) return false;
   return !BBB_Drag.Busy(assistant) && !BBB_Medic.s_mGoingTo.Contains(assistant) && !BBB_Rearm.InRearmAction(assistant);
  }
 

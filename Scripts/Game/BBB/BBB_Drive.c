@@ -205,6 +205,7 @@ class BBB_Drive : Managed
  static const float ARRIVE_M = 15;
  static const float SHIFT_COOLDOWN_MS = 1500;
 
+ protected static int s_iRead;
  protected static ref array<ref BBB_Drive> s_Active;
  protected static ref map<SCR_AIGroup, float> s_Pending;  // move seen at (world ms): waiting for the game's plan
  protected static ref map<SCR_AIGroup, float> s_Rest;     // not before (world ms)
@@ -226,6 +227,7 @@ class BBB_Drive : Managed
 
  static void Read()
  {
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
   s_bOn = false;
   if (BBB_Settings.Get("bbbDriver", value)) s_bOn = value == "1";

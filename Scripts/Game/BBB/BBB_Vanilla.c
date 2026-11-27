@@ -72,12 +72,12 @@ class BBB_Vanilla
 
  static void StartIfAlone()
  {
+  if (BBB.IsStarted()) return;
   if (!s_bFrameSource)
   {
    s_bFrameSource = true;
    GetGame().GetCallqueue().CallLater(BBB.Frame, 0, true);
   }
-  if (BBB.IsStarted()) return;
   BBB.Start(new BBB_VanillaHooks());
   Print("[BBB] started on its own (vanilla adapter: all AI groups)");
  }

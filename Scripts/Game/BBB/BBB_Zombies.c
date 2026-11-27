@@ -291,7 +291,10 @@ class BBB_Zombies
   foreach (AIActionBase action : actions)
   {
    SCR_AIHealActivity heal = SCR_AIHealActivity.Cast(action);
-   if (!heal || heal.m_EntityToHeal.m_Value != casualty) continue;
+   if (!heal || heal.GetRemoveAction()) continue;
+   EAIActionState state = heal.GetActionState();
+   if (state == EAIActionState.FAILED || state == EAIActionState.COMPLETED) continue;
+   if (heal.m_EntityToHeal.m_Value != casualty) continue;
    heal.SetActionIsSuspended(false);
    return "the squad's heal job picks a medic again";
   }

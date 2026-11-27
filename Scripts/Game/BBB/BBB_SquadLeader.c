@@ -328,7 +328,9 @@ class BBB_SquadLeader
   {
    if (other && share >= KEEP_SHARE && picture.m_iConscious >= MIN_SPLIT_MEN)
    {
-    // Same split while its men are still there; redraw the teams when men are lost.
+    // Prune dead/mounted/unusable agents even if conscious count stayed the same; redraw when count changed.
+    for (int s = orders.m_aSecond.Count() - 1; s >= 0; s--)
+     if (!Able(orders.m_aSecond[s])) orders.m_aSecond.Remove(s);
     if (picture.m_iConscious != orders.m_iConscious) Teams(orders, picture);
     return;
    }
@@ -522,6 +524,7 @@ class BBB_SquadLeader
   SCR_AIGroup group = SCR_AIGroup.Cast(agent.GetParentGroup());
   BBB_SquadOrders orders = s_mOrders.Get(group);
   if (!orders || !orders.m_bSplit || !orders.m_Other || !orders.m_Main || !orders.m_aSecond.Contains(agent)) return false;
+  if (!utility.m_AIInfo || utility.m_AIInfo.HasUnitState(EUnitState.IN_VEHICLE) || BBB_Claims.Committed(utility.m_OwnerEntity)) return false;
   if (!orders.m_Main.m_aMen.Contains(target.GetTargetEntity()) || orders.m_Other.m_aMen.Contains(target.GetTargetEntity())) return false;
   if (target.GetDistance() < SELF_M || UnderFire(utility) || BBB_OrderIntent.Blocks(utility)) return false;
   utility.m_bBBBSectorHold = true;
@@ -543,9 +546,10 @@ class BBB_SquadLeader
   SCR_AIGroup group = SCR_AIGroup.Cast(agent.GetParentGroup());
   BBB_SquadOrders orders = s_mOrders.Get(group);
   if (!orders || !orders.m_Main) return false; // not a squad in contact
+  ChimeraCharacter ch = ChimeraCharacter.Cast(man);
   if (job == JOB_RESCUE && man == group.GetLeaderEntity()) why = "the leader runs the fight";
   else if (job == JOB_RESCUE && MachineGunner(utility)) why = "the machine gunner holds the base of fire";
-  else if (orders.m_bArmour && utility.m_CombatComponent.m_WeaponTargetSelector && utility.m_CombatComponent.m_WeaponTargetSelector.HasWeaponOfType(EWeaponType.WT_ROCKETLAUNCHER, false)) why = "AT gunner, enemy armour about";
+  else if (orders.m_bArmour && ch && BBB_Armour.HasOperationalAT(ch)) why = "AT gunner, enemy armour about";
   else if (orders.m_bSplit && orders.m_aSecond.Contains(agent) && AbleSecond(orders) <= SECOND_MIN) why = "needed on the second group";
   return !why.IsEmpty();
  }

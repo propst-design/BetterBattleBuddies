@@ -400,7 +400,8 @@ class BBB_Medic
   throwerUtil.AddAction(behavior);
 
   s_mSmokeTime.Set(casualty, now);
-  BBB_Smoke.Plan(thrower, smokePos, "medic", SMOKE_BLOOM_MS / 1000.0, (SMOKE_DURATION_MS - SMOKE_BLOOM_MS) / 1000.0, SMOKE_RADIUS);
+  BBB_SmokeCloud cloud = BBB_Smoke.Plan(thrower, smokePos, "medic", SMOKE_BLOOM_MS / 1000.0, (SMOKE_DURATION_MS - SMOKE_BLOOM_MS) / 1000.0, SMOKE_RADIUS);
+  if (cloud) cloud.m_Casualty = casualty;
   StartWatching();
   PrintFormat("[BBB] MEDIC SMOKE %1 ordered to throw smoke to %2 for casualty %3", Name(thrower), smokePos, Name(casualty));
   return true;
@@ -743,7 +744,9 @@ modded class SCR_AIFindMedic
    if (info.HasUnitState(EUnitState.UNCONSCIOUS)) continue;
    if (excludeDrivers && info.HasUnitState(EUnitState.PILOT)) continue;
    if (info.GetAIState() != EUnitAIState.AVAILABLE) continue;
-   if (BBB.PlayerOf(man)) continue; // a player playing medic isn't sent: his agent doesn't run
+   if (BBB.PlayerOf(man) || BBB_Drag.Busy(man) || BBB_Claims.Committed(man)) continue; // a player, dragger, or committed specialist isn't sent
+   SCR_AIUtilityComponent memberUtil = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
+   if (memberUtil && BBB_OrderIntent.Blocks(memberUtil)) continue;
    if (BBB_Medic.HealingItems(man) < BBB_Medic.MEDIC_ITEMS) continue;
    float distance = vector.Distance(man.GetOrigin(), entToHeal.GetOrigin());
    if (distance > bestDistance) continue;

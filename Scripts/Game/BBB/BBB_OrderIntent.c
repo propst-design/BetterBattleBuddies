@@ -280,6 +280,7 @@ class BBB_HostIntent
 class BBB_OrderLeash
 {
  static bool s_bOn = true;
+ protected static int s_iRead;
  static const float ROUTE_RADIUS = 150;
  static const float DEFEND_RADIUS = 35;
  static const float QUIET_MS = 75000;
@@ -292,6 +293,7 @@ class BBB_OrderLeash
 
  static void Read()
  {
+  if (!BBB_Settings.Due(s_iRead)) return;
   string value;
   s_bOn = !(BBB_Settings.Get("bbbOrderLeash", value) && value == "0");
  }
@@ -310,7 +312,7 @@ class BBB_OrderLeash
   SCR_AIWaypoint scripted = SCR_AIWaypoint.Cast(waypoint);
   if (!scripted || scripted.GetPriorityLevel() >= SCR_AIActionBase.PRIORITY_LEVEL_PLAYER) return false;
   int kind = BBB_WaypointKind.Of(waypoint);
-  return kind == BBB_WaypointKind.MOVE || kind == BBB_WaypointKind.PATROL || kind == BBB_WaypointKind.SEARCH || kind == BBB_WaypointKind.DEFEND;
+  return kind == BBB_WaypointKind.MOVE || kind == BBB_WaypointKind.PATROL || kind == BBB_WaypointKind.SEARCH || kind == BBB_WaypointKind.DEFEND || kind == BBB_WaypointKind.ATTACK;
  }
 
  static bool SameOrder(SCR_AIGroup group, BBB_OrderLease lease)

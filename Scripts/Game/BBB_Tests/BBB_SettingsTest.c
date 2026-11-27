@@ -15,7 +15,7 @@ class BBB_SettingsTest
  static ref BBB_SettingsTest s_Test;
  protected int m_iChecks;
  protected int m_iFailures;
- static const int EXPECTED = 70;
+ static const int EXPECTED = 82;
  static const string FILE = "$profile:BBB/Presets/BBB_settings_test.json";
 
  static void MaybeStart()
@@ -61,6 +61,9 @@ class BBB_SettingsTest
   BBB_ContactRelay.Read();
   BBB_Flares.Read();
   BBB_HotAI.Read();
+  BBB_KillConfirm.Read();
+  BBB_Deadcheck.Read();
+  BBB_SurrenderPose.Read();
  }
 
  // A rifleman spawned now: the skill and spotting factor his combat component starts with.
@@ -118,6 +121,9 @@ class BBB_SettingsTest
   Near("default-rearm-radius", BBB_Rearm.s_fSearchRadius, BBB_Settings.Find("bbbRearmRadius").m_sDefault.ToFloat());
   Check("default-tactic-fire-off", !BBB_Tactic.s_bFire);
   Check("default-smoke-on", BBB_Smoke.s_bOn);
+  Check("default-killconfirm-on", BBB_KillConfirm.s_bOn);
+  Check("default-deadcheck-on", BBB_Deadcheck.s_bOn && BBB_Deadcheck.s_iPolicy == BBB_Deadcheck.POLICY_MIXED);
+  Check("default-surrenderpose-ace-on", BBB_SurrenderPose.s_bAceOn);
   Check("default-hotai-off", !BBB_HotAI.s_bOn && !BBB_HotAI.s_bVehicles && !BBB_HotAI.s_bTrace, string.Format("spotting=%1 vehicles=%2 trace=%3", BBB_HotAI.s_bOn, BBB_HotAI.s_bVehicles, BBB_HotAI.s_bTrace));
   Near("cli-arc-without-preset", BBB_StaticWeapons.s_fMaxArcDeg, 120);
   int skill0;
@@ -144,7 +150,10 @@ class BBB_SettingsTest
   preset.SetValue(BBB_Settings.Find("bbbAIPerception"), "2");
   preset.SetValue(BBB_Settings.Find("bbbHotAI"), "1");
   preset.SetValue(BBB_Settings.Find("bbbHotVehicles"), "1");
-  Check("preset-default-not-stored", preset.m_Values.Count() == 15, preset.m_Values.Count().ToString());
+  preset.SetValue(BBB_Settings.Find("bbbKillConfirm"), "0");
+  preset.SetValue(BBB_Settings.Find("bbbDeadcheckPolicy"), "capture");
+  preset.SetValue(BBB_Settings.Find("bbbMoraleSurrenderAce"), "0");
+  Check("preset-default-not-stored", preset.m_Values.Count() == 18, preset.m_Values.Count().ToString());
   Check("preset-saved", preset.Save() && FileIO.FileExists(FILE), preset.m_sFile);
   Check("preset-listed", BBB_Preset.Find("bbb_settings_test") != null);
   Mission("BBB settings test");
@@ -162,6 +171,9 @@ class BBB_SettingsTest
   Near("preset-morale-break", BBB_Morale.s_fBreakScore, 0.9);
   Near("preset-flares-cooldown", BBB_Flares.s_fSquadCooldownMs, 300000);
   Check("preset-hotai-on", BBB_HotAI.s_bOn && BBB_HotAI.s_bVehicles);
+  Check("preset-killconfirm-off", !BBB_KillConfirm.s_bOn);
+  Check("preset-deadcheck-capture", BBB_Deadcheck.s_bOn && BBB_Deadcheck.s_iPolicy == BBB_Deadcheck.POLICY_CAPTURE);
+  Check("preset-surrenderpose-ace-off", !BBB_SurrenderPose.s_bAceOn);
   // A Game Master switches spotting off and vehicles stays as the preset has it.
   BBB_HotAI.SetByGameMaster(false, false);
   Check("gm-switch", !BBB_HotAI.s_bOn && BBB_HotAI.s_bVehicles && BBB_HotAI.s_iGMSpotting == 0 && BBB_HotAI.s_iGMVehicles == -1);
@@ -182,6 +194,9 @@ class BBB_SettingsTest
   Check("vanilla-binoculars", !BBB_Aim.s_bBinoculars);
   Check("vanilla-fire-maneuver-off", !BBB_FireManeuver.s_bOn);
   Check("vanilla-buildings-off", !BBB_Buildings.s_bOn && !BBB_Buildings.s_bHold);
+  Check("vanilla-killconfirm-off", !BBB_KillConfirm.s_bOn);
+  Check("vanilla-deadcheck-off", !BBB_Deadcheck.s_bOn);
+  Check("vanilla-surrenderpose-ace-off", !BBB_SurrenderPose.s_bAceOn);
   bool allOff = true;
   BBB_Preset plain = BBB_Preset.Find(BBB_Settings.VANILLA_PRESET);
   foreach (BBB_Setting setting : BBB_Settings.All())
@@ -204,6 +219,9 @@ class BBB_SettingsTest
   Near("restored-relay-voice", BBB_ContactRelay.s_fVoiceM, 60);
   Near("restored-morale-break", BBB_Morale.s_fBreakScore, 0.7);
   Check("restored-hotai-off-gm-forgotten", !BBB_HotAI.s_bOn && !BBB_HotAI.s_bVehicles && BBB_HotAI.s_iGMSpotting == -1);
+  Check("restored-killconfirm-on", BBB_KillConfirm.s_bOn);
+  Check("restored-deadcheck-on", BBB_Deadcheck.s_bOn && BBB_Deadcheck.s_iPolicy == BBB_Deadcheck.POLICY_MIXED);
+  Check("restored-surrenderpose-ace-on", BBB_SurrenderPose.s_bAceOn);
   Soldier(skill, perception);
   Check("spawn-restored-skill", skill == skill0, skill.ToString());
   Near("spawn-restored-perception", perception, 1);

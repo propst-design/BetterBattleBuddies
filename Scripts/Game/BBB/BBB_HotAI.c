@@ -137,7 +137,7 @@ class BBB_HotAI
 		if (BBB_Settings.Get("bbbHotTrace", value)) s_bTrace = value == "1";
 		if (BBB_Settings.Get("bbbHotGunnerFire", value)) s_bGunnerFire = value == "1";
 		if (BBB_Settings.Get("bbbHotMainGun", value)) s_bMainGun = value == "1";
-		if (!s_bTraceLoop && Replication.IsServer())
+		if (!s_bTraceLoop && Replication.IsServer() && BBB.IsStarted())
 		{
 			s_bTraceLoop = true;
 			GetGame().GetCallqueue().CallLater(Loop, LOOP_MS, true);

@@ -33,6 +33,7 @@ class BBB_SmokeCloud : Managed
 	IEntity m_Thrower;
 	ref array<IEntity> m_aCarried; // the thrower's smoke grenades when the throw was ordered
 	IEntity m_Grenade;
+	IEntity m_Casualty;
 	float m_fBloomS;
 	float m_fDurationS;
 	float m_fGiveUpMs;
@@ -481,6 +482,7 @@ class BBB_Smoke
 				if (nowMs < cloud.m_fGiveUpMs && StillThrowing(cloud.m_Thrower)) return true;
 				s_iSmokeFailed++;
 				if (cloud.m_Group) s_mGroupCooldown.Remove(cloud.m_Group);
+				if (cloud.m_Casualty && BBB_Medic.s_mSmokeTime) BBB_Medic.s_mSmokeTime.Remove(cloud.m_Casualty);
 				PrintFormat("[BBB] SMOKE: throw to %1 never made (reason=%2): no smoke counted", cloud.m_vPosition, cloud.m_sReason);
 				return false;
 			}
